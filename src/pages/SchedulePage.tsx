@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { useStudy } from '@/contexts/StudyContext';
-import { ScheduleView } from '@/types/study';
-import { CheckCircle2, Circle, Plus, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react';
+import { ScheduleView, ScheduleEntry } from '@/types/study';
+import { CheckCircle2, Circle, Plus, ChevronLeft, ChevronRight, MessageSquare, ArrowRightLeft, Trash2, MoveRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -27,7 +29,7 @@ function formatMin(m: number) { const h = Math.floor(m / 60); return h > 0 ? `${
 export default function SchedulePage() {
   const [view, setView] = useState<ScheduleView>('weekly');
   const [currentDate, setCurrentDate] = useState(new Date());
-  const { data, getSubject, getScheduleForDate, toggleScheduleComplete, addScheduleEntry, deleteScheduleEntry, getTotalMinutesForDate, addNote } = useStudy();
+  const { data, getSubject, getScheduleForDate, toggleScheduleComplete, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry, getTotalMinutesForDate, addNote } = useStudy();
 
   const [addDialog, setAddDialog] = useState(false);
   const [addDate, setAddDate] = useState('');
@@ -37,6 +39,16 @@ export default function SchedulePage() {
   const [noteDialog, setNoteDialog] = useState(false);
   const [noteDate, setNoteDate] = useState('');
   const [noteContent, setNoteContent] = useState('');
+
+  // Move entry dialog
+  const [moveDialog, setMoveDialog] = useState(false);
+  const [moveEntry, setMoveEntry] = useState<ScheduleEntry | null>(null);
+  const [moveTargetDate, setMoveTargetDate] = useState('');
+
+  // Change subject dialog
+  const [changeDialog, setChangeDialog] = useState(false);
+  const [changeEntry, setChangeEntry] = useState<ScheduleEntry | null>(null);
+  const [changeSubjectId, setChangeSubjectId] = useState('');
 
   const navigate = (dir: number) => {
     const d = new Date(currentDate);
@@ -63,6 +75,27 @@ export default function SchedulePage() {
     setNoteContent('');
   };
 
+  const handleMove = () => {
+    if (!moveEntry || !moveTargetDate) { toast.error('Selecione uma data'); return; }
+    updateScheduleEntry(moveEntry.id, { date: moveTargetDate });
+    toast.success('Matéria movida!');
+    setMoveDialog(false);
+    setMoveEntry(null);
+  };
+
+  const handleChangeSubject = () => {
+    if (!changeEntry || !changeSubjectId) { toast.error('Selecione uma matéria'); return; }
+    updateScheduleEntry(changeEntry.id, { subjectId: changeSubjectId });
+    toast.success('Matéria trocada!');
+    setChangeDialog(false);
+    setChangeEntry(null);
+  };
+
+  const handleRemoveEntry = (id: string) => {
+    deleteScheduleEntry(id);
+    toast.success('Matéria removida do dia');
+  };
+
   const openAddFor = (date: string) => {
     setAddDate(date);
     setAddSubjectId('');
@@ -74,6 +107,18 @@ export default function SchedulePage() {
     setNoteDate(date);
     setNoteContent('');
     setNoteDialog(true);
+  };
+
+  const openMoveFor = (entry: ScheduleEntry) => {
+    setMoveEntry(entry);
+    setMoveTargetDate('');
+    setMoveDialog(true);
+  };
+
+  const openChangeFor = (entry: ScheduleEntry) => {
+    setChangeEntry(entry);
+    setChangeSubjectId('');
+    setChangeDialog(true);
   };
 
   return (
@@ -102,8 +147,8 @@ export default function SchedulePage() {
         <Button variant="ghost" size="sm" onClick={() => setCurrentDate(new Date())}>Hoje</Button>
       </div>
 
-      {view === 'weekly' && <WeeklyView currentDate={currentDate} onAdd={openAddFor} onNote={openNoteFor} />}
-      {view === 'daily' && <DailyView date={fmt(currentDate)} onAdd={() => openAddFor(fmt(currentDate))} onNote={() => openNoteFor(fmt(currentDate))} />}
+      {view === 'weekly' && <WeeklyView currentDate={currentDate} onAdd={openAddFor} onNote={openNoteFor} onMove={openMoveFor} onChange={openChangeFor} onRemove={handleRemoveEntry} />}
+      {view === 'daily' && <DailyView date={fmt(currentDate)} onAdd={() => openAddFor(fmt(currentDate))} onNote={() => openNoteFor(fmt(currentDate))} onMove={openMoveFor} onChange={openChangeFor} onRemove={handleRemoveEntry} />}
       {view === 'monthly' && <MonthlyView currentDate={currentDate} onDayClick={(d) => { setCurrentDate(new Date(d + 'T12:00:00')); setView('daily'); }} />}
       {view === 'yearly' && <YearlyView year={currentDate.getFullYear()} />}
 
@@ -143,12 +188,71 @@ export default function SchedulePage() {
           <Button onClick={handleNote} className="w-full">Salvar</Button>
         </DialogContent>
       </Dialog>
+
+      {/* Move entry dialog */}
+      <Dialog open={moveDialog} onOpenChange={setMoveDialog}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle className="font-display">Mover para outro dia</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            {moveEntry && (
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-muted">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: getSubject(moveEntry.subjectId)?.color }} />
+                <span className="text-sm font-medium text-foreground">{getSubject(moveEntry.subjectId)?.name}</span>
+                <span className="text-xs text-muted-foreground ml-auto">{moveEntry.date}</span>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Nova data</Label>
+              <Input type="date" value={moveTargetDate} onChange={e => setMoveTargetDate(e.target.value)} />
+            </div>
+            <Button onClick={handleMove} className="w-full">
+              <MoveRight className="w-4 h-4 mr-2" />Mover
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change subject dialog */}
+      <Dialog open={changeDialog} onOpenChange={setChangeDialog}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle className="font-display">Trocar matéria</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            {changeEntry && (
+              <p className="text-sm text-muted-foreground">
+                Trocar <strong>{getSubject(changeEntry.subjectId)?.name}</strong> em {changeEntry.date}
+              </p>
+            )}
+            <Select value={changeSubjectId} onValueChange={setChangeSubjectId}>
+              <SelectTrigger><SelectValue placeholder="Nova matéria" /></SelectTrigger>
+              <SelectContent>
+                {data.subjects.filter(s => s.active).map(s => (
+                  <SelectItem key={s.id} value={s.id}>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+                      {s.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button onClick={handleChangeSubject} className="w-full">
+              <ArrowRightLeft className="w-4 h-4 mr-2" />Trocar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function WeeklyView({ currentDate, onAdd, onNote }: { currentDate: Date; onAdd: (d: string) => void; onNote: (d: string) => void }) {
-  const { getScheduleForDate, getSubject, toggleScheduleComplete, deleteScheduleEntry, getTotalMinutesForDate, data } = useStudy();
+interface EntryActionsProps {
+  onMove: (entry: ScheduleEntry) => void;
+  onChange: (entry: ScheduleEntry) => void;
+  onRemove: (id: string) => void;
+}
+
+function WeeklyView({ currentDate, onAdd, onNote, onMove, onChange, onRemove }: { currentDate: Date; onAdd: (d: string) => void; onNote: (d: string) => void } & EntryActionsProps) {
+  const { getScheduleForDate, getSubject, toggleScheduleComplete, getTotalMinutesForDate, data } = useStudy();
   const monday = getMonday(currentDate);
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(monday);
@@ -179,10 +283,10 @@ function WeeklyView({ currentDate, onAdd, onNote }: { currentDate: Date; onAdd: 
               {mins > 0 && <span className="text-[10px] text-muted-foreground">{formatMin(mins)}</span>}
             </div>
             <div className="space-y-1">
-              {main.map(e => <EntryChip key={e.id} entry={e} />)}
+              {main.map(e => <EntryChip key={e.id} entry={e} onMove={onMove} onChange={onChange} onRemove={onRemove} />)}
               {optional.length > 0 && (
                 <div className="border-t border-border/50 pt-1 mt-1">
-                  {optional.map(e => <EntryChip key={e.id} entry={e} />)}
+                  {optional.map(e => <EntryChip key={e.id} entry={e} onMove={onMove} onChange={onChange} onRemove={onRemove} />)}
                 </div>
               )}
             </div>
@@ -202,8 +306,8 @@ function WeeklyView({ currentDate, onAdd, onNote }: { currentDate: Date; onAdd: 
   );
 }
 
-function EntryChip({ entry }: { entry: any }) {
-  const { getSubject, toggleScheduleComplete, deleteScheduleEntry } = useStudy();
+function EntryChip({ entry, onMove, onChange, onRemove }: { entry: ScheduleEntry } & EntryActionsProps) {
+  const { getSubject, toggleScheduleComplete } = useStudy();
   const subj = getSubject(entry.subjectId);
   return (
     <div className={`flex items-center gap-1.5 group ${entry.optional ? 'opacity-70' : ''}`}>
@@ -213,15 +317,27 @@ function EntryChip({ entry }: { entry: any }) {
           : <Circle className="w-3.5 h-3.5 text-muted-foreground" />}
       </button>
       <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: subj?.color }} />
-      <span className={`text-xs truncate ${entry.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+      <span className={`text-xs truncate flex-1 ${entry.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
         {subj?.name}
       </span>
       {entry.optional && <span className="text-[8px] text-muted-foreground">opc</span>}
+      {/* Action buttons on hover */}
+      <div className="hidden group-hover:flex items-center gap-0.5 flex-shrink-0">
+        <button onClick={() => onMove(entry)} title="Mover para outro dia" className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground">
+          <MoveRight className="w-3 h-3" />
+        </button>
+        <button onClick={() => onChange(entry)} title="Trocar matéria" className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground">
+          <ArrowRightLeft className="w-3 h-3" />
+        </button>
+        <button onClick={() => onRemove(entry.id)} title="Remover" className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
+          <Trash2 className="w-3 h-3" />
+        </button>
+      </div>
     </div>
   );
 }
 
-function DailyView({ date, onAdd, onNote }: { date: string; onAdd: () => void; onNote: () => void }) {
+function DailyView({ date, onAdd, onNote, onMove, onChange, onRemove }: { date: string; onAdd: () => void; onNote: () => void } & EntryActionsProps) {
   const { getScheduleForDate, getSubject, toggleScheduleComplete, getTotalMinutesForDate, data } = useStudy();
   const entries = getScheduleForDate(date);
   const mins = getTotalMinutesForDate(date);
@@ -243,18 +359,36 @@ function DailyView({ date, onAdd, onNote }: { date: string; onAdd: () => void; o
         {mins > 0 && <p className="text-xs text-muted-foreground">Tempo estudado: {formatMin(mins)}</p>}
       </div>
 
+      {entries.length === 0 && (
+        <div className="glass-card p-8 text-center">
+          <p className="text-muted-foreground text-sm">Nenhuma matéria planejada para este dia.</p>
+          <Button variant="outline" size="sm" className="mt-3" onClick={onAdd}><Plus className="w-4 h-4 mr-1" />Adicionar matéria</Button>
+        </div>
+      )}
+
       {main.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Principais</h3>
           {main.map(e => {
             const s = getSubject(e.subjectId);
             return (
-              <div key={e.id} className="glass-card p-3 flex items-center gap-3">
+              <div key={e.id} className="glass-card p-3 flex items-center gap-3 group">
                 <button onClick={() => toggleScheduleComplete(e.id)}>
                   {e.completed ? <CheckCircle2 className="w-5 h-5 text-success" /> : <Circle className="w-5 h-5 text-muted-foreground" />}
                 </button>
                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: s?.color }} />
-                <span className={`text-sm font-medium ${e.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{s?.name}</span>
+                <span className={`text-sm font-medium flex-1 ${e.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{s?.name}</span>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => onMove(e)} title="Mover para outro dia" className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
+                    <MoveRight className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => onChange(e)} title="Trocar matéria" className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
+                    <ArrowRightLeft className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => onRemove(e.id)} title="Remover do dia" className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -267,23 +401,36 @@ function DailyView({ date, onAdd, onNote }: { date: string; onAdd: () => void; o
           {optional.map(e => {
             const s = getSubject(e.subjectId);
             return (
-              <div key={e.id} className="glass-card p-3 flex items-center gap-3 opacity-75">
+              <div key={e.id} className="glass-card p-3 flex items-center gap-3 opacity-75 group">
                 <button onClick={() => toggleScheduleComplete(e.id)}>
                   {e.completed ? <CheckCircle2 className="w-5 h-5 text-success" /> : <Circle className="w-5 h-5 text-muted-foreground" />}
                 </button>
                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: s?.color }} />
-                <span className={`text-sm ${e.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{s?.name}</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground ml-auto">opcional</span>
+                <span className={`text-sm flex-1 ${e.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{s?.name}</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">opcional</span>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => onMove(e)} title="Mover" className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
+                    <MoveRight className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => onChange(e)} title="Trocar" className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
+                    <ArrowRightLeft className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => onRemove(e.id)} title="Remover" className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             );
           })}
         </div>
       )}
 
-      <div className="flex gap-2">
-        <Button variant="outline" size="sm" onClick={onAdd}><Plus className="w-4 h-4 mr-1" />Matéria</Button>
-        <Button variant="outline" size="sm" onClick={onNote}><MessageSquare className="w-4 h-4 mr-1" />Nota</Button>
-      </div>
+      {entries.length > 0 && (
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={onAdd}><Plus className="w-4 h-4 mr-1" />Matéria</Button>
+          <Button variant="outline" size="sm" onClick={onNote}><MessageSquare className="w-4 h-4 mr-1" />Nota</Button>
+        </div>
+      )}
 
       {dayNotes.length > 0 && (
         <div className="space-y-2">
@@ -303,7 +450,7 @@ function MonthlyView({ currentDate, onDayClick }: { currentDate: Date; onDayClic
   const month = currentDate.getMonth();
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
-  const startOffset = (firstDay.getDay() + 6) % 7; // Monday start
+  const startOffset = (firstDay.getDay() + 6) % 7;
   const today = fmt(new Date());
 
   const days: (string | null)[] = Array(startOffset).fill(null);
