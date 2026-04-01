@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useStudy } from '@/contexts/StudyContext';
-import { Clock, BookOpen, CheckCircle2, TrendingUp, FileText, Calendar } from 'lucide-react';
+import { Clock, BookOpen, CheckCircle2, TrendingUp, FileText } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -33,7 +33,6 @@ export default function DashboardPage() {
   const completedToday = todaySchedule.filter(s => s.completed).length;
   const pendingToday = todaySchedule.filter(s => !s.completed && !s.optional);
 
-  // Most studied subject
   const subjectMinutes = useMemo(() => {
     const map: Record<string, number> = {};
     data.sessions.forEach(s => {
@@ -43,32 +42,30 @@ export default function DashboardPage() {
   }, [data.sessions]);
   const topSubject = subjectMinutes[0] ? getSubject(subjectMinutes[0][0]) : null;
 
-  // Weekly chart data
   const weekChartData = weekDates.map(d => ({
     day: new Date(d + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short' }),
     minutos: getTotalMinutesForDate(d),
   }));
 
-  // Pie data
   const pieData = subjectMinutes.slice(0, 6).map(([id, min]) => {
     const s = getSubject(id);
     return { name: s?.name || 'Outro', value: min, color: s?.color || '#ccc' };
   });
 
-  const recentNotes = data.notes.slice(-3).reverse();
+  const recentNotes = data.notes.slice(0, 3);
+  const displayName = user?.email?.split('@')[0] || 'Estudante';
 
   return (
     <div className="space-y-6 max-w-6xl">
       <div>
         <h1 className="text-2xl font-display font-bold text-foreground">
-          Olá, {user?.name?.split(' ')[0]} 👋
+          Olá, {displayName} 👋
         </h1>
         <p className="text-muted-foreground text-sm mt-1">
           {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
       </div>
 
-      {/* Stats cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard icon={<Clock className="w-5 h-5" />} label="Hoje" value={formatMin(todayMinutes)} color="primary" />
         <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Semana" value={formatMin(weekMinutes)} color="info" />
@@ -77,7 +74,6 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Weekly chart */}
         <div className="glass-card p-5">
           <h3 className="font-display font-semibold text-sm mb-4">Tempo por dia da semana</h3>
           <ResponsiveContainer width="100%" height={180}>
@@ -90,7 +86,6 @@ export default function DashboardPage() {
           </ResponsiveContainer>
         </div>
 
-        {/* Pie */}
         <div className="glass-card p-5">
           <h3 className="font-display font-semibold text-sm mb-4">Distribuição por matéria</h3>
           {pieData.length > 0 ? (
@@ -119,7 +114,6 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Pending */}
         <div className="glass-card p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-display font-semibold text-sm">Pendentes hoje</h3>
@@ -143,7 +137,6 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Notes */}
         <div className="glass-card p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-display font-semibold text-sm">Observações recentes</h3>
