@@ -42,6 +42,12 @@ export default function AuthPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {mode === 'signup' && (
+            <div className="space-y-2">
+              <Label htmlFor="name">Nome</Label>
+              <Input id="name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Seu nome" required />
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" required />
