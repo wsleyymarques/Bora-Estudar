@@ -56,7 +56,7 @@ export default function DashboardPage() {
   const displayName = user?.email?.split('@')[0] || 'Estudante';
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-5 sm:space-y-6 max-w-6xl">
       <div>
         <h1 className="text-2xl font-display font-bold text-foreground">
           Olá, {displayName} 👋
@@ -66,14 +66,14 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard icon={<Clock className="w-5 h-5" />} label="Hoje" value={formatMin(todayMinutes)} color="primary" />
         <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Semana" value={formatMin(weekMinutes)} color="info" />
         <StatCard icon={<CheckCircle2 className="w-5 h-5" />} label="Concluídas hoje" value={`${completedToday}/${todaySchedule.length}`} color="success" />
         <StatCard icon={<BookOpen className="w-5 h-5" />} label="Mais estudada" value={topSubject?.name || '—'} color="accent" />
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid gap-4 md:grid-cols-2 md:gap-6">
         <div className="glass-card p-5">
           <h3 className="font-display font-semibold text-sm mb-4">Tempo por dia da semana</h3>
           <ResponsiveContainer width="100%" height={180}>
@@ -89,7 +89,7 @@ export default function DashboardPage() {
         <div className="glass-card p-5">
           <h3 className="font-display font-semibold text-sm mb-4">Distribuição por matéria</h3>
           {pieData.length > 0 ? (
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
               <ResponsiveContainer width={140} height={140}>
                 <PieChart>
                   <Pie data={pieData} dataKey="value" cx="50%" cy="50%" innerRadius={35} outerRadius={60} paddingAngle={3}>
@@ -113,7 +113,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid gap-4 md:grid-cols-2 md:gap-6">
         <div className="glass-card p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-display font-semibold text-sm">Pendentes hoje</h3>

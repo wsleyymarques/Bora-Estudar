@@ -48,10 +48,10 @@ export default function HistoryPage() {
   }, [filtered]);
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-5 sm:space-y-6 max-w-3xl">
       <h1 className="text-2xl font-display font-bold text-foreground">Histórico</h1>
 
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
         <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
           {(['week', 'month', 'year', 'all'] as FilterPeriod[]).map(p => (
             <button key={p} onClick={() => setPeriod(p)}
@@ -61,7 +61,7 @@ export default function HistoryPage() {
           ))}
         </div>
         <Select value={subjectFilter} onValueChange={setSubjectFilter}>
-          <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-full sm:w-[220px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as matérias</SelectItem>
             {data.subjects.map(s => (
@@ -77,7 +77,7 @@ export default function HistoryPage() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <div className="glass-card p-4 text-center">
           <p className="text-2xl font-display font-bold text-foreground">{formatMin(totalMinutes)}</p>
           <p className="text-xs text-muted-foreground">Total estudado</p>

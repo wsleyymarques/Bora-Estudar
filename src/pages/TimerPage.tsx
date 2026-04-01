@@ -92,7 +92,7 @@ export default function TimerPage() {
   const recentSessions = data.sessions.filter(s => s.date === today).slice(-5).reverse();
 
   return (
-    <div className="space-y-6 max-w-lg mx-auto">
+    <div className="space-y-5 sm:space-y-6 max-w-lg mx-auto">
       <h1 className="text-2xl font-display font-bold text-foreground text-center">Timer de Estudo</h1>
 
       {/* Mode toggle */}
@@ -156,7 +156,7 @@ export default function TimerPage() {
         )}
 
         {/* Controls */}
-        <div className="flex items-center justify-center gap-3">
+        <div className="flex flex-wrap items-center justify-center gap-3">
           {!running ? (
             <Button onClick={start} size="lg" className="rounded-full w-14 h-14">
               <Play className="w-6 h-6" />
