@@ -1,23 +1,12 @@
 import React from 'react';
-import {
-  LayoutDashboard, Calendar, BookOpen, Timer, History, BarChart3, Settings, LogOut
-} from 'lucide-react';
+import { BookOpen, LogOut } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
+import { navigationItems } from '@/config/navigation';
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar,
 } from '@/components/ui/sidebar';
-
-const items = [
-  { title: 'Dashboard', url: '/', icon: LayoutDashboard },
-  { title: 'Cronograma', url: '/schedule', icon: Calendar },
-  { title: 'Matérias', url: '/subjects', icon: BookOpen },
-  { title: 'Timer', url: '/timer', icon: Timer },
-  { title: 'Histórico', url: '/history', icon: History },
-  { title: 'Estatísticas', url: '/stats', icon: BarChart3 },
-  { title: 'Configurações', url: '/settings', icon: Settings },
-];
 
 export function AppSidebar() {
   const { state } = useSidebar();
@@ -25,7 +14,7 @@ export function AppSidebar() {
   const { logout, user } = useAuth();
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" className="hidden md:flex">
       <SidebarContent className="flex flex-col justify-between h-full">
         <div>
           <div className="p-4 flex items-center gap-3">
@@ -37,7 +26,7 @@ export function AppSidebar() {
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
-                {items.map((item) => (
+                {navigationItems.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild>
                       <NavLink to={item.url} end={item.url === '/'} className="hover:bg-sidebar-accent/50" activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium">

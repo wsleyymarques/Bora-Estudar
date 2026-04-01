@@ -48,13 +48,13 @@ export default function SubjectsPage() {
   const inactive = data.subjects.filter(s => !s.active);
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      <div className="flex items-center justify-between">
+    <div className="space-y-5 sm:space-y-6 max-w-3xl">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-display font-bold text-foreground">Matérias</h1>
           <p className="text-muted-foreground text-sm mt-1">{data.subjects.length} matérias cadastradas</p>
         </div>
-        <Button onClick={openNew} size="sm"><Plus className="w-4 h-4 mr-1" /> Nova</Button>
+        <Button onClick={openNew} size="sm" className="w-full sm:w-auto"><Plus className="w-4 h-4 mr-1" /> Nova</Button>
       </div>
 
       {active.length === 0 && inactive.length === 0 && (
@@ -105,7 +105,7 @@ export default function SubjectsPage() {
               <Label>Categoria (opcional)</Label>
               <Input value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} placeholder="Ex: Exatas" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Meta semanal (h)</Label>
                 <Input type="number" min={0} value={form.weeklyGoalHours} onChange={e => setForm({ ...form, weeklyGoalHours: +e.target.value })} />
@@ -129,7 +129,7 @@ export default function SubjectsPage() {
 
 function SubjectRow({ subject, onEdit, onDelete, onToggle }: { subject: Subject; onEdit: () => void; onDelete: () => void; onToggle: () => void }) {
   return (
-    <div className="glass-card p-3 flex items-center gap-3">
+    <div className="glass-card p-3 flex items-center gap-2 sm:gap-3">
       <GripVertical className="w-4 h-4 text-muted-foreground/40 cursor-grab" />
       <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: subject.color }} />
       <div className="flex-1 min-w-0">
