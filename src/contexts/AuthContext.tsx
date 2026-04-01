@@ -1,62 +1,57 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-}
+import { supabase } from '@/integrations/supabase/client';
+import { User, Session } from '@supabase/supabase-js';
 
 interface AuthContextType {
   user: User | null;
+  session: Session | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
-  signup: (name: string, email: string, password: string) => Promise<boolean>;
-  logout: () => void;
+  login: (email: string, password: string) => Promise<{ error: string | null }>;
+  signup: (email: string, password: string) => Promise<{ error: string | null }>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem('studytrack_user');
-    if (stored) setUser(JSON.parse(stored));
-    setLoading(false);
+    // Set up auth state listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    // THEN check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const login = async (email: string, password: string) => {
-    const users = JSON.parse(localStorage.getItem('studytrack_users') || '[]');
-    const found = users.find((u: any) => u.email === email && u.password === password);
-    if (found) {
-      const u = { id: found.id, name: found.name, email: found.email };
-      setUser(u);
-      localStorage.setItem('studytrack_user', JSON.stringify(u));
-      return true;
-    }
-    return false;
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return { error: error?.message ?? null };
   };
 
-  const signup = async (name: string, email: string, password: string) => {
-    const users = JSON.parse(localStorage.getItem('studytrack_users') || '[]');
-    if (users.find((u: any) => u.email === email)) return false;
-    const newUser = { id: crypto.randomUUID(), name, email, password };
-    users.push(newUser);
-    localStorage.setItem('studytrack_users', JSON.stringify(users));
-    const u = { id: newUser.id, name, email };
-    setUser(u);
-    localStorage.setItem('studytrack_user', JSON.stringify(u));
-    return true;
+  const signup = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signUp({ email, password });
+    return { error: error?.message ?? null };
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('studytrack_user');
+  const logout = async () => {
+    await supabase.auth.signOut();
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, session, loading, login, signup, logout }}>
       {children}
     </AuthContext.Provider>
   );

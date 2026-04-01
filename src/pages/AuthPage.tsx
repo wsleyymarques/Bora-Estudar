@@ -8,7 +8,6 @@ import { toast } from 'sonner';
 
 export default function AuthPage() {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,13 +17,12 @@ export default function AuthPage() {
     e.preventDefault();
     setLoading(true);
     if (mode === 'login') {
-      const ok = await login(email, password);
-      if (!ok) toast.error('Email ou senha incorretos');
+      const { error } = await login(email, password);
+      if (error) toast.error(error);
     } else {
-      if (!name.trim()) { toast.error('Preencha seu nome'); setLoading(false); return; }
-      const ok = await signup(name, email, password);
-      if (!ok) toast.error('Este email já está cadastrado');
-      else toast.success('Conta criada com sucesso!');
+      const { error } = await signup(email, password);
+      if (error) toast.error(error);
+      else toast.success('Conta criada! Verifique seu email se necessário.');
     }
     setLoading(false);
   };
@@ -43,19 +41,13 @@ export default function AuthPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {mode === 'signup' && (
-            <div className="space-y-2">
-              <Label htmlFor="name">Nome</Label>
-              <Input id="name" value={name} onChange={e => setName(e.target.value)} placeholder="Seu nome" required />
-            </div>
-          )}
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" required />
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Senha</Label>
-            <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required minLength={4} />
+            <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required minLength={6} />
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
             {mode === 'login' ? 'Entrar' : 'Criar conta'}
