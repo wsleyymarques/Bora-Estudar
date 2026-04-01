@@ -21,7 +21,7 @@ export default function AuthPage() {
       const { error } = await login(email, password);
       if (error) toast.error(error);
     } else {
-      const { error } = await signup(email, password);
+      const { error } = await signup(email, password, name);
       if (error) toast.error(error);
       else toast.success('Conta criada! Verifique seu email se necessário.');
     }
