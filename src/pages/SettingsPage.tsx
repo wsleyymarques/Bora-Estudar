@@ -16,7 +16,7 @@ export default function SettingsPage() {
             <User className="w-6 h-6 text-primary" />
           </div>
           <div>
-            <p className="font-medium text-foreground">{user?.name}</p>
+            <p className="font-medium text-foreground">{user?.email?.split('@')[0]}</p>
             <p className="text-sm text-muted-foreground">{user?.email}</p>
           </div>
         </div>
