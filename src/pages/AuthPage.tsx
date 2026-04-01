@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 
 export default function AuthPage() {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,7 +21,7 @@ export default function AuthPage() {
       const { error } = await login(email, password);
       if (error) toast.error(error);
     } else {
-      const { error } = await signup(email, password);
+      const { error } = await signup(email, password, name);
       if (error) toast.error(error);
       else toast.success('Conta criada! Verifique seu email se necessário.');
     }
@@ -41,6 +42,12 @@ export default function AuthPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {mode === 'signup' && (
+            <div className="space-y-2">
+              <Label htmlFor="name">Nome</Label>
+              <Input id="name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Seu nome" required />
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" required />
