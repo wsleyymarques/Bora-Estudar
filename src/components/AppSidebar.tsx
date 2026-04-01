@@ -53,7 +53,7 @@ export function AppSidebar() {
         </div>
         <div className="p-4 border-t border-sidebar-border">
           {!collapsed && user && (
-            <p className="text-xs text-muted-foreground mb-2 truncate">{user.name}</p>
+            <p className="text-xs text-muted-foreground mb-2 truncate">{user.email?.split('@')[0]}</p>
           )}
           <button
             onClick={logout}
