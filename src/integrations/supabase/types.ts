@@ -14,7 +14,169 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      notes: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          reference_date: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          reference_date: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          reference_date?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      schedule_entries: {
+        Row: {
+          completed: boolean
+          created_at: string
+          date: string
+          id: string
+          optional: boolean
+          sort_order: number
+          subject_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed?: boolean
+          created_at?: string
+          date: string
+          id?: string
+          optional?: boolean
+          sort_order?: number
+          subject_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed?: boolean
+          created_at?: string
+          date?: string
+          id?: string
+          optional?: boolean
+          sort_order?: number
+          subject_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedule_entries_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      study_sessions: {
+        Row: {
+          created_at: string
+          date: string
+          duration_minutes: number
+          end_time: string | null
+          id: string
+          note: string | null
+          start_time: string
+          subject_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          duration_minutes?: number
+          end_time?: string | null
+          id?: string
+          note?: string | null
+          start_time: string
+          subject_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          duration_minutes?: number
+          end_time?: string | null
+          id?: string
+          note?: string | null
+          start_time?: string
+          subject_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_sessions_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subjects: {
+        Row: {
+          active: boolean
+          category: string | null
+          color: string
+          created_at: string
+          id: string
+          monthly_goal_hours: number
+          name: string
+          optional: boolean
+          sort_order: number
+          updated_at: string
+          user_id: string
+          weekly_goal_hours: number
+        }
+        Insert: {
+          active?: boolean
+          category?: string | null
+          color?: string
+          created_at?: string
+          id?: string
+          monthly_goal_hours?: number
+          name: string
+          optional?: boolean
+          sort_order?: number
+          updated_at?: string
+          user_id: string
+          weekly_goal_hours?: number
+        }
+        Update: {
+          active?: boolean
+          category?: string | null
+          color?: string
+          created_at?: string
+          id?: string
+          monthly_goal_hours?: number
+          name?: string
+          optional?: boolean
+          sort_order?: number
+          updated_at?: string
+          user_id?: string
+          weekly_goal_hours?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
