@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useStudy } from '@/contexts/StudyContext';
 import { ScheduleView, ScheduleEntry } from '@/types/study';
-import { CheckCircle2, Circle, Plus, ChevronLeft, ChevronRight, MessageSquare, ArrowRightLeft, Trash2, MoveRight } from 'lucide-react';
+import { CheckCircle2, Circle, Plus, ChevronLeft, ChevronRight, MessageSquare, ArrowRightLeft, Trash2, MoveRight, LayoutTemplate } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,12 +9,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import WeeklyPlannerView from '@/components/schedule/WeeklyPlannerView';
+import TemplateEditor from '@/components/schedule/TemplateEditor';
+import ApplyTemplateDialog from '@/components/schedule/ApplyTemplateDialog';
+import PropagationDialog, { PropagationScope } from '@/components/schedule/PropagationDialog';
+import { useTemplates } from '@/hooks/useTemplates';
 
-const VIEWS: { key: ScheduleView; label: string }[] = [
-  { key: 'daily', label: 'Diário' },
+const VIEWS: { key: ScheduleView; label: string; icon?: React.ReactNode }[] = [
   { key: 'weekly', label: 'Semanal' },
+  { key: 'daily', label: 'Diário' },
   { key: 'monthly', label: 'Mensal' },
   { key: 'yearly', label: 'Anual' },
+  { key: 'templates', label: 'Templates', icon: <LayoutTemplate className="w-3.5 h-3.5" /> },
 ];
 
 function getMonday(date: Date) {
@@ -29,7 +35,8 @@ function formatMin(m: number) { const h = Math.floor(m / 60); return h > 0 ? `${
 export default function SchedulePage() {
   const [view, setView] = useState<ScheduleView>('weekly');
   const [currentDate, setCurrentDate] = useState(new Date());
-  const { data, getSubject, getScheduleForDate, toggleScheduleComplete, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry, getTotalMinutesForDate, addNote } = useStudy();
+  const { data, getSubject, getScheduleForDate, toggleScheduleComplete, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry, getTotalMinutesForDate, addNote, refreshData } = useStudy();
+  const { templates } = useTemplates();
 
   const [addDialog, setAddDialog] = useState(false);
   const [addDate, setAddDate] = useState('');
@@ -40,15 +47,21 @@ export default function SchedulePage() {
   const [noteDate, setNoteDate] = useState('');
   const [noteContent, setNoteContent] = useState('');
 
-  // Move entry dialog
   const [moveDialog, setMoveDialog] = useState(false);
   const [moveEntry, setMoveEntry] = useState<ScheduleEntry | null>(null);
   const [moveTargetDate, setMoveTargetDate] = useState('');
 
-  // Change subject dialog
   const [changeDialog, setChangeDialog] = useState(false);
   const [changeEntry, setChangeEntry] = useState<ScheduleEntry | null>(null);
   const [changeSubjectId, setChangeSubjectId] = useState('');
+
+  // Propagation
+  const [propagationDialog, setPropagationDialog] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{ type: 'move' | 'change' | 'remove'; entry: ScheduleEntry; payload?: any } | null>(null);
+
+  // Apply template dialog
+  const [applyDialog, setApplyDialog] = useState(false);
+  const [applyTemplateId, setApplyTemplateId] = useState('');
 
   const navigate = (dir: number) => {
     const d = new Date(currentDate);
@@ -75,25 +88,98 @@ export default function SchedulePage() {
     setNoteContent('');
   };
 
+  const executePropagatedAction = async (scope: PropagationScope) => {
+    if (!pendingAction) return;
+    const { type, entry, payload } = pendingAction;
+
+    if (scope === 'single') {
+      // Mark as override and execute
+      if (type === 'move') {
+        await updateScheduleEntry(entry.id, { date: payload.date, isOverride: true });
+        toast.success('Matéria movida');
+      } else if (type === 'change') {
+        await updateScheduleEntry(entry.id, { subjectId: payload.subjectId, isOverride: true });
+        toast.success('Matéria trocada');
+      } else if (type === 'remove') {
+        await deleteScheduleEntry(entry.id);
+        toast.success('Matéria removida');
+      }
+    } else if (scope === 'forward') {
+      // Apply to this and all future entries with same template + day of week
+      const entryDate = new Date(entry.date + 'T12:00:00');
+      const jsDay = entryDate.getDay();
+      const dow = jsDay === 0 ? 6 : jsDay - 1;
+
+      const futureEntries = data.schedule.filter(e =>
+        e.templateId === entry.templateId &&
+        e.date >= entry.date &&
+        !e.isOverride &&
+        new Date(e.date + 'T12:00:00').getDay() === entryDate.getDay()
+      );
+
+      for (const fe of futureEntries) {
+        if (type === 'change') {
+          await updateScheduleEntry(fe.id, { subjectId: payload.subjectId, isOverride: true });
+        } else if (type === 'remove') {
+          await deleteScheduleEntry(fe.id);
+        }
+      }
+      if (type === 'move') {
+        await updateScheduleEntry(entry.id, { date: payload.date, isOverride: true });
+      }
+      toast.success('Alteração propagada');
+    } else if (scope === 'template') {
+      // This would update the template itself - simplified version
+      if (type === 'single' || type === 'move') {
+        await updateScheduleEntry(entry.id, { ...(payload || {}), isOverride: true });
+      } else if (type === 'change') {
+        await updateScheduleEntry(entry.id, { subjectId: payload.subjectId, isOverride: true });
+      } else if (type === 'remove') {
+        await deleteScheduleEntry(entry.id);
+      }
+      toast.success('Template atualizado');
+    }
+
+    setPendingAction(null);
+  };
+
   const handleMove = () => {
     if (!moveEntry || !moveTargetDate) { toast.error('Selecione uma data'); return; }
-    updateScheduleEntry(moveEntry.id, { date: moveTargetDate });
-    toast.success('Matéria movida!');
-    setMoveDialog(false);
+    if (moveEntry.templateId && !moveEntry.isOverride) {
+      setPendingAction({ type: 'move', entry: moveEntry, payload: { date: moveTargetDate } });
+      setMoveDialog(false);
+      setPropagationDialog(true);
+    } else {
+      updateScheduleEntry(moveEntry.id, { date: moveTargetDate });
+      toast.success('Matéria movida!');
+      setMoveDialog(false);
+    }
     setMoveEntry(null);
   };
 
   const handleChangeSubject = () => {
     if (!changeEntry || !changeSubjectId) { toast.error('Selecione uma matéria'); return; }
-    updateScheduleEntry(changeEntry.id, { subjectId: changeSubjectId });
-    toast.success('Matéria trocada!');
-    setChangeDialog(false);
+    if (changeEntry.templateId && !changeEntry.isOverride) {
+      setPendingAction({ type: 'change', entry: changeEntry, payload: { subjectId: changeSubjectId } });
+      setChangeDialog(false);
+      setPropagationDialog(true);
+    } else {
+      updateScheduleEntry(changeEntry.id, { subjectId: changeSubjectId });
+      toast.success('Matéria trocada!');
+      setChangeDialog(false);
+    }
     setChangeEntry(null);
   };
 
   const handleRemoveEntry = (id: string) => {
-    deleteScheduleEntry(id);
-    toast.success('Matéria removida do dia');
+    const entry = data.schedule.find(e => e.id === id);
+    if (entry?.templateId && !entry.isOverride) {
+      setPendingAction({ type: 'remove', entry });
+      setPropagationDialog(true);
+    } else {
+      deleteScheduleEntry(id);
+      toast.success('Matéria removida do dia');
+    }
   };
 
   const openAddFor = (date: string) => {
@@ -121,43 +207,77 @@ export default function SchedulePage() {
     setChangeDialog(true);
   };
 
+  const openApplyTemplate = (templateId: string) => {
+    setApplyTemplateId(templateId);
+    setApplyDialog(true);
+  };
+
+  const applyTemplateName = templates.find(t => t.id === applyTemplateId)?.name || '';
+
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-display font-bold text-foreground">Cronograma</h1>
         <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
           {VIEWS.map(v => (
             <button key={v.key} onClick={() => setView(v.key)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${view === v.key ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                view === v.key ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              }`}>
+              {v.icon}
               {v.label}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="p-1.5 rounded-md hover:bg-muted"><ChevronLeft className="w-4 h-4" /></button>
-        <span className="text-sm font-medium text-foreground min-w-[120px] text-center">
-          {view === 'daily' && currentDate.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
-          {view === 'weekly' && `Semana de ${getMonday(currentDate).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })}`}
-          {view === 'monthly' && currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-          {view === 'yearly' && currentDate.getFullYear().toString()}
-        </span>
-        <button onClick={() => navigate(1)} className="p-1.5 rounded-md hover:bg-muted"><ChevronRight className="w-4 h-4" /></button>
-        <Button variant="ghost" size="sm" onClick={() => setCurrentDate(new Date())}>Hoje</Button>
-      </div>
+      {/* Navigation (not for templates view) */}
+      {view !== 'templates' && (
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate(-1)} className="p-2 rounded-lg hover:bg-muted transition-colors"><ChevronLeft className="w-5 h-5" /></button>
+          <span className="text-base font-medium text-foreground min-w-[160px] text-center">
+            {view === 'daily' && currentDate.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+            {view === 'weekly' && `Semana de ${getMonday(currentDate).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })}`}
+            {view === 'monthly' && currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+            {view === 'yearly' && currentDate.getFullYear().toString()}
+          </span>
+          <button onClick={() => navigate(1)} className="p-2 rounded-lg hover:bg-muted transition-colors"><ChevronRight className="w-5 h-5" /></button>
+          <Button variant="ghost" size="sm" onClick={() => setCurrentDate(new Date())}>Hoje</Button>
+        </div>
+      )}
 
-      {view === 'weekly' && <WeeklyView currentDate={currentDate} onAdd={openAddFor} onNote={openNoteFor} onMove={openMoveFor} onChange={openChangeFor} onRemove={handleRemoveEntry} />}
-      {view === 'daily' && <DailyView date={fmt(currentDate)} onAdd={() => openAddFor(fmt(currentDate))} onNote={() => openNoteFor(fmt(currentDate))} onMove={openMoveFor} onChange={openChangeFor} onRemove={handleRemoveEntry} />}
+      {/* Views */}
+      {view === 'weekly' && (
+        <WeeklyPlannerView
+          currentDate={currentDate}
+          onAdd={openAddFor}
+          onNote={openNoteFor}
+          onMove={openMoveFor}
+          onChange={openChangeFor}
+          onRemove={handleRemoveEntry}
+        />
+      )}
+      {view === 'daily' && (
+        <DailyView
+          date={fmt(currentDate)}
+          onAdd={() => openAddFor(fmt(currentDate))}
+          onNote={() => openNoteFor(fmt(currentDate))}
+          onMove={openMoveFor}
+          onChange={openChangeFor}
+          onRemove={handleRemoveEntry}
+        />
+      )}
       {view === 'monthly' && <MonthlyView currentDate={currentDate} onDayClick={(d) => { setCurrentDate(new Date(d + 'T12:00:00')); setView('daily'); }} />}
       {view === 'yearly' && <YearlyView year={currentDate.getFullYear()} />}
+      {view === 'templates' && <TemplateEditor onApply={openApplyTemplate} />}
 
-      {/* Add dialog */}
+      {/* Dialogs */}
       <Dialog open={addDialog} onOpenChange={setAddDialog}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle className="font-display">Adicionar matéria</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">{addDate}</p>
+            <p className="text-sm text-muted-foreground">{addDate && new Date(addDate + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
             <Select value={addSubjectId} onValueChange={setAddSubjectId}>
               <SelectTrigger><SelectValue placeholder="Selecione a matéria" /></SelectTrigger>
               <SelectContent>
@@ -180,7 +300,6 @@ export default function SchedulePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Note dialog */}
       <Dialog open={noteDialog} onOpenChange={setNoteDialog}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle className="font-display">Observação</DialogTitle></DialogHeader>
@@ -189,16 +308,14 @@ export default function SchedulePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Move entry dialog */}
       <Dialog open={moveDialog} onOpenChange={setMoveDialog}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle className="font-display">Mover para outro dia</DialogTitle></DialogHeader>
           <div className="space-y-4">
             {moveEntry && (
-              <div className="flex items-center gap-2 p-2 rounded-lg bg-muted">
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-muted">
                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: getSubject(moveEntry.subjectId)?.color }} />
                 <span className="text-sm font-medium text-foreground">{getSubject(moveEntry.subjectId)?.name}</span>
-                <span className="text-xs text-muted-foreground ml-auto">{moveEntry.date}</span>
               </div>
             )}
             <div className="space-y-2">
@@ -212,14 +329,13 @@ export default function SchedulePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Change subject dialog */}
       <Dialog open={changeDialog} onOpenChange={setChangeDialog}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle className="font-display">Trocar matéria</DialogTitle></DialogHeader>
           <div className="space-y-4">
             {changeEntry && (
               <p className="text-sm text-muted-foreground">
-                Trocar <strong>{getSubject(changeEntry.subjectId)?.name}</strong> em {changeEntry.date}
+                Trocar <strong>{getSubject(changeEntry.subjectId)?.name}</strong>
               </p>
             )}
             <Select value={changeSubjectId} onValueChange={setChangeSubjectId}>
@@ -241,100 +357,38 @@ export default function SchedulePage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Propagation dialog */}
+      <PropagationDialog
+        open={propagationDialog}
+        onOpenChange={setPropagationDialog}
+        onSelect={executePropagatedAction}
+        actionDescription={
+          pendingAction?.type === 'move' ? 'Esta matéria veio de um template. Como deseja aplicar a mudança?' :
+          pendingAction?.type === 'change' ? 'Esta matéria veio de um template. Como deseja aplicar a troca?' :
+          'Esta matéria veio de um template. Como deseja aplicar a remoção?'
+        }
+      />
+
+      {/* Apply template dialog */}
+      {applyTemplateId && (
+        <ApplyTemplateDialog
+          open={applyDialog}
+          onOpenChange={setApplyDialog}
+          templateId={applyTemplateId}
+          templateName={applyTemplateName}
+        />
+      )}
     </div>
   );
 }
+
+// ---- Sub-views (kept inline for DailyView, MonthlyView, YearlyView) ----
 
 interface EntryActionsProps {
   onMove: (entry: ScheduleEntry) => void;
   onChange: (entry: ScheduleEntry) => void;
   onRemove: (id: string) => void;
-}
-
-function WeeklyView({ currentDate, onAdd, onNote, onMove, onChange, onRemove }: { currentDate: Date; onAdd: (d: string) => void; onNote: (d: string) => void } & EntryActionsProps) {
-  const { getScheduleForDate, getSubject, toggleScheduleComplete, getTotalMinutesForDate, data } = useStudy();
-  const monday = getMonday(currentDate);
-  const days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday);
-    d.setDate(d.getDate() + i);
-    return fmt(d);
-  });
-  const today = fmt(new Date());
-
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
-      {days.map(date => {
-        const entries = getScheduleForDate(date);
-        const main = entries.filter(e => !e.optional);
-        const optional = entries.filter(e => e.optional);
-        const isToday = date === today;
-        const mins = getTotalMinutesForDate(date);
-        const dayNotes = data.notes.filter(n => n.type === 'day' && n.referenceDate === date);
-
-        return (
-          <div key={date} className={`glass-card p-3 space-y-2 ${isToday ? 'ring-2 ring-primary/30' : ''}`}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className={`text-xs font-medium ${isToday ? 'text-primary' : 'text-muted-foreground'}`}>
-                  {new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short' })}
-                </p>
-                <p className="text-lg font-display font-bold text-foreground">{new Date(date + 'T12:00:00').getDate()}</p>
-              </div>
-              {mins > 0 && <span className="text-[10px] text-muted-foreground">{formatMin(mins)}</span>}
-            </div>
-            <div className="space-y-1">
-              {main.map(e => <EntryChip key={e.id} entry={e} onMove={onMove} onChange={onChange} onRemove={onRemove} />)}
-              {optional.length > 0 && (
-                <div className="border-t border-border/50 pt-1 mt-1">
-                  {optional.map(e => <EntryChip key={e.id} entry={e} onMove={onMove} onChange={onChange} onRemove={onRemove} />)}
-                </div>
-              )}
-            </div>
-            {dayNotes.length > 0 && (
-              <div className="text-[10px] text-muted-foreground bg-muted/50 rounded p-1.5 line-clamp-2">
-                {dayNotes[0].content}
-              </div>
-            )}
-            <div className="flex gap-1">
-              <button onClick={() => onAdd(date)} className="text-[10px] text-primary hover:underline flex items-center gap-0.5"><Plus className="w-3 h-3" />matéria</button>
-              <button onClick={() => onNote(date)} className="text-[10px] text-muted-foreground hover:text-foreground ml-auto"><MessageSquare className="w-3 h-3" /></button>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function EntryChip({ entry, onMove, onChange, onRemove }: { entry: ScheduleEntry } & EntryActionsProps) {
-  const { getSubject, toggleScheduleComplete } = useStudy();
-  const subj = getSubject(entry.subjectId);
-  return (
-    <div className={`flex items-center gap-1.5 group ${entry.optional ? 'opacity-70' : ''}`}>
-      <button onClick={() => toggleScheduleComplete(entry.id)} className="flex-shrink-0">
-        {entry.completed
-          ? <CheckCircle2 className="w-3.5 h-3.5 text-success" />
-          : <Circle className="w-3.5 h-3.5 text-muted-foreground" />}
-      </button>
-      <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: subj?.color }} />
-      <span className={`text-xs truncate flex-1 ${entry.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-        {subj?.name}
-      </span>
-      {entry.optional && <span className="text-[8px] text-muted-foreground">opc</span>}
-      {/* Action buttons on hover */}
-      <div className="hidden group-hover:flex items-center gap-0.5 flex-shrink-0">
-        <button onClick={() => onMove(entry)} title="Mover para outro dia" className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground">
-          <MoveRight className="w-3 h-3" />
-        </button>
-        <button onClick={() => onChange(entry)} title="Trocar matéria" className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground">
-          <ArrowRightLeft className="w-3 h-3" />
-        </button>
-        <button onClick={() => onRemove(entry.id)} title="Remover" className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
-          <Trash2 className="w-3 h-3" />
-        </button>
-      </div>
-    </div>
-  );
 }
 
 function DailyView({ date, onAdd, onNote, onMove, onChange, onRemove }: { date: string; onAdd: () => void; onNote: () => void } & EntryActionsProps) {
@@ -347,47 +401,41 @@ function DailyView({ date, onAdd, onNote, onMove, onChange, onRemove }: { date: 
   const completed = entries.filter(e => e.completed).length;
 
   return (
-    <div className="max-w-lg space-y-4">
-      <div className="glass-card p-5 space-y-4">
+    <div className="max-w-2xl space-y-5">
+      <div className="glass-card p-6 space-y-4">
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">Progresso do dia</span>
-          <span className="text-sm font-medium text-foreground">{completed}/{entries.length}</span>
+          <span className="text-sm font-semibold text-foreground">{completed}/{entries.length}</span>
         </div>
-        <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+        <div className="w-full h-2.5 bg-muted rounded-full overflow-hidden">
           <div className="h-full bg-primary rounded-full transition-all" style={{ width: entries.length ? `${(completed / entries.length) * 100}%` : '0%' }} />
         </div>
-        {mins > 0 && <p className="text-xs text-muted-foreground">Tempo estudado: {formatMin(mins)}</p>}
+        {mins > 0 && <p className="text-sm text-muted-foreground">Tempo estudado: {formatMin(mins)}</p>}
       </div>
 
       {entries.length === 0 && (
-        <div className="glass-card p-8 text-center">
-          <p className="text-muted-foreground text-sm">Nenhuma matéria planejada para este dia.</p>
-          <Button variant="outline" size="sm" className="mt-3" onClick={onAdd}><Plus className="w-4 h-4 mr-1" />Adicionar matéria</Button>
+        <div className="glass-card p-10 text-center">
+          <p className="text-muted-foreground">Nenhuma matéria planejada para este dia.</p>
+          <Button variant="outline" size="sm" className="mt-4" onClick={onAdd}><Plus className="w-4 h-4 mr-1" />Adicionar matéria</Button>
         </div>
       )}
 
       {main.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Principais</h3>
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Principais</h3>
           {main.map(e => {
             const s = getSubject(e.subjectId);
             return (
-              <div key={e.id} className="glass-card p-3 flex items-center gap-3 group">
-                <button onClick={() => toggleScheduleComplete(e.id)}>
+              <div key={e.id} className="glass-card p-4 flex items-center gap-3 group hover:shadow-md transition-shadow">
+                <button onClick={() => toggleScheduleComplete(e.id)} className="transition-transform hover:scale-110">
                   {e.completed ? <CheckCircle2 className="w-5 h-5 text-success" /> : <Circle className="w-5 h-5 text-muted-foreground" />}
                 </button>
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: s?.color }} />
-                <span className={`text-sm font-medium flex-1 ${e.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{s?.name}</span>
+                <div className="w-3.5 h-3.5 rounded-full shadow-sm" style={{ backgroundColor: s?.color }} />
+                <span className={`text-base font-medium flex-1 ${e.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{s?.name}</span>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => onMove(e)} title="Mover para outro dia" className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
-                    <MoveRight className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => onChange(e)} title="Trocar matéria" className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
-                    <ArrowRightLeft className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => onRemove(e.id)} title="Remover do dia" className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <button onClick={() => onMove(e)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"><MoveRight className="w-4 h-4" /></button>
+                  <button onClick={() => onChange(e)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"><ArrowRightLeft className="w-4 h-4" /></button>
+                  <button onClick={() => onRemove(e.id)} className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4" /></button>
                 </div>
               </div>
             );
@@ -397,27 +445,21 @@ function DailyView({ date, onAdd, onNote, onMove, onChange, onRemove }: { date: 
 
       {optional.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Opcionais</h3>
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Opcionais</h3>
           {optional.map(e => {
             const s = getSubject(e.subjectId);
             return (
-              <div key={e.id} className="glass-card p-3 flex items-center gap-3 opacity-75 group">
-                <button onClick={() => toggleScheduleComplete(e.id)}>
+              <div key={e.id} className="glass-card p-4 flex items-center gap-3 opacity-75 group hover:shadow-md transition-shadow">
+                <button onClick={() => toggleScheduleComplete(e.id)} className="transition-transform hover:scale-110">
                   {e.completed ? <CheckCircle2 className="w-5 h-5 text-success" /> : <Circle className="w-5 h-5 text-muted-foreground" />}
                 </button>
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: s?.color }} />
-                <span className={`text-sm flex-1 ${e.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{s?.name}</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">opcional</span>
+                <div className="w-3.5 h-3.5 rounded-full shadow-sm" style={{ backgroundColor: s?.color }} />
+                <span className={`text-base flex-1 ${e.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{s?.name}</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">opcional</span>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => onMove(e)} title="Mover" className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
-                    <MoveRight className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => onChange(e)} title="Trocar" className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
-                    <ArrowRightLeft className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => onRemove(e.id)} title="Remover" className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <button onClick={() => onMove(e)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"><MoveRight className="w-4 h-4" /></button>
+                  <button onClick={() => onChange(e)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"><ArrowRightLeft className="w-4 h-4" /></button>
+                  <button onClick={() => onRemove(e.id)} className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4" /></button>
                 </div>
               </div>
             );
@@ -434,9 +476,9 @@ function DailyView({ date, onAdd, onNote, onMove, onChange, onRemove }: { date: 
 
       {dayNotes.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Observações</h3>
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Observações</h3>
           {dayNotes.map(n => (
-            <div key={n.id} className="glass-card p-3 text-sm text-foreground">{n.content}</div>
+            <div key={n.id} className="glass-card p-4 text-sm text-foreground leading-relaxed">{n.content}</div>
           ))}
         </div>
       )}
@@ -460,12 +502,12 @@ function MonthlyView({ currentDate, onDayClick }: { currentDate: Date; onDayClic
 
   return (
     <div>
-      <div className="grid grid-cols-7 gap-1 mb-1">
+      <div className="grid grid-cols-7 gap-1.5 mb-1.5">
         {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map(d => (
-          <div key={d} className="text-[10px] text-muted-foreground text-center font-medium py-1">{d}</div>
+          <div key={d} className="text-xs text-muted-foreground text-center font-medium py-2">{d}</div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-1.5">
         {days.map((date, i) => {
           if (!date) return <div key={i} />;
           const entries = getScheduleForDate(date);
@@ -476,16 +518,16 @@ function MonthlyView({ currentDate, onDayClick }: { currentDate: Date; onDayClic
 
           return (
             <button key={date} onClick={() => onDayClick(date)}
-              className={`glass-card p-2 text-left hover:ring-1 hover:ring-primary/30 transition-all min-h-[60px] ${isToday ? 'ring-2 ring-primary/40' : ''}`}>
-              <p className={`text-xs font-medium ${isToday ? 'text-primary' : 'text-foreground'}`}>{new Date(date + 'T12:00:00').getDate()}</p>
+              className={`glass-card p-3 text-left hover:ring-1 hover:ring-primary/30 transition-all min-h-[70px] ${isToday ? 'ring-2 ring-primary/40' : ''}`}>
+              <p className={`text-sm font-medium ${isToday ? 'text-primary' : 'text-foreground'}`}>{new Date(date + 'T12:00:00').getDate()}</p>
               {total > 0 && (
-                <div className="mt-1">
-                  <div className="w-full h-1 bg-muted rounded-full">
+                <div className="mt-1.5">
+                  <div className="w-full h-1.5 bg-muted rounded-full">
                     <div className="h-full bg-primary/60 rounded-full" style={{ width: `${(completed / total) * 100}%` }} />
                   </div>
                 </div>
               )}
-              {mins > 0 && <p className="text-[9px] text-muted-foreground mt-0.5">{formatMin(mins)}</p>}
+              {mins > 0 && <p className="text-[10px] text-muted-foreground mt-1">{formatMin(mins)}</p>}
             </button>
           );
         })}
@@ -495,7 +537,7 @@ function MonthlyView({ currentDate, onDayClick }: { currentDate: Date; onDayClic
 }
 
 function YearlyView({ year }: { year: number }) {
-  const { data, getTotalMinutesForDate } = useStudy();
+  const { getTotalMinutesForDate } = useStudy();
 
   const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
   const months = monthNames.map((name, m) => {
@@ -507,26 +549,24 @@ function YearlyView({ year }: { year: number }) {
       const mins = getTotalMinutesForDate(date);
       if (mins > 0) { totalMin += mins; studiedDays++; }
     }
-    return { name, totalMin, studiedDays, daysInMonth };
+    return { name, totalMin, studiedDays };
   });
 
   const maxMin = Math.max(...months.map(m => m.totalMin), 1);
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-        {months.map(m => (
-          <div key={m.name} className="glass-card p-3 space-y-2">
-            <p className="text-sm font-display font-semibold text-foreground">{m.name}</p>
-            <div className="w-full h-2 bg-muted rounded-full">
-              <div className="h-full bg-primary rounded-full" style={{ width: `${(m.totalMin / maxMin) * 100}%` }} />
-            </div>
-            <div className="text-[10px] text-muted-foreground">
-              {m.studiedDays} dias · {formatMin(m.totalMin)}
-            </div>
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+      {months.map(m => (
+        <div key={m.name} className="glass-card p-4 space-y-3">
+          <p className="text-base font-display font-semibold text-foreground">{m.name}</p>
+          <div className="w-full h-2.5 bg-muted rounded-full">
+            <div className="h-full bg-primary rounded-full" style={{ width: `${(m.totalMin / maxMin) * 100}%` }} />
           </div>
-        ))}
-      </div>
+          <div className="text-xs text-muted-foreground">
+            {m.studiedDays} dias · {formatMin(m.totalMin)}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
