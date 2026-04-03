@@ -17,6 +17,9 @@ export interface ScheduleEntry {
   optional: boolean;
   completed: boolean;
   order: number;
+  templateId?: string;
+  isOverride?: boolean;
+  dayNote?: string;
 }
 
 export interface StudySession {
@@ -44,7 +47,34 @@ export interface UserData {
   notes: Note[];
 }
 
-export type ScheduleView = 'daily' | 'weekly' | 'monthly' | 'yearly';
+export type ScheduleView = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'templates';
+
+// Template types
+export interface WeeklyTemplate {
+  id: string;
+  name: string;
+  items: WeeklyTemplateItem[];
+  dayNotes: WeeklyTemplateDayNote[];
+}
+
+export interface WeeklyTemplateItem {
+  id: string;
+  templateId: string;
+  dayOfWeek: number; // 0=Monday, 6=Sunday
+  subjectId: string;
+  optional: boolean;
+  sortOrder: number;
+}
+
+export interface WeeklyTemplateDayNote {
+  id: string;
+  templateId: string;
+  dayOfWeek: number;
+  content: string;
+}
+
+export const DAY_NAMES = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+export const DAY_NAMES_SHORT = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
 export const SUBJECT_COLORS = [
   '#5B8C7E', '#6B9BD2', '#E8A838', '#C47ABF',
