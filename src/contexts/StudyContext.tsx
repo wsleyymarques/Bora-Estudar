@@ -131,6 +131,9 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.from('schedule_entries').insert({
       user_id: user.id, subject_id: e.subjectId, date: e.date,
       optional: e.optional, completed: e.completed, sort_order: e.order,
+      template_id: e.templateId || null,
+      is_override: e.isOverride || false,
+      day_note: e.dayNote || null,
     });
     if (error) { toast.error('Erro ao adicionar'); console.error(error); return; }
     await fetchAll();
@@ -143,6 +146,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     if (e.optional !== undefined) update.optional = e.optional;
     if (e.completed !== undefined) update.completed = e.completed;
     if (e.order !== undefined) update.sort_order = e.order;
+    if (e.isOverride !== undefined) update.is_override = e.isOverride;
+    if (e.dayNote !== undefined) update.day_note = e.dayNote;
     const { error } = await supabase.from('schedule_entries').update(update).eq('id', id);
     if (error) { toast.error('Erro ao atualizar'); console.error(error); return; }
     await fetchAll();
