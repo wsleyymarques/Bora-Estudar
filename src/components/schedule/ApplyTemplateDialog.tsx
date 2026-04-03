@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Calendar } from 'lucide-react';
 import { useTemplates } from '@/hooks/useTemplates';
 import { useStudy } from '@/contexts/StudyContext';
-import { toast } from 'sonner';
+import { addMonths, parseDateKey, toDateKey } from '@/lib/date-utils';
 
 interface ApplyTemplateDialogProps {
   open: boolean;
@@ -31,7 +31,7 @@ export default function ApplyTemplateDialog({ open, onOpenChange, templateId, te
     const d = new Date();
     const day = d.getDay();
     d.setDate(d.getDate() + (day === 0 ? 1 : 8 - day));
-    return d.toISOString().split('T')[0];
+    return toDateKey(d);
   });
   const [applying, setApplying] = useState(false);
 
@@ -40,9 +40,8 @@ export default function ApplyTemplateDialog({ open, onOpenChange, templateId, te
 
   const handleApply = async () => {
     setApplying(true);
-    const start = new Date(startDate + 'T12:00:00');
-    const end = new Date(start);
-    end.setMonth(end.getMonth() + parseInt(period));
+    const start = parseDateKey(startDate);
+    const end = addMonths(start, parseInt(period));
     end.setDate(end.getDate() - 1);
 
     await applyTemplate(templateId, start, end, refreshData);
@@ -51,9 +50,8 @@ export default function ApplyTemplateDialog({ open, onOpenChange, templateId, te
   };
 
   const endDateStr = (() => {
-    const start = new Date(startDate + 'T12:00:00');
-    const end = new Date(start);
-    end.setMonth(end.getMonth() + parseInt(period));
+    const start = parseDateKey(startDate);
+    const end = addMonths(start, parseInt(period));
     end.setDate(end.getDate() - 1);
     return end.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
   })();
@@ -96,7 +94,7 @@ export default function ApplyTemplateDialog({ open, onOpenChange, templateId, te
           <Button onClick={handleApply} className="w-full" disabled={applying}>
             {applying ? (
               <span className="flex items-center gap-2">
-                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                 Gerando...
               </span>
             ) : (

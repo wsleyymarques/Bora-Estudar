@@ -1,5 +1,13 @@
-const CACHE_NAME = "study-flow-v1";
-const APP_SHELL = ["/", "/manifest.webmanifest", "/pwa-icon.svg"];
+const CACHE_NAME = "study-flow-v3";
+const APP_SHELL = [
+  "/",
+  "/manifest.webmanifest",
+  "/pwa-icon.svg",
+  "/studei-icon-32.png",
+  "/studei-icon-180.png",
+  "/studei-icon-192.png",
+  "/studei-icon-512.png",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
@@ -17,6 +25,23 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+
+  const requestUrl = new URL(event.request.url);
+  const isAppShellAsset = APP_SHELL.includes(requestUrl.pathname);
+  const isNavigation = event.request.mode === "navigate";
+  const isSourceOrBuildAsset =
+    requestUrl.pathname.startsWith("/src/") ||
+    requestUrl.pathname.startsWith("/assets/");
+
+  // Never serve stale app code/HTML on refresh.
+  if (isNavigation || isSourceOrBuildAsset) {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match(event.request).then((cached) => cached || caches.match("/"))),
+    );
+    return;
+  }
+
+  if (!isAppShellAsset) return;
 
   event.respondWith(
     caches.match(event.request).then((cached) => {

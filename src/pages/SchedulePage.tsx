@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useStudy } from '@/contexts/StudyContext';
-import { ScheduleView, ScheduleEntry } from '@/types/study';
-import { CheckCircle2, Circle, Plus, ChevronLeft, ChevronRight, MessageSquare, ArrowRightLeft, Trash2, MoveRight, LayoutTemplate } from 'lucide-react';
+import { ScheduleView, ScheduleEntry, DAY_NAMES_SHORT } from '@/types/study';
+import { ChevronLeft, ChevronRight, ArrowRightLeft, MoveRight, LayoutTemplate } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,35 +13,45 @@ import WeeklyPlannerView from '@/components/schedule/WeeklyPlannerView';
 import TemplateEditor from '@/components/schedule/TemplateEditor';
 import ApplyTemplateDialog from '@/components/schedule/ApplyTemplateDialog';
 import PropagationDialog, { PropagationScope } from '@/components/schedule/PropagationDialog';
+import DayDetailSheet from '@/components/schedule/DayDetailSheet';
 import { useTemplates } from '@/hooks/useTemplates';
+import { getMonday, parseDateKey, toDateKey } from '@/lib/date-utils';
+import { buildMonthlyCells, buildYearlyMinutesSummary } from '@/features/schedule/selectors';
+import { formatMinutesCompact } from '@/lib/duration-utils';
+import { ClockTimePickerField, DurationPickerField } from '@/components/generic/time-picker-fields';
 
 const VIEWS: { key: ScheduleView; label: string; icon?: React.ReactNode }[] = [
   { key: 'weekly', label: 'Semanal' },
-  { key: 'daily', label: 'Diário' },
   { key: 'monthly', label: 'Mensal' },
   { key: 'yearly', label: 'Anual' },
   { key: 'templates', label: 'Templates', icon: <LayoutTemplate className="w-3.5 h-3.5" /> },
 ];
 
-function getMonday(date: Date) {
-  const d = new Date(date);
-  const day = d.getDay();
-  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
-  return d;
-}
-function fmt(d: Date) { return d.toISOString().split('T')[0]; }
 function formatMin(m: number) { const h = Math.floor(m / 60); return h > 0 ? `${h}h ${m % 60}m` : `${m}m`; }
+function formatWeekRangeLabel(date: Date) {
+  const monday = getMonday(date);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const start = monday.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  const end = sunday.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  return `Semana ${start} - ${end}`;
+}
 
 export default function SchedulePage() {
   const [view, setView] = useState<ScheduleView>('weekly');
   const [currentDate, setCurrentDate] = useState(new Date());
-  const { data, getSubject, getScheduleForDate, toggleScheduleComplete, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry, getTotalMinutesForDate, addNote, refreshData } = useStudy();
+  const { data, getSubject, getScheduleForDate, updateScheduleEntry, deleteScheduleEntry, addScheduleEntry, addNote } = useStudy();
   const { templates } = useTemplates();
+
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [dayDetailOpen, setDayDetailOpen] = useState(false);
 
   const [addDialog, setAddDialog] = useState(false);
   const [addDate, setAddDate] = useState('');
   const [addSubjectId, setAddSubjectId] = useState('');
   const [addOptional, setAddOptional] = useState(false);
+  const [addStartTime, setAddStartTime] = useState('');
+  const [addPlannedMinutes, setAddPlannedMinutes] = useState<number | undefined>(undefined);
 
   const [noteDialog, setNoteDialog] = useState(false);
   const [noteDate, setNoteDate] = useState('');
@@ -55,27 +65,38 @@ export default function SchedulePage() {
   const [changeEntry, setChangeEntry] = useState<ScheduleEntry | null>(null);
   const [changeSubjectId, setChangeSubjectId] = useState('');
 
-  // Propagation
   const [propagationDialog, setPropagationDialog] = useState(false);
   const [pendingAction, setPendingAction] = useState<{ type: 'move' | 'change' | 'remove'; entry: ScheduleEntry; payload?: any } | null>(null);
 
-  // Apply template dialog
   const [applyDialog, setApplyDialog] = useState(false);
   const [applyTemplateId, setApplyTemplateId] = useState('');
 
   const navigate = (dir: number) => {
     const d = new Date(currentDate);
-    if (view === 'daily') d.setDate(d.getDate() + dir);
-    else if (view === 'weekly') d.setDate(d.getDate() + dir * 7);
+    if (view === 'weekly') d.setDate(d.getDate() + dir * 7);
     else if (view === 'monthly') d.setMonth(d.getMonth() + dir);
     else d.setFullYear(d.getFullYear() + dir);
     setCurrentDate(d);
   };
 
+  const openDayDetail = (date: string) => {
+    setSelectedDay(date);
+    setCurrentDate(parseDateKey(date));
+    setDayDetailOpen(true);
+  };
+
   const handleAdd = () => {
-    if (!addSubjectId) { toast.error('Selecione uma matéria'); return; }
+    if (!addSubjectId) { toast.error('Selecione uma materia'); return; }
     const existing = getScheduleForDate(addDate);
-    addScheduleEntry({ date: addDate, subjectId: addSubjectId, optional: addOptional, completed: false, order: existing.length });
+    addScheduleEntry({
+      date: addDate,
+      subjectId: addSubjectId,
+      optional: addOptional,
+      completed: false,
+      order: existing.length,
+      startTime: addStartTime || undefined,
+      plannedMinutes: addPlannedMinutes,
+    });
     toast.success('Adicionado ao cronograma');
     setAddDialog(false);
   };
@@ -83,7 +104,7 @@ export default function SchedulePage() {
   const handleNote = () => {
     if (!noteContent.trim()) return;
     addNote({ type: 'day', referenceDate: noteDate, content: noteContent });
-    toast.success('Observação salva');
+    toast.success('Observacao salva');
     setNoteDialog(false);
     setNoteContent('');
   };
@@ -93,23 +114,18 @@ export default function SchedulePage() {
     const { type, entry, payload } = pendingAction;
 
     if (scope === 'single') {
-      // Mark as override and execute
       if (type === 'move') {
         await updateScheduleEntry(entry.id, { date: payload.date, isOverride: true });
-        toast.success('Matéria movida');
+        toast.success('Materia movida');
       } else if (type === 'change') {
         await updateScheduleEntry(entry.id, { subjectId: payload.subjectId, isOverride: true });
-        toast.success('Matéria trocada');
+        toast.success('Materia trocada');
       } else if (type === 'remove') {
         await deleteScheduleEntry(entry.id);
-        toast.success('Matéria removida');
+        toast.success('Materia removida');
       }
     } else if (scope === 'forward') {
-      // Apply to this and all future entries with same template + day of week
       const entryDate = new Date(entry.date + 'T12:00:00');
-      const jsDay = entryDate.getDay();
-      const dow = jsDay === 0 ? 6 : jsDay - 1;
-
       const futureEntries = data.schedule.filter(e =>
         e.templateId === entry.templateId &&
         e.date >= entry.date &&
@@ -127,9 +143,8 @@ export default function SchedulePage() {
       if (type === 'move') {
         await updateScheduleEntry(entry.id, { date: payload.date, isOverride: true });
       }
-      toast.success('Alteração propagada');
+      toast.success('Alteracao propagada');
     } else if (scope === 'template') {
-      // This would update the template itself - simplified version
       if (type === 'move') {
         await updateScheduleEntry(entry.id, { ...(payload || {}), isOverride: true });
       } else if (type === 'change') {
@@ -151,21 +166,21 @@ export default function SchedulePage() {
       setPropagationDialog(true);
     } else {
       updateScheduleEntry(moveEntry.id, { date: moveTargetDate });
-      toast.success('Matéria movida!');
+      toast.success('Materia movida!');
       setMoveDialog(false);
     }
     setMoveEntry(null);
   };
 
   const handleChangeSubject = () => {
-    if (!changeEntry || !changeSubjectId) { toast.error('Selecione uma matéria'); return; }
+    if (!changeEntry || !changeSubjectId) { toast.error('Selecione uma materia'); return; }
     if (changeEntry.templateId && !changeEntry.isOverride) {
       setPendingAction({ type: 'change', entry: changeEntry, payload: { subjectId: changeSubjectId } });
       setChangeDialog(false);
       setPropagationDialog(true);
     } else {
       updateScheduleEntry(changeEntry.id, { subjectId: changeSubjectId });
-      toast.success('Matéria trocada!');
+      toast.success('Materia trocada!');
       setChangeDialog(false);
     }
     setChangeEntry(null);
@@ -178,7 +193,7 @@ export default function SchedulePage() {
       setPropagationDialog(true);
     } else {
       deleteScheduleEntry(id);
-      toast.success('Matéria removida do dia');
+      toast.success('Materia removida do dia');
     }
   };
 
@@ -186,12 +201,15 @@ export default function SchedulePage() {
     setAddDate(date);
     setAddSubjectId('');
     setAddOptional(false);
+    setAddStartTime('');
+    setAddPlannedMinutes(undefined);
     setAddDialog(true);
   };
 
   const openNoteFor = (date: string) => {
     setNoteDate(date);
-    setNoteContent('');
+    const existing = data.notes.find(n => n.type === 'day' && n.referenceDate === date);
+    setNoteContent(existing?.content || '');
     setNoteDialog(true);
   };
 
@@ -215,15 +233,17 @@ export default function SchedulePage() {
   const applyTemplateName = templates.find(t => t.id === applyTemplateId)?.name || '';
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h1 className="text-2xl font-display font-bold text-foreground">Cronograma</h1>
-        <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
+    <div className="flex min-h-full flex-col gap-4 md:gap-5 w-full min-w-0 max-w-full">
+      <div className="workspace-panel p-3 md:p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-display font-bold text-foreground">Cronograma</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Planejamento semanal, mensal e anual com detalhe por dia.</p>
+        </div>
+        <div className="calendar-toolbar w-fit">
           {VIEWS.map(v => (
             <button key={v.key} onClick={() => setView(v.key)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 ${
-                view === v.key ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              className={`calendar-chip flex items-center gap-1.5 ${
+                view === v.key ? 'calendar-chip-active' : 'text-muted-foreground hover:text-foreground'
               }`}>
               {v.icon}
               {v.label}
@@ -232,54 +252,65 @@ export default function SchedulePage() {
         </div>
       </div>
 
-      {/* Navigation (not for templates view) */}
       {view !== 'templates' && (
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="p-2 rounded-lg hover:bg-muted transition-colors"><ChevronLeft className="w-5 h-5" /></button>
-          <span className="text-base font-medium text-foreground min-w-[160px] text-center">
-            {view === 'daily' && currentDate.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
-            {view === 'weekly' && `Semana de ${getMonday(currentDate).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })}`}
+        <div className="workspace-panel p-2 md:p-2.5 flex items-center justify-between gap-2">
+          <button onClick={() => navigate(-1)} className="h-10 w-10 flex items-center justify-center rounded-full border border-border/60 hover:bg-muted transition-colors"><ChevronLeft className="w-5 h-5" /></button>
+          <span className="text-sm md:text-base font-semibold text-foreground min-w-[150px] text-center capitalize">
+            {view === 'weekly' && formatWeekRangeLabel(currentDate)}
             {view === 'monthly' && currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
             {view === 'yearly' && currentDate.getFullYear().toString()}
           </span>
-          <button onClick={() => navigate(1)} className="p-2 rounded-lg hover:bg-muted transition-colors"><ChevronRight className="w-5 h-5" /></button>
-          <Button variant="ghost" size="sm" onClick={() => setCurrentDate(new Date())}>Hoje</Button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate(1)} className="h-10 w-10 flex items-center justify-center rounded-full border border-border/60 hover:bg-muted transition-colors"><ChevronRight className="w-5 h-5" /></button>
+            {view !== 'weekly' && (
+              <Button variant="secondary" size="sm" className="rounded-full" onClick={() => setCurrentDate(new Date())}>Hoje</Button>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Views */}
       {view === 'weekly' && (
-        <WeeklyPlannerView
+        <div className="flex-1 min-h-0">
+          <WeeklyPlannerView
+            currentDate={currentDate}
+            onAdd={openAddFor}
+            onNote={openNoteFor}
+            onMove={openMoveFor}
+            onChange={openChangeFor}
+            onRemove={handleRemoveEntry}
+            onOpenDay={openDayDetail}
+          />
+        </div>
+      )}
+
+      {view === 'monthly' && (
+        <MonthlyView
           currentDate={currentDate}
-          onAdd={openAddFor}
-          onNote={openNoteFor}
-          onMove={openMoveFor}
-          onChange={openChangeFor}
-          onRemove={handleRemoveEntry}
+          onDayClick={openDayDetail}
         />
       )}
-      {view === 'daily' && (
-        <DailyView
-          date={fmt(currentDate)}
-          onAdd={() => openAddFor(fmt(currentDate))}
-          onNote={() => openNoteFor(fmt(currentDate))}
-          onMove={openMoveFor}
-          onChange={openChangeFor}
-          onRemove={handleRemoveEntry}
-        />
-      )}
-      {view === 'monthly' && <MonthlyView currentDate={currentDate} onDayClick={(d) => { setCurrentDate(new Date(d + 'T12:00:00')); setView('daily'); }} />}
+
       {view === 'yearly' && <YearlyView year={currentDate.getFullYear()} />}
       {view === 'templates' && <TemplateEditor onApply={openApplyTemplate} />}
 
-      {/* Dialogs */}
+      <DayDetailSheet
+        open={dayDetailOpen}
+        date={selectedDay}
+        onOpenChange={setDayDetailOpen}
+        onAdd={openAddFor}
+        onNote={openNoteFor}
+        onMove={openMoveFor}
+        onChange={openChangeFor}
+        onRemove={handleRemoveEntry}
+      />
+
       <Dialog open={addDialog} onOpenChange={setAddDialog}>
         <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle className="font-display">Adicionar matéria</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="font-display">Adicionar materia</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">{addDate && new Date(addDate + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
             <Select value={addSubjectId} onValueChange={setAddSubjectId}>
-              <SelectTrigger><SelectValue placeholder="Selecione a matéria" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Selecione a materia" /></SelectTrigger>
               <SelectContent>
                 {data.subjects.filter(s => s.active).map(s => (
                   <SelectItem key={s.id} value={s.id}>
@@ -293,8 +324,12 @@ export default function SchedulePage() {
             </Select>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={addOptional} onChange={e => setAddOptional(e.target.checked)} className="rounded" />
-              Matéria opcional
+              Materia opcional
             </label>
+            <div className="grid grid-cols-2 gap-2">
+              <ClockTimePickerField value={addStartTime || undefined} onChange={(v) => setAddStartTime(v || '')} placeholder="--:--" />
+              <DurationPickerField valueMinutes={addPlannedMinutes} onChangeMinutes={setAddPlannedMinutes} placeholder="Meta" includeSeconds />
+            </div>
             <Button onClick={handleAdd} className="w-full">Adicionar</Button>
           </div>
         </DialogContent>
@@ -302,8 +337,8 @@ export default function SchedulePage() {
 
       <Dialog open={noteDialog} onOpenChange={setNoteDialog}>
         <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle className="font-display">Observação</DialogTitle></DialogHeader>
-          <Textarea value={noteContent} onChange={e => setNoteContent(e.target.value)} placeholder="Escreva uma observação..." rows={3} />
+          <DialogHeader><DialogTitle className="font-display">Observacao</DialogTitle></DialogHeader>
+          <Textarea value={noteContent} onChange={e => setNoteContent(e.target.value)} placeholder="Escreva uma observacao..." rows={3} />
           <Button onClick={handleNote} className="w-full">Salvar</Button>
         </DialogContent>
       </Dialog>
@@ -331,7 +366,7 @@ export default function SchedulePage() {
 
       <Dialog open={changeDialog} onOpenChange={setChangeDialog}>
         <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle className="font-display">Trocar matéria</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="font-display">Trocar materia</DialogTitle></DialogHeader>
           <div className="space-y-4">
             {changeEntry && (
               <p className="text-sm text-muted-foreground">
@@ -339,7 +374,7 @@ export default function SchedulePage() {
               </p>
             )}
             <Select value={changeSubjectId} onValueChange={setChangeSubjectId}>
-              <SelectTrigger><SelectValue placeholder="Nova matéria" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Nova materia" /></SelectTrigger>
               <SelectContent>
                 {data.subjects.filter(s => s.active).map(s => (
                   <SelectItem key={s.id} value={s.id}>
@@ -358,19 +393,17 @@ export default function SchedulePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Propagation dialog */}
       <PropagationDialog
         open={propagationDialog}
         onOpenChange={setPropagationDialog}
         onSelect={executePropagatedAction}
         actionDescription={
-          pendingAction?.type === 'move' ? 'Esta matéria veio de um template. Como deseja aplicar a mudança?' :
-          pendingAction?.type === 'change' ? 'Esta matéria veio de um template. Como deseja aplicar a troca?' :
-          'Esta matéria veio de um template. Como deseja aplicar a remoção?'
+          pendingAction?.type === 'move' ? 'Esta materia veio de um template. Como deseja aplicar a mudanca?' :
+          pendingAction?.type === 'change' ? 'Esta materia veio de um template. Como deseja aplicar a troca?' :
+          'Esta materia veio de um template. Como deseja aplicar a remocao?'
         }
       />
 
-      {/* Apply template dialog */}
       {applyTemplateId && (
         <ApplyTemplateDialog
           open={applyDialog}
@@ -383,151 +416,63 @@ export default function SchedulePage() {
   );
 }
 
-// ---- Sub-views (kept inline for DailyView, MonthlyView, YearlyView) ----
-
-interface EntryActionsProps {
-  onMove: (entry: ScheduleEntry) => void;
-  onChange: (entry: ScheduleEntry) => void;
-  onRemove: (id: string) => void;
-}
-
-function DailyView({ date, onAdd, onNote, onMove, onChange, onRemove }: { date: string; onAdd: () => void; onNote: () => void } & EntryActionsProps) {
-  const { getScheduleForDate, getSubject, toggleScheduleComplete, getTotalMinutesForDate, data } = useStudy();
-  const entries = getScheduleForDate(date);
-  const mins = getTotalMinutesForDate(date);
-  const dayNotes = data.notes.filter(n => n.type === 'day' && n.referenceDate === date);
-  const main = entries.filter(e => !e.optional);
-  const optional = entries.filter(e => e.optional);
-  const completed = entries.filter(e => e.completed).length;
-
-  return (
-    <div className="max-w-2xl space-y-5">
-      <div className="glass-card p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Progresso do dia</span>
-          <span className="text-sm font-semibold text-foreground">{completed}/{entries.length}</span>
-        </div>
-        <div className="w-full h-2.5 bg-muted rounded-full overflow-hidden">
-          <div className="h-full bg-primary rounded-full transition-all" style={{ width: entries.length ? `${(completed / entries.length) * 100}%` : '0%' }} />
-        </div>
-        {mins > 0 && <p className="text-sm text-muted-foreground">Tempo estudado: {formatMin(mins)}</p>}
-      </div>
-
-      {entries.length === 0 && (
-        <div className="glass-card p-10 text-center">
-          <p className="text-muted-foreground">Nenhuma matéria planejada para este dia.</p>
-          <Button variant="outline" size="sm" className="mt-4" onClick={onAdd}><Plus className="w-4 h-4 mr-1" />Adicionar matéria</Button>
-        </div>
-      )}
-
-      {main.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Principais</h3>
-          {main.map(e => {
-            const s = getSubject(e.subjectId);
-            return (
-              <div key={e.id} className="glass-card p-4 flex items-center gap-3 group hover:shadow-md transition-shadow">
-                <button onClick={() => toggleScheduleComplete(e.id)} className="transition-transform hover:scale-110">
-                  {e.completed ? <CheckCircle2 className="w-5 h-5 text-success" /> : <Circle className="w-5 h-5 text-muted-foreground" />}
-                </button>
-                <div className="w-3.5 h-3.5 rounded-full shadow-sm" style={{ backgroundColor: s?.color }} />
-                <span className={`text-base font-medium flex-1 ${e.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{s?.name}</span>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => onMove(e)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"><MoveRight className="w-4 h-4" /></button>
-                  <button onClick={() => onChange(e)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"><ArrowRightLeft className="w-4 h-4" /></button>
-                  <button onClick={() => onRemove(e.id)} className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4" /></button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {optional.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Opcionais</h3>
-          {optional.map(e => {
-            const s = getSubject(e.subjectId);
-            return (
-              <div key={e.id} className="glass-card p-4 flex items-center gap-3 opacity-75 group hover:shadow-md transition-shadow">
-                <button onClick={() => toggleScheduleComplete(e.id)} className="transition-transform hover:scale-110">
-                  {e.completed ? <CheckCircle2 className="w-5 h-5 text-success" /> : <Circle className="w-5 h-5 text-muted-foreground" />}
-                </button>
-                <div className="w-3.5 h-3.5 rounded-full shadow-sm" style={{ backgroundColor: s?.color }} />
-                <span className={`text-base flex-1 ${e.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{s?.name}</span>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">opcional</span>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => onMove(e)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"><MoveRight className="w-4 h-4" /></button>
-                  <button onClick={() => onChange(e)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"><ArrowRightLeft className="w-4 h-4" /></button>
-                  <button onClick={() => onRemove(e.id)} className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4" /></button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {entries.length > 0 && (
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={onAdd}><Plus className="w-4 h-4 mr-1" />Matéria</Button>
-          <Button variant="outline" size="sm" onClick={onNote}><MessageSquare className="w-4 h-4 mr-1" />Nota</Button>
-        </div>
-      )}
-
-      {dayNotes.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Observações</h3>
-          {dayNotes.map(n => (
-            <div key={n.id} className="glass-card p-4 text-sm text-foreground leading-relaxed">{n.content}</div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function MonthlyView({ currentDate, onDayClick }: { currentDate: Date; onDayClick: (d: string) => void }) {
-  const { getScheduleForDate, getTotalMinutesForDate } = useStudy();
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
-  const firstDay = new Date(year, month, 1);
-  const lastDay = new Date(year, month + 1, 0);
-  const startOffset = (firstDay.getDay() + 6) % 7;
-  const today = fmt(new Date());
-
-  const days: (string | null)[] = Array(startOffset).fill(null);
-  for (let d = 1; d <= lastDay.getDate(); d++) {
-    days.push(fmt(new Date(year, month, d)));
-  }
+  const { data, getSubject } = useStudy();
+  const cells = buildMonthlyCells(currentDate, data.schedule, data.sessions, data.notes, data.dayPlans, data.sessionPauses);
+  const today = toDateKey(new Date());
 
   return (
-    <div>
-      <div className="grid grid-cols-7 gap-1.5 mb-1.5">
-        {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map(d => (
-          <div key={d} className="text-xs text-muted-foreground text-center font-medium py-2">{d}</div>
+    <div className="workspace-panel p-2 md:p-3 space-y-2">
+      <div className="grid grid-cols-7 gap-1.5 md:gap-2">
+        {DAY_NAMES_SHORT.map(d => (
+          <div key={d} className="text-xs text-muted-foreground text-center font-semibold py-2 uppercase tracking-wide">{d}</div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-1.5">
-        {days.map((date, i) => {
-          if (!date) return <div key={i} />;
-          const entries = getScheduleForDate(date);
-          const completed = entries.filter(e => e.completed).length;
-          const total = entries.length;
-          const mins = getTotalMinutesForDate(date);
-          const isToday = date === today;
+
+      <div className="grid grid-cols-7 gap-2">
+        {cells.map(cell => {
+          const isToday = cell.date === today;
+          const done = cell.stats.total > 0 && cell.stats.completed === cell.stats.total;
+          const main = cell.entries.filter(e => !e.optional);
+          const subjects = main.slice(0, 2).map(e => getSubject(e.subjectId)?.name).filter(Boolean) as string[];
+          const extraSubjects = Math.max(main.length - 2, 0);
 
           return (
-            <button key={date} onClick={() => onDayClick(date)}
-              className={`glass-card p-3 text-left hover:ring-1 hover:ring-primary/30 transition-all min-h-[70px] ${isToday ? 'ring-2 ring-primary/40' : ''}`}>
-              <p className={`text-sm font-medium ${isToday ? 'text-primary' : 'text-foreground'}`}>{new Date(date + 'T12:00:00').getDate()}</p>
-              {total > 0 && (
-                <div className="mt-1.5">
+            <button
+              key={cell.date}
+              onClick={() => onDayClick(cell.date)}
+              className={`text-left rounded-xl border p-2 md:p-2.5 min-h-[120px] md:min-h-[132px] transition-all hover:shadow-md hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/40 ${
+                cell.inCurrentMonth ? 'bg-card border-border/70' : 'bg-muted/30 border-border/40 text-muted-foreground'
+              } ${isToday ? 'ring-2 ring-primary/50 border-primary/40' : ''}`}
+            >
+              <div className="flex items-start justify-between">
+                <span className={`text-sm font-semibold ${isToday ? 'text-primary' : ''}`}>{cell.day}</span>
+                <div className="flex items-center gap-1">
+                  <span className={`h-2 w-2 rounded-full ${done ? 'bg-success' : 'bg-muted'}`} title="Concluido" />
+                  <span className={`h-2 w-2 rounded-full ${cell.stats.hasPending ? 'bg-amber-500' : 'bg-muted'}`} title="Pendencias" />
+                  <span className={`h-2 w-2 rounded-full ${cell.stats.hasObservation ? 'bg-blue-500' : 'bg-muted'}`} title="Observacoes" />
+                </div>
+              </div>
+
+              {cell.stats.total > 0 && (
+                <div className="mt-2">
                   <div className="w-full h-1.5 bg-muted rounded-full">
-                    <div className="h-full bg-primary/60 rounded-full" style={{ width: `${(completed / total) * 100}%` }} />
+                    <div className="h-full bg-primary/70 rounded-full" style={{ width: `${(cell.stats.completed / cell.stats.total) * 100}%` }} />
                   </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">{cell.stats.completed}/{cell.stats.total} concluidas</p>
                 </div>
               )}
-              {mins > 0 && <p className="text-[10px] text-muted-foreground mt-1">{formatMin(mins)}</p>}
+
+              <div className="mt-2 space-y-1">
+                {subjects.map(name => (
+                  <p key={name} className="text-xs text-foreground truncate">{name}</p>
+                ))}
+                {extraSubjects > 0 && <p className="text-[11px] text-muted-foreground">+{extraSubjects} materias</p>}
+                {cell.stats.minutes > 0 && <p className="text-[11px] text-muted-foreground">{formatMin(cell.stats.minutes)}</p>}
+                {cell.stats.plannedMinutes > 0 && <p className="text-[11px] text-muted-foreground">plan {formatMinutesCompact(cell.stats.plannedMinutes)}</p>}
+                {cell.stats.dayTargetMinutes !== undefined && <p className="text-[11px] text-muted-foreground">meta {formatMinutesCompact(cell.stats.dayTargetMinutes)}</p>}
+                {cell.stats.hasAnyStartTime && <p className="text-[11px] text-muted-foreground">com horarios</p>}
+              </div>
             </button>
           );
         })}
@@ -537,25 +482,16 @@ function MonthlyView({ currentDate, onDayClick }: { currentDate: Date; onDayClic
 }
 
 function YearlyView({ year }: { year: number }) {
-  const { getTotalMinutesForDate } = useStudy();
+  const { data } = useStudy();
 
   const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-  const months = monthNames.map((name, m) => {
-    const daysInMonth = new Date(year, m + 1, 0).getDate();
-    let totalMin = 0;
-    let studiedDays = 0;
-    for (let d = 1; d <= daysInMonth; d++) {
-      const date = fmt(new Date(year, m, d));
-      const mins = getTotalMinutesForDate(date);
-      if (mins > 0) { totalMin += mins; studiedDays++; }
-    }
-    return { name, totalMin, studiedDays };
-  });
+  const summary = buildYearlyMinutesSummary(year, data.sessions);
+  const months = monthNames.map((name, m) => ({ name, ...summary[m] }));
 
   const maxMin = Math.max(...months.map(m => m.totalMin), 1);
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+    <div className="workspace-panel p-3 md:p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
       {months.map(m => (
         <div key={m.name} className="glass-card p-4 space-y-3">
           <p className="text-base font-display font-semibold text-foreground">{m.name}</p>
@@ -563,7 +499,7 @@ function YearlyView({ year }: { year: number }) {
             <div className="h-full bg-primary rounded-full" style={{ width: `${(m.totalMin / maxMin) * 100}%` }} />
           </div>
           <div className="text-xs text-muted-foreground">
-            {m.studiedDays} dias · {formatMin(m.totalMin)}
+            {m.studiedDays} dias - {formatMin(m.totalMin)}
           </div>
         </div>
       ))}

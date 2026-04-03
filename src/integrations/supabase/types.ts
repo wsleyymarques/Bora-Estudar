@@ -65,6 +65,124 @@ export type Database = {
         }
         Relationships: []
       }
+      theme_templates: {
+        Row: {
+          created_at: string
+          dark_tokens: Json
+          description: string | null
+          id: string
+          is_system: boolean
+          key: string
+          light_tokens: Json
+          name: string
+          owner_user_id: string | null
+          preview_colors: string[]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          dark_tokens: Json
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          key: string
+          light_tokens: Json
+          name: string
+          owner_user_id?: string | null
+          preview_colors?: string[]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          dark_tokens?: Json
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          key?: string
+          light_tokens?: Json
+          name?: string
+          owner_user_id?: string | null
+          preview_colors?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_theme_preferences: {
+        Row: {
+          created_at: string
+          mode: string
+          template_key: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          mode?: string
+          template_key?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          mode?: string
+          template_key?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_theme_preferences_template_key_fkey"
+            columns: ["template_key"]
+            isOneToOne: false
+            referencedRelation: "theme_templates"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      schedule_day_plans: {
+        Row: {
+          created_at: string
+          date: string
+          day_note: string | null
+          day_target_minutes: number | null
+          id: string
+          is_override: boolean
+          template_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          day_note?: string | null
+          day_target_minutes?: number | null
+          id?: string
+          is_override?: boolean
+          template_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          day_note?: string | null
+          day_target_minutes?: number | null
+          id?: string
+          is_override?: boolean
+          template_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedule_day_plans_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "weekly_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       schedule_entries: {
         Row: {
           completed: boolean
@@ -72,9 +190,12 @@ export type Database = {
           date: string
           day_note: string | null
           id: string
+          item_note: string | null
           is_override: boolean
           optional: boolean
+          planned_minutes: number | null
           sort_order: number
+          start_time: string | null
           subject_id: string
           template_id: string | null
           updated_at: string
@@ -86,9 +207,12 @@ export type Database = {
           date: string
           day_note?: string | null
           id?: string
+          item_note?: string | null
           is_override?: boolean
           optional?: boolean
+          planned_minutes?: number | null
           sort_order?: number
+          start_time?: string | null
           subject_id: string
           template_id?: string | null
           updated_at?: string
@@ -100,9 +224,12 @@ export type Database = {
           date?: string
           day_note?: string | null
           id?: string
+          item_note?: string | null
           is_override?: boolean
           optional?: boolean
+          planned_minutes?: number | null
           sort_order?: number
+          start_time?: string | null
           subject_id?: string
           template_id?: string | null
           updated_at?: string
@@ -125,41 +252,137 @@ export type Database = {
           },
         ]
       }
-      study_sessions: {
+      study_session_pauses: {
         Row: {
           created_at: string
-          date: string
-          duration_minutes: number
-          end_time: string | null
+          duration_seconds: number | null
           id: string
-          note: string | null
-          start_time: string
-          subject_id: string
+          pause_ended_at: string | null
+          pause_started_at: string
+          session_id: string
+          updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
-          date: string
-          duration_minutes?: number
-          end_time?: string | null
+          duration_seconds?: number | null
           id?: string
-          note?: string | null
-          start_time: string
-          subject_id: string
+          pause_ended_at?: string | null
+          pause_started_at: string
+          session_id: string
+          updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
-          date?: string
-          duration_minutes?: number
-          end_time?: string | null
+          duration_seconds?: number | null
           id?: string
-          note?: string | null
-          start_time?: string
-          subject_id?: string
+          pause_ended_at?: string | null
+          pause_started_at?: string
+          session_id?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "study_session_pauses_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "study_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      study_sessions: {
+        Row: {
+          actual_duration_seconds: number
+          clock_duration_seconds: number
+          created_at: string
+          date: string
+          duration_minutes: number
+          end_time: string | null
+          ended_at: string | null
+          id: string
+          is_focus_session: boolean
+          metadata: Json
+          note: string | null
+          planned_minutes: number | null
+          planned_start_time: string | null
+          pomodoro_cycle: number | null
+          pomodoro_phase: string | null
+          schedule_date: string | null
+          schedule_entry_id: string | null
+          session_mode: string
+          source: string
+          start_time: string
+          started_at: string | null
+          status: string
+          subject_id: string
+          total_pause_seconds: number
+          user_id: string
+        }
+        Insert: {
+          actual_duration_seconds?: number
+          clock_duration_seconds?: number
+          created_at?: string
+          date: string
+          duration_minutes?: number
+          end_time?: string | null
+          ended_at?: string | null
+          id?: string
+          is_focus_session?: boolean
+          metadata?: Json
+          note?: string | null
+          planned_minutes?: number | null
+          planned_start_time?: string | null
+          pomodoro_cycle?: number | null
+          pomodoro_phase?: string | null
+          schedule_date?: string | null
+          schedule_entry_id?: string | null
+          session_mode?: string
+          source?: string
+          start_time: string
+          started_at?: string | null
+          status?: string
+          subject_id: string
+          total_pause_seconds?: number
+          user_id: string
+        }
+        Update: {
+          actual_duration_seconds?: number
+          clock_duration_seconds?: number
+          created_at?: string
+          date?: string
+          duration_minutes?: number
+          end_time?: string | null
+          ended_at?: string | null
+          id?: string
+          is_focus_session?: boolean
+          metadata?: Json
+          note?: string | null
+          planned_minutes?: number | null
+          planned_start_time?: string | null
+          pomodoro_cycle?: number | null
+          pomodoro_phase?: string | null
+          schedule_date?: string | null
+          schedule_entry_id?: string | null
+          session_mode?: string
+          source?: string
+          start_time?: string
+          started_at?: string | null
+          status?: string
+          subject_id?: string
+          total_pause_seconds?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_sessions_schedule_entry_id_fkey"
+            columns: ["schedule_entry_id"]
+            isOneToOne: false
+            referencedRelation: "schedule_entries"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "study_sessions_subject_id_fkey"
             columns: ["subject_id"]
@@ -219,18 +442,21 @@ export type Database = {
           content: string
           day_of_week: number
           id: string
+          target_minutes: number | null
           template_id: string
         }
         Insert: {
           content?: string
           day_of_week: number
           id?: string
+          target_minutes?: number | null
           template_id: string
         }
         Update: {
           content?: string
           day_of_week?: number
           id?: string
+          target_minutes?: number | null
           template_id?: string
         }
         Relationships: [
@@ -248,8 +474,11 @@ export type Database = {
           created_at: string
           day_of_week: number
           id: string
+          item_note: string | null
           optional: boolean
+          planned_minutes: number | null
           sort_order: number
+          start_time: string | null
           subject_id: string
           template_id: string
         }
@@ -257,8 +486,11 @@ export type Database = {
           created_at?: string
           day_of_week: number
           id?: string
+          item_note?: string | null
           optional?: boolean
+          planned_minutes?: number | null
           sort_order?: number
+          start_time?: string | null
           subject_id: string
           template_id: string
         }
@@ -266,8 +498,11 @@ export type Database = {
           created_at?: string
           day_of_week?: number
           id?: string
+          item_note?: string | null
           optional?: boolean
+          planned_minutes?: number | null
           sort_order?: number
+          start_time?: string | null
           subject_id?: string
           template_id?: string
         }

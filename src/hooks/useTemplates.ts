@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { WeeklyTemplate, WeeklyTemplateItem, WeeklyTemplateDayNote } from '@/types/study';
 import { toast } from 'sonner';
+import { buildTemplateEntries } from '@/features/schedule/template-generation';
 
 export function useTemplates() {
   const { user } = useAuth();
@@ -41,6 +42,9 @@ export function useTemplates() {
           dayOfWeek: i.day_of_week,
           subjectId: i.subject_id,
           optional: i.optional,
+          startTime: i.start_time || undefined,
+          plannedMinutes: i.planned_minutes ?? undefined,
+          itemNote: i.item_note || undefined,
           sortOrder: i.sort_order,
         })),
       dayNotes: notes
@@ -50,6 +54,7 @@ export function useTemplates() {
           templateId: n.template_id,
           dayOfWeek: n.day_of_week,
           content: n.content,
+          targetMinutes: n.target_minutes ?? undefined,
         })),
     }));
 
@@ -83,13 +88,21 @@ export function useTemplates() {
     await fetchTemplates();
   };
 
-  const addTemplateItem = async (templateId: string, dayOfWeek: number, subjectId: string, optional: boolean) => {
+  const addTemplateItem = async (
+    templateId: string,
+    dayOfWeek: number,
+    subjectId: string,
+    optional: boolean,
+    options?: Partial<{ startTime: string; plannedMinutes: number; itemNote: string }>
+  ) => {
     const existing = templates.find(t => t.id === templateId)?.items.filter(i => i.dayOfWeek === dayOfWeek) || [];
     const { error } = await supabase.from('weekly_template_items').insert({
       template_id: templateId,
       day_of_week: dayOfWeek,
       subject_id: subjectId,
       optional,
+      start_time: options?.startTime || null,
+      planned_minutes: options?.plannedMinutes ?? null,
       sort_order: existing.length,
     });
     if (error) { toast.error('Erro ao adicionar matéria'); return; }
@@ -102,29 +115,36 @@ export function useTemplates() {
     await fetchTemplates();
   };
 
-  const updateTemplateItem = async (itemId: string, updates: Partial<{ optional: boolean; sortOrder: number; subjectId: string }>) => {
+  const updateTemplateItem = async (itemId: string, updates: Partial<{ optional: boolean; sortOrder: number; subjectId: string; startTime: string; plannedMinutes: number; itemNote: string }>) => {
     const upd: any = {};
     if (updates.optional !== undefined) upd.optional = updates.optional;
     if (updates.sortOrder !== undefined) upd.sort_order = updates.sortOrder;
     if (updates.subjectId !== undefined) upd.subject_id = updates.subjectId;
+    if (updates.startTime !== undefined) upd.start_time = updates.startTime || null;
+    if (updates.plannedMinutes !== undefined) upd.planned_minutes = updates.plannedMinutes;
     const { error } = await supabase.from('weekly_template_items').update(upd).eq('id', itemId);
     if (error) { toast.error('Erro ao atualizar'); return; }
     await fetchTemplates();
   };
 
-  const setDayNote = async (templateId: string, dayOfWeek: number, content: string) => {
+  const setDayNote = async (templateId: string, dayOfWeek: number, content: string, targetMinutes?: number) => {
     const existing = templates.find(t => t.id === templateId)?.dayNotes.find(n => n.dayOfWeek === dayOfWeek);
     if (existing) {
       if (!content.trim()) {
-        await supabase.from('weekly_template_day_notes').delete().eq('id', existing.id);
+        if (targetMinutes === undefined || targetMinutes === null) {
+          await supabase.from('weekly_template_day_notes').delete().eq('id', existing.id);
+        } else {
+          await supabase.from('weekly_template_day_notes').update({ content: '', target_minutes: targetMinutes }).eq('id', existing.id);
+        }
       } else {
-        await supabase.from('weekly_template_day_notes').update({ content }).eq('id', existing.id);
+        await supabase.from('weekly_template_day_notes').update({ content, target_minutes: targetMinutes ?? null }).eq('id', existing.id);
       }
-    } else if (content.trim()) {
+    } else if (content.trim() || targetMinutes !== undefined) {
       await supabase.from('weekly_template_day_notes').insert({
         template_id: templateId,
         day_of_week: dayOfWeek,
         content,
+        target_minutes: targetMinutes ?? null,
       });
     }
     await fetchTemplates();
@@ -135,37 +155,16 @@ export function useTemplates() {
     const template = templates.find(t => t.id === templateId);
     if (!template) return;
 
-    const entries: any[] = [];
-    const current = new Date(startDate);
+    const { entries, dayPlans } = buildTemplateEntries({
+      userId: user.id,
+      template,
+      templateId,
+      startDate,
+      endDate,
+    });
 
-    while (current <= endDate) {
-      // Get day of week: 0=Monday, 6=Sunday
-      const jsDay = current.getDay(); // 0=Sun
-      const dow = jsDay === 0 ? 6 : jsDay - 1;
-
-      const dayItems = template.items.filter(i => i.dayOfWeek === dow);
-      const dayNote = template.dayNotes.find(n => n.dayOfWeek === dow);
-      const dateStr = current.toISOString().split('T')[0];
-
-      for (const item of dayItems) {
-        entries.push({
-          user_id: user.id,
-          subject_id: item.subjectId,
-          date: dateStr,
-          optional: item.optional,
-          completed: false,
-          sort_order: item.sortOrder,
-          template_id: templateId,
-          is_override: false,
-          day_note: dayNote?.content || null,
-        });
-      }
-
-      current.setDate(current.getDate() + 1);
-    }
-
-    if (entries.length === 0) {
-      toast.info('Nenhuma matéria no template para gerar');
+    if (entries.length === 0 && dayPlans.length === 0) {
+      toast.info('Nenhum item no template para gerar');
       return;
     }
 
@@ -174,6 +173,12 @@ export function useTemplates() {
       const batch = entries.slice(i, i + 100);
       const { error } = await supabase.from('schedule_entries').insert(batch);
       if (error) { toast.error('Erro ao gerar cronograma'); console.error(error); return; }
+    }
+
+    for (let i = 0; i < dayPlans.length; i += 100) {
+      const batch = dayPlans.slice(i, i + 100);
+      const { error } = await supabase.from('schedule_day_plans').upsert(batch, { onConflict: 'user_id,date' });
+      if (error) { toast.error('Erro ao gerar metas diarias'); console.error(error); return; }
     }
 
     toast.success(`Cronograma gerado: ${entries.length} entradas criadas`);
@@ -194,3 +199,4 @@ export function useTemplates() {
     applyTemplate,
   };
 }
+
