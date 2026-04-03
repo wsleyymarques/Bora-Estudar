@@ -130,7 +130,7 @@ export default function SchedulePage() {
       toast.success('Alteração propagada');
     } else if (scope === 'template') {
       // This would update the template itself - simplified version
-      if (type === 'single' || type === 'move') {
+      if (type === 'move') {
         await updateScheduleEntry(entry.id, { ...(payload || {}), isOverride: true });
       } else if (type === 'change') {
         await updateScheduleEntry(entry.id, { subjectId: payload.subjectId, isOverride: true });
