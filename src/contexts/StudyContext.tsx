@@ -47,6 +47,9 @@ function mapScheduleEntry(row: any): ScheduleEntry {
   return {
     id: row.id, date: row.date, subjectId: row.subject_id,
     optional: row.optional, completed: row.completed, order: row.sort_order,
+    templateId: row.template_id || undefined,
+    isOverride: row.is_override || false,
+    dayNote: row.day_note || undefined,
   };
 }
 function mapSession(row: any): StudySession {
