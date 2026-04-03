@@ -66,4 +66,9 @@ const notes: Note[] = [
   { id: 'n4', type: 'session', referenceDate: getDate(mondayOffset), content: 'Revisão de gramática completa, focar em interpretação próxima vez.', createdAt: getDate(mondayOffset) },
 ];
 
-export const mockUserData: UserData = { subjects, schedule, sessions, notes };
+const dayPlans = [
+  { id: 'dp1', date: getDate(mondayOffset), dayTargetMinutes: 300, dayNote: 'Blocos da manha', isOverride: false },
+  { id: 'dp2', date: getDate(mondayOffset + 2), dayTargetMinutes: 270, dayNote: 'Foco em exatas', isOverride: false },
+];
+
+export const mockUserData: UserData = { subjects, schedule, dayPlans, sessions, sessionPauses: [], notes };

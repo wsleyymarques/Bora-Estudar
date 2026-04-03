@@ -48,7 +48,7 @@ export default function SubjectsPage() {
   const inactive = data.subjects.filter(s => !s.active);
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 w-full max-w-none">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-display font-bold text-foreground">Matérias</h1>

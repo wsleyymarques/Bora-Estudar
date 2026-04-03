@@ -1,9 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { ThemeProvider as NextThemeProvider } from "next-themes";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { StudyProvider } from "@/contexts/StudyContext";
+import { AppThemeProvider } from "@/contexts/AppThemeContext";
 import AppLayout from "@/layouts/AppLayout";
 import AuthPage from "@/pages/AuthPage";
 import DashboardPage from "@/pages/DashboardPage";
@@ -48,14 +50,18 @@ function AppRoutes() {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Sonner />
-      <AuthProvider>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-      </AuthProvider>
-    </TooltipProvider>
+    <NextThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <TooltipProvider>
+        <Sonner />
+        <AuthProvider>
+          <AppThemeProvider>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </AppThemeProvider>
+        </AuthProvider>
+      </TooltipProvider>
+    </NextThemeProvider>
   </QueryClientProvider>
 );
 

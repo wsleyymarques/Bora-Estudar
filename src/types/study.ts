@@ -17,9 +17,36 @@ export interface ScheduleEntry {
   optional: boolean;
   completed: boolean;
   order: number;
+  startTime?: string;
+  plannedMinutes?: number;
+  itemNote?: string;
   templateId?: string;
   isOverride?: boolean;
   dayNote?: string;
+}
+
+export interface ScheduleDayPlan {
+  id: string;
+  date: string; // YYYY-MM-DD
+  dayNote?: string;
+  dayTargetMinutes?: number;
+  templateId?: string;
+  isOverride?: boolean;
+}
+
+export type SessionMode = 'manual' | 'stopwatch' | 'pomodoro';
+export type SessionStatus = 'active' | 'paused' | 'completed' | 'abandoned';
+export type PomodoroPhase = 'focus' | 'short_break' | 'long_break';
+
+export interface StudySessionPause {
+  id: string;
+  sessionId: string;
+  userId?: string;
+  pauseStartedAt: string;
+  pauseEndedAt?: string;
+  durationSeconds?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface StudySession {
@@ -30,6 +57,22 @@ export interface StudySession {
   endTime?: string;
   durationMinutes: number;
   note?: string;
+  sessionMode?: SessionMode;
+  status?: SessionStatus;
+  source?: 'tracker' | 'manual' | 'import' | 'pomodoro';
+  pomodoroPhase?: PomodoroPhase;
+  pomodoroCycle?: number;
+  isFocusSession?: boolean;
+  startedAt?: string;
+  endedAt?: string;
+  actualDurationSeconds?: number;
+  totalPauseSeconds?: number;
+  clockDurationSeconds?: number;
+  plannedStartTime?: string;
+  plannedMinutes?: number;
+  scheduleDate?: string;
+  scheduleEntryId?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface Note {
@@ -43,11 +86,13 @@ export interface Note {
 export interface UserData {
   subjects: Subject[];
   schedule: ScheduleEntry[];
+  dayPlans: ScheduleDayPlan[];
   sessions: StudySession[];
+  sessionPauses: StudySessionPause[];
   notes: Note[];
 }
 
-export type ScheduleView = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'templates';
+export type ScheduleView = 'weekly' | 'monthly' | 'yearly' | 'templates';
 
 // Template types
 export interface WeeklyTemplate {
@@ -63,6 +108,9 @@ export interface WeeklyTemplateItem {
   dayOfWeek: number; // 0=Monday, 6=Sunday
   subjectId: string;
   optional: boolean;
+  startTime?: string;
+  plannedMinutes?: number;
+  itemNote?: string;
   sortOrder: number;
 }
 
@@ -71,6 +119,7 @@ export interface WeeklyTemplateDayNote {
   templateId: string;
   dayOfWeek: number;
   content: string;
+  targetMinutes?: number;
 }
 
 export const DAY_NAMES = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
