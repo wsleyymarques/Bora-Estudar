@@ -15,6 +15,8 @@ export interface TrackerBinding {
   plannedStartTime?: string;
   plannedMinutes?: number;
   note?: string;
+  actualStartTimeOverride?: string;
+  actualStartedAtOverride?: string;
 }
 
 export interface StopwatchRuntimeState extends TrackerBinding {

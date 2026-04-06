@@ -25,6 +25,16 @@
   - `utils/services`
 - Sempre que um componente surgir em mais de um contexto, extrair para versao generica.
 
+## Diretriz de Usabilidade (Obrigatoria)
+- O foco do produto e **usabilidade rapida do estudante**.
+- Toda tela e componente devem ser pensados para reduzir friccao e quantidade de cliques.
+- Priorizar fluxos de acao em poucos passos (ver, decidir, agir) dentro do mesmo contexto.
+- Sempre que possivel, usar paineis operacionais compactos que combinem visualizacao + acao + edicao sem trocar de pagina.
+- Evitar separar informacoes de um mesmo fluxo em blocos distantes quando isso aumentar tempo de uso.
+- Regra pratica: antes de implementar, validar se existe uma forma mais curta e intuitiva para completar a mesma tarefa.
+- Em detalhe de cronograma, priorizar um painel unico com analise + controle de timer + edicao de materias.
+- Acoes destrutivas devem exigir confirmacao explicita (modal/dialog) antes de persistir.
+
 ## Diretriz de Plataforma (Obrigatoria)
 - O projeto deve ser tratado como `PWA` em todas as entregas.
 - Toda feature nova deve funcionar bem em:
