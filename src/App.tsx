@@ -6,11 +6,14 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { StudyProvider } from "@/contexts/StudyContext";
 import { AppThemeProvider } from "@/contexts/AppThemeContext";
+import { TrackerProvider } from "@/contexts/TrackerContext";
 import AppLayout from "@/layouts/AppLayout";
 import AuthPage from "@/pages/AuthPage";
 import DashboardPage from "@/pages/DashboardPage";
 import SubjectsPage from "@/pages/SubjectsPage";
 import SchedulePage from "@/pages/SchedulePage";
+import SchedulesPage from "@/pages/SchedulesPage";
+import TemplatesPage from "@/pages/TemplatesPage";
 import TimerPage from "@/pages/TimerPage";
 import HistoryPage from "@/pages/HistoryPage";
 import StatsPage from "@/pages/StatsPage";
@@ -32,18 +35,22 @@ function AppRoutes() {
 
   return (
     <StudyProvider>
-      <AppLayout>
-        <Routes>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/subjects" element={<SubjectsPage />} />
-          <Route path="/schedule" element={<SchedulePage />} />
-          <Route path="/timer" element={<TimerPage />} />
-          <Route path="/history" element={<HistoryPage />} />
-          <Route path="/stats" element={<StatsPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </AppLayout>
+      <TrackerProvider>
+        <AppLayout>
+          <Routes>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/subjects" element={<SubjectsPage />} />
+            <Route path="/schedule" element={<SchedulePage />} />
+            <Route path="/schedules" element={<SchedulesPage />} />
+            <Route path="/templates" element={<TemplatesPage />} />
+            <Route path="/timer" element={<TimerPage />} />
+            <Route path="/history" element={<HistoryPage />} />
+            <Route path="/stats" element={<StatsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AppLayout>
+      </TrackerProvider>
     </StudyProvider>
   );
 }

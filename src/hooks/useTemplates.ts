@@ -1,90 +1,225 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { WeeklyTemplate, WeeklyTemplateItem, WeeklyTemplateDayNote } from '@/types/study';
+import { useStudy } from '@/contexts/StudyContext';
+import { WeeklyTemplate } from '@/types/study';
 import { toast } from 'sonner';
 import { buildTemplateEntries } from '@/features/schedule/template-generation';
 
+const db = supabase as any;
+
+type TemplateType = 'weekly' | 'monthly' | 'custom';
+type TemplateStatus = 'active' | 'archived' | 'draft';
+
+export interface CreateTemplateInput {
+  name: string;
+  description?: string;
+  type?: TemplateType;
+  status?: TemplateStatus;
+  scheduleId?: string;
+}
+
+function mapTemplate(row: any, items: any[], notes: any[]): WeeklyTemplate {
+  return {
+    id: row.id,
+    scheduleId: row.schedule_id || undefined,
+    name: row.name,
+    description: row.description || undefined,
+    type: row.type || 'weekly',
+    status: row.status || 'active',
+    items: items
+      .filter((item) => item.template_id === row.id)
+      .map((item) => ({
+        id: item.id,
+        templateId: item.template_id,
+        dayOfWeek: item.day_of_week,
+        subjectId: item.subject_id,
+        optional: item.optional,
+        startTime: item.start_time || undefined,
+        plannedMinutes: item.planned_minutes ?? undefined,
+        itemNote: item.item_note || undefined,
+        sortOrder: item.sort_order,
+      })),
+    dayNotes: notes
+      .filter((note) => note.template_id === row.id)
+      .map((note) => ({
+        id: note.id,
+        templateId: note.template_id,
+        dayOfWeek: note.day_of_week,
+        content: note.content,
+        targetMinutes: note.target_minutes ?? undefined,
+      })),
+  };
+}
+
 export function useTemplates() {
   const { user } = useAuth();
+  const { activeScheduleId } = useStudy();
   const [templates, setTemplates] = useState<WeeklyTemplate[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchTemplates = useCallback(async () => {
-    if (!user) { setTemplates([]); setLoading(false); return; }
+    if (!user) {
+      setTemplates([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
+    let templatesQuery: any = db.from('weekly_templates').select('*').order('created_at');
+    if (activeScheduleId) {
+      templatesQuery = templatesQuery.eq('schedule_id', activeScheduleId);
+    }
 
-    const { data: tpls } = await supabase
-      .from('weekly_templates')
-      .select('*')
-      .order('created_at');
+    let templatesRes = await templatesQuery;
+    if (
+      templatesRes.error &&
+      String(templatesRes.error.message || '').toLowerCase().includes('schedule_id') &&
+      String(templatesRes.error.message || '').toLowerCase().includes('does not exist')
+    ) {
+      templatesRes = await db.from('weekly_templates').select('*').order('created_at');
+    }
 
-    if (!tpls) { setLoading(false); return; }
+    const templateRows = templatesRes.data || [];
+    if (templateRows.length === 0) {
+      setTemplates([]);
+      setLoading(false);
+      return;
+    }
 
-    const templateIds = tpls.map(t => t.id);
-
+    const templateIds = templateRows.map((row: any) => row.id);
     const [itemsRes, notesRes] = await Promise.all([
-      supabase.from('weekly_template_items').select('*').in('template_id', templateIds.length ? templateIds : ['__none__']).order('sort_order'),
-      supabase.from('weekly_template_day_notes').select('*').in('template_id', templateIds.length ? templateIds : ['__none__']),
+      db
+        .from('weekly_template_items')
+        .select('*')
+        .in('template_id', templateIds)
+        .order('sort_order'),
+      db
+        .from('weekly_template_day_notes')
+        .select('*')
+        .in('template_id', templateIds),
     ]);
 
-    const items = (itemsRes.data || []) as any[];
-    const notes = (notesRes.data || []) as any[];
-
-    const mapped: WeeklyTemplate[] = tpls.map(t => ({
-      id: t.id,
-      name: t.name,
-      items: items
-        .filter(i => i.template_id === t.id)
-        .map(i => ({
-          id: i.id,
-          templateId: i.template_id,
-          dayOfWeek: i.day_of_week,
-          subjectId: i.subject_id,
-          optional: i.optional,
-          startTime: i.start_time || undefined,
-          plannedMinutes: i.planned_minutes ?? undefined,
-          itemNote: i.item_note || undefined,
-          sortOrder: i.sort_order,
-        })),
-      dayNotes: notes
-        .filter(n => n.template_id === t.id)
-        .map(n => ({
-          id: n.id,
-          templateId: n.template_id,
-          dayOfWeek: n.day_of_week,
-          content: n.content,
-          targetMinutes: n.target_minutes ?? undefined,
-        })),
-    }));
-
+    const mapped = templateRows.map((row: any) => mapTemplate(row, itemsRes.data || [], notesRes.data || []));
     setTemplates(mapped);
     setLoading(false);
-  }, [user]);
+  }, [user, activeScheduleId]);
 
-  useEffect(() => { fetchTemplates(); }, [fetchTemplates]);
+  useEffect(() => {
+    void fetchTemplates();
+  }, [fetchTemplates]);
 
-  const createTemplate = async (name: string): Promise<string | null> => {
+  const createTemplate = async (input: string | CreateTemplateInput): Promise<string | null> => {
     if (!user) return null;
-    const { data, error } = await supabase
+
+    const parsedInput: CreateTemplateInput =
+      typeof input === 'string'
+        ? { name: input }
+        : input;
+
+    if (!parsedInput.name.trim()) {
+      toast.error('Informe o nome do template');
+      return null;
+    }
+
+    const { data, error } = await db
       .from('weekly_templates')
-      .insert({ user_id: user.id, name })
+      .insert({
+        user_id: user.id,
+        schedule_id: parsedInput.scheduleId || activeScheduleId || null,
+        name: parsedInput.name.trim(),
+        description: parsedInput.description || null,
+        type: parsedInput.type || 'weekly',
+        status: parsedInput.status || 'active',
+      })
       .select('id')
       .single();
-    if (error) { toast.error('Erro ao criar template'); return null; }
+
+    if (error) {
+      toast.error('Erro ao criar template');
+      return null;
+    }
+
     await fetchTemplates();
     return data.id;
   };
 
-  const updateTemplateName = async (id: string, name: string) => {
-    const { error } = await supabase.from('weekly_templates').update({ name }).eq('id', id);
-    if (error) { toast.error('Erro ao atualizar'); return; }
+  const updateTemplate = async (
+    id: string,
+    updates: Partial<Pick<CreateTemplateInput, 'name' | 'description' | 'type' | 'status'>>,
+  ) => {
+    const payload: any = {};
+    if (updates.name !== undefined) payload.name = updates.name;
+    if (updates.description !== undefined) payload.description = updates.description || null;
+    if (updates.type !== undefined) payload.type = updates.type;
+    if (updates.status !== undefined) payload.status = updates.status;
+
+    const { error } = await db.from('weekly_templates').update(payload).eq('id', id);
+    if (error) {
+      toast.error('Erro ao atualizar template');
+      return;
+    }
     await fetchTemplates();
   };
 
+  const updateTemplateName = async (id: string, name: string) => {
+    await updateTemplate(id, { name });
+  };
+
+  const duplicateTemplate = async (templateId: string, duplicateName?: string): Promise<string | null> => {
+    const template = templates.find((entry) => entry.id === templateId);
+    if (!template || !user) return null;
+
+    const newTemplateId = await createTemplate({
+      name: duplicateName || `${template.name} (copia)`,
+      description: template.description,
+      type: template.type,
+      status: 'draft',
+      scheduleId: template.scheduleId || activeScheduleId,
+    });
+
+    if (!newTemplateId) return null;
+
+    if (template.items.length > 0) {
+      const rows = template.items.map((item) => ({
+        template_id: newTemplateId,
+        day_of_week: item.dayOfWeek,
+        subject_id: item.subjectId,
+        optional: item.optional,
+        start_time: item.startTime || null,
+        planned_minutes: item.plannedMinutes ?? null,
+        item_note: item.itemNote || null,
+        sort_order: item.sortOrder,
+      }));
+      const { error } = await db.from('weekly_template_items').insert(rows);
+      if (error) {
+        toast.error('Erro ao duplicar materias do template');
+      }
+    }
+
+    if (template.dayNotes.length > 0) {
+      const rows = template.dayNotes.map((note) => ({
+        template_id: newTemplateId,
+        day_of_week: note.dayOfWeek,
+        content: note.content,
+        target_minutes: note.targetMinutes ?? null,
+      }));
+      const { error } = await db.from('weekly_template_day_notes').insert(rows);
+      if (error) {
+        toast.error('Erro ao duplicar notas do template');
+      }
+    }
+
+    await fetchTemplates();
+    return newTemplateId;
+  };
+
   const deleteTemplate = async (id: string) => {
-    const { error } = await supabase.from('weekly_templates').delete().eq('id', id);
-    if (error) { toast.error('Erro ao excluir'); return; }
+    const { error } = await db.from('weekly_templates').delete().eq('id', id);
+    if (error) {
+      toast.error('Erro ao excluir template');
+      return;
+    }
     await fetchTemplates();
   };
 
@@ -93,54 +228,117 @@ export function useTemplates() {
     dayOfWeek: number,
     subjectId: string,
     optional: boolean,
-    options?: Partial<{ startTime: string; plannedMinutes: number; itemNote: string }>
+    options?: Partial<{ startTime: string; plannedMinutes: number; itemNote: string }>,
   ) => {
-    const existing = templates.find(t => t.id === templateId)?.items.filter(i => i.dayOfWeek === dayOfWeek) || [];
-    const { error } = await supabase.from('weekly_template_items').insert({
+    const existing = templates.find((template) => template.id === templateId)?.items.filter((item) => item.dayOfWeek === dayOfWeek) || [];
+    const { error } = await db.from('weekly_template_items').insert({
       template_id: templateId,
       day_of_week: dayOfWeek,
       subject_id: subjectId,
       optional,
       start_time: options?.startTime || null,
       planned_minutes: options?.plannedMinutes ?? null,
+      item_note: options?.itemNote || null,
       sort_order: existing.length,
     });
-    if (error) { toast.error('Erro ao adicionar matéria'); return; }
+    if (error) {
+      toast.error('Erro ao adicionar materia');
+      return;
+    }
+    await fetchTemplates();
+  };
+
+  const addTemplateItemsBatch = async (
+    templateId: string,
+    items: Array<{
+      dayOfWeek: number;
+      subjectId: string;
+      optional?: boolean;
+      startTime?: string;
+      plannedMinutes?: number;
+      itemNote?: string;
+      sortOrder?: number;
+    }>,
+  ) => {
+    if (items.length === 0) return;
+    const template = templates.find((entry) => entry.id === templateId);
+    const dayCounters = new Map<number, number>();
+
+    for (const item of template?.items || []) {
+      const current = dayCounters.get(item.dayOfWeek) ?? 0;
+      dayCounters.set(item.dayOfWeek, Math.max(current, item.sortOrder + 1));
+    }
+
+    const rows = items.map((item) => {
+      const nextSortOrder = item.sortOrder ?? (dayCounters.get(item.dayOfWeek) ?? 0);
+      dayCounters.set(item.dayOfWeek, nextSortOrder + 1);
+      return {
+        template_id: templateId,
+        day_of_week: item.dayOfWeek,
+        subject_id: item.subjectId,
+        optional: item.optional ?? false,
+        start_time: item.startTime || null,
+        planned_minutes: item.plannedMinutes ?? null,
+        item_note: item.itemNote || null,
+        sort_order: nextSortOrder,
+      };
+    });
+    const { error } = await db.from('weekly_template_items').insert(rows);
+    if (error) {
+      toast.error('Erro ao adicionar materias em lote');
+      return;
+    }
     await fetchTemplates();
   };
 
   const removeTemplateItem = async (itemId: string) => {
-    const { error } = await supabase.from('weekly_template_items').delete().eq('id', itemId);
-    if (error) { toast.error('Erro ao remover'); return; }
+    const { error } = await db.from('weekly_template_items').delete().eq('id', itemId);
+    if (error) {
+      toast.error('Erro ao remover');
+      return;
+    }
     await fetchTemplates();
   };
 
-  const updateTemplateItem = async (itemId: string, updates: Partial<{ optional: boolean; sortOrder: number; subjectId: string; startTime: string; plannedMinutes: number; itemNote: string }>) => {
-    const upd: any = {};
-    if (updates.optional !== undefined) upd.optional = updates.optional;
-    if (updates.sortOrder !== undefined) upd.sort_order = updates.sortOrder;
-    if (updates.subjectId !== undefined) upd.subject_id = updates.subjectId;
-    if (updates.startTime !== undefined) upd.start_time = updates.startTime || null;
-    if (updates.plannedMinutes !== undefined) upd.planned_minutes = updates.plannedMinutes;
-    const { error } = await supabase.from('weekly_template_items').update(upd).eq('id', itemId);
-    if (error) { toast.error('Erro ao atualizar'); return; }
+  const removeTemplateItemsBatch = async (itemIds: string[]) => {
+    if (itemIds.length === 0) return;
+    const { error } = await db.from('weekly_template_items').delete().in('id', itemIds);
+    if (error) {
+      toast.error('Erro ao remover materias em lote');
+      return;
+    }
+    await fetchTemplates();
+  };
+
+  const updateTemplateItem = async (
+    itemId: string,
+    updates: Partial<{ optional: boolean; sortOrder: number; subjectId: string; startTime: string; plannedMinutes: number; itemNote: string }>,
+  ) => {
+    const payload: any = {};
+    if (updates.optional !== undefined) payload.optional = updates.optional;
+    if (updates.sortOrder !== undefined) payload.sort_order = updates.sortOrder;
+    if (updates.subjectId !== undefined) payload.subject_id = updates.subjectId;
+    if (updates.startTime !== undefined) payload.start_time = updates.startTime || null;
+    if (updates.plannedMinutes !== undefined) payload.planned_minutes = updates.plannedMinutes;
+    if (updates.itemNote !== undefined) payload.item_note = updates.itemNote || null;
+    const { error } = await db.from('weekly_template_items').update(payload).eq('id', itemId);
+    if (error) {
+      toast.error('Erro ao atualizar');
+      return;
+    }
     await fetchTemplates();
   };
 
   const setDayNote = async (templateId: string, dayOfWeek: number, content: string, targetMinutes?: number) => {
-    const existing = templates.find(t => t.id === templateId)?.dayNotes.find(n => n.dayOfWeek === dayOfWeek);
+    const existing = templates.find((template) => template.id === templateId)?.dayNotes.find((note) => note.dayOfWeek === dayOfWeek);
     if (existing) {
-      if (!content.trim()) {
-        if (targetMinutes === undefined || targetMinutes === null) {
-          await supabase.from('weekly_template_day_notes').delete().eq('id', existing.id);
-        } else {
-          await supabase.from('weekly_template_day_notes').update({ content: '', target_minutes: targetMinutes }).eq('id', existing.id);
-        }
+      if (!content.trim() && (targetMinutes === undefined || targetMinutes === null)) {
+        await db.from('weekly_template_day_notes').delete().eq('id', existing.id);
       } else {
-        await supabase.from('weekly_template_day_notes').update({ content, target_minutes: targetMinutes ?? null }).eq('id', existing.id);
+        await db.from('weekly_template_day_notes').update({ content, target_minutes: targetMinutes ?? null }).eq('id', existing.id);
       }
     } else if (content.trim() || targetMinutes !== undefined) {
-      await supabase.from('weekly_template_day_notes').insert({
+      await db.from('weekly_template_day_notes').insert({
         template_id: templateId,
         day_of_week: dayOfWeek,
         content,
@@ -150,13 +348,33 @@ export function useTemplates() {
     await fetchTemplates();
   };
 
-  const applyTemplate = async (templateId: string, startDate: Date, endDate: Date, refreshSchedule: () => Promise<void>) => {
+  const upsertTemplateDayNotesBatch = async (
+    templateId: string,
+    notes: Array<{ dayOfWeek: number; content: string; targetMinutes?: number }>,
+  ) => {
+    if (notes.length === 0) return;
+    const rows = notes.map((note) => ({
+      template_id: templateId,
+      day_of_week: note.dayOfWeek,
+      content: note.content,
+      target_minutes: note.targetMinutes ?? null,
+    }));
+    const { error } = await db.from('weekly_template_day_notes').upsert(rows, { onConflict: 'template_id,day_of_week' });
+    if (error) {
+      toast.error('Erro ao atualizar metas dos dias');
+      return;
+    }
+    await fetchTemplates();
+  };
+
+  const applyTemplate = async (templateId: string, startDate: Date, endDate: Date, refreshSchedule?: () => Promise<void>) => {
     if (!user) return;
-    const template = templates.find(t => t.id === templateId);
+    const template = templates.find((entry) => entry.id === templateId);
     if (!template) return;
 
     const { entries, dayPlans } = buildTemplateEntries({
       userId: user.id,
+      scheduleId: template.scheduleId || activeScheduleId,
       template,
       templateId,
       startDate,
@@ -168,21 +386,37 @@ export function useTemplates() {
       return;
     }
 
-    // Insert in batches of 100
     for (let i = 0; i < entries.length; i += 100) {
       const batch = entries.slice(i, i + 100);
-      const { error } = await supabase.from('schedule_entries').insert(batch);
-      if (error) { toast.error('Erro ao gerar cronograma'); console.error(error); return; }
+      const { error } = await db.from('schedule_entries').insert(batch);
+      if (error) {
+        toast.error('Erro ao gerar cronograma');
+        return;
+      }
     }
 
     for (let i = 0; i < dayPlans.length; i += 100) {
       const batch = dayPlans.slice(i, i + 100);
-      const { error } = await supabase.from('schedule_day_plans').upsert(batch, { onConflict: 'user_id,date' });
-      if (error) { toast.error('Erro ao gerar metas diarias'); console.error(error); return; }
+      let upsertResult = await db.from('schedule_day_plans').upsert(batch, {
+        onConflict: 'user_id,schedule_id,date',
+      });
+
+      if (upsertResult.error && String(upsertResult.error.message || '').toLowerCase().includes('on conflict')) {
+        upsertResult = await db.from('schedule_day_plans').upsert(batch, { onConflict: 'user_id,date' });
+      }
+
+      if (upsertResult.error) {
+        toast.error('Erro ao gerar metas diarias');
+        return;
+      }
     }
 
     toast.success(`Cronograma gerado: ${entries.length} entradas criadas`);
-    await refreshSchedule();
+    if (refreshSchedule) {
+      await refreshSchedule();
+    } else {
+      await fetchTemplates();
+    }
   };
 
   return {
@@ -190,13 +424,19 @@ export function useTemplates() {
     loading,
     fetchTemplates,
     createTemplate,
+    updateTemplate,
     updateTemplateName,
+    duplicateTemplate,
     deleteTemplate,
     addTemplateItem,
+    addTemplateItemsBatch,
     removeTemplateItem,
+    removeTemplateItemsBatch,
     updateTemplateItem,
     setDayNote,
+    upsertTemplateDayNotesBatch,
     applyTemplate,
   };
 }
+
 

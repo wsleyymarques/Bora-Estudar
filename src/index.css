@@ -307,6 +307,13 @@
     @apply min-h-screen p-2 md:p-3;
   }
 
+  .workspace-canvas {
+    background:
+      radial-gradient(circle at 10% 10%, hsl(var(--workspace-bg-a)) 0%, transparent 38%),
+      radial-gradient(circle at 90% 15%, hsl(var(--workspace-bg-b)) 0%, transparent 40%),
+      linear-gradient(140deg, hsl(var(--background)) 0%, hsl(var(--muted)) 100%);
+  }
+
   .workspace-frame {
     @apply min-h-[calc(100vh-1rem)] md:min-h-[calc(100vh-1.5rem)] rounded-[1.25rem] md:rounded-[1.75rem] border border-border/60 overflow-hidden;
     background: linear-gradient(170deg, hsl(var(--workspace-bg-a) / 0.35), hsl(var(--workspace-bg-b) / 0.4));

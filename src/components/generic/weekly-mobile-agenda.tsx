@@ -89,44 +89,43 @@ export function WeeklyMobileAgenda({
 
   return (
     <div className={cn('workspace-panel p-3 space-y-3', className)}>
-      <div className="overflow-x-auto -mx-1 px-1 pb-1">
-        <div className="flex w-max min-w-full gap-2">
-          {days.map((day) => {
-            const stats = day.status || {};
-            const dayEvents = eventsByDay.get(day.key);
-            const eventCount = (dayEvents?.timed.length || 0) + (dayEvents?.untimed.length || 0);
-            const isActive = day.key === selectedDay?.key;
+      <div className="grid grid-cols-7 gap-1">
+        {days.map((day) => {
+          const isActive = day.key === selectedDay?.key;
+          const dayShort = (day.weekdayLabel || '').slice(0, 3);
+          const dayNumber = day.dateLabel?.split('/')[0] || day.dateLabel;
 
-            return (
-              <button
-                key={day.key}
-                type="button"
-                onClick={() => onSelectDay(day.key)}
+          return (
+            <button
+              key={day.key}
+              type="button"
+              onClick={() => onSelectDay(day.key)}
+              className={cn(
+                'min-w-0 h-[74px] rounded-2xl border px-1 py-1 text-center transition-all flex flex-col items-center justify-center gap-0.5',
+                isActive
+                  ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                  : 'bg-card border-border/70 text-foreground hover:border-primary/35',
+              )}
+            >
+              <p
                 className={cn(
-                  'min-w-[86px] rounded-2xl border px-2.5 py-2 text-left transition-all',
-                  isActive
-                    ? 'bg-foreground text-background border-foreground shadow-sm'
-                    : 'bg-card border-border/70 text-foreground',
+                  'text-[9px] uppercase tracking-[0.09em] font-semibold leading-none',
+                  isActive ? 'text-primary-foreground/75' : 'text-muted-foreground',
                 )}
               >
-                <p className={cn('text-[10px] uppercase tracking-[0.11em] font-semibold', isActive ? 'text-background/70' : 'text-muted-foreground')}>
-                  {day.weekdayLabel}
-                </p>
-                <p className="text-sm font-display font-semibold mt-0.5">{day.dateLabel}</p>
-                <div className="mt-1 flex items-center justify-between gap-1.5">
-                  <div className="flex items-center gap-1">
-                    <span className={cn('h-1.5 w-1.5 rounded-full', stats.done ? 'bg-success' : isActive ? 'bg-background/30' : 'bg-muted')} />
-                    <span className={cn('h-1.5 w-1.5 rounded-full', stats.pending ? 'bg-warning' : isActive ? 'bg-background/30' : 'bg-muted')} />
-                    <span className={cn('h-1.5 w-1.5 rounded-full', stats.observation ? 'bg-info' : isActive ? 'bg-background/30' : 'bg-muted')} />
-                  </div>
-                  <span className={cn('text-[10px] font-medium', isActive ? 'text-background/85' : 'text-muted-foreground')}>
-                    {eventCount}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+                {dayShort}
+              </p>
+              <p
+                className={cn(
+                  'text-[20px] leading-none font-display font-semibold tabular-nums',
+                  isActive ? 'text-primary-foreground' : 'text-foreground',
+                )}
+              >
+                {dayNumber}
+              </p>
+            </button>
+          );
+        })}
       </div>
 
       {selectedDay && (

@@ -1,12 +1,11 @@
-import React, { useState } from 'react';
-import { useStudy } from '@/contexts/StudyContext';
+import React, { useEffect, useMemo, useState } from 'react';
+import { SubjectCreateInput, useStudy } from '@/contexts/StudyContext';
 import { ScheduleView, ScheduleEntry, DAY_NAMES_SHORT } from '@/types/study';
 import { ChevronLeft, ChevronRight, ArrowRightLeft, MoveRight, LayoutTemplate } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import WeeklyPlannerView from '@/components/schedule/WeeklyPlannerView';
@@ -19,6 +18,9 @@ import { getMonday, parseDateKey, toDateKey } from '@/lib/date-utils';
 import { buildMonthlyCells, buildYearlyMinutesSummary } from '@/features/schedule/selectors';
 import { formatMinutesCompact } from '@/lib/duration-utils';
 import { ClockTimePickerField, DurationPickerField } from '@/components/generic/time-picker-fields';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { SubjectFinder } from '@/components/generic/subject-finder';
+import { SubjectForm } from '@/components/generic/subject-form';
 
 const VIEWS: { key: ScheduleView; label: string; icon?: React.ReactNode }[] = [
   { key: 'weekly', label: 'Semanal' },
@@ -40,7 +42,17 @@ function formatWeekRangeLabel(date: Date) {
 export default function SchedulePage() {
   const [view, setView] = useState<ScheduleView>('weekly');
   const [currentDate, setCurrentDate] = useState(new Date());
-  const { data, getSubject, getScheduleForDate, updateScheduleEntry, deleteScheduleEntry, addScheduleEntry, addNote } = useStudy();
+  const {
+    data,
+    activeSchedule,
+    createSubject,
+    getSubject,
+    getScheduleForDate,
+    updateScheduleEntry,
+    deleteScheduleEntry,
+    addScheduleEntry,
+    addNote,
+  } = useStudy();
   const { templates } = useTemplates();
 
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
@@ -70,6 +82,15 @@ export default function SchedulePage() {
 
   const [applyDialog, setApplyDialog] = useState(false);
   const [applyTemplateId, setApplyTemplateId] = useState('');
+  const [quickSubjectDialog, setQuickSubjectDialog] = useState(false);
+  const [quickSubjectForm, setQuickSubjectForm] = useState<SubjectCreateInput>({
+    name: '',
+    color: '#5B8C7E',
+    active: true,
+    optional: false,
+    weeklyGoalHours: 0,
+    monthlyGoalHours: 0,
+  });
 
   const navigate = (dir: number) => {
     const d = new Date(currentDate);
@@ -230,6 +251,28 @@ export default function SchedulePage() {
     setApplyDialog(true);
   };
 
+  const openQuickSubjectDialog = () => {
+    setQuickSubjectForm({
+      name: '',
+      color: '#5B8C7E',
+      active: true,
+      optional: false,
+      weeklyGoalHours: 0,
+      monthlyGoalHours: 0,
+    });
+    setQuickSubjectDialog(true);
+  };
+
+  const handleQuickSubjectSave = async () => {
+    if (!quickSubjectForm.name?.trim()) {
+      toast.error('Informe o nome da materia');
+      return;
+    }
+    await createSubject(quickSubjectForm);
+    setQuickSubjectDialog(false);
+    toast.success('Materia criada');
+  };
+
   const applyTemplateName = templates.find(t => t.id === applyTemplateId)?.name || '';
 
   return (
@@ -237,7 +280,10 @@ export default function SchedulePage() {
       <div className="workspace-panel p-3 md:p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl md:text-3xl font-display font-bold text-foreground">Cronograma</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Planejamento semanal, mensal e anual com detalhe por dia.</p>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Planejamento semanal, mensal e anual com detalhe por dia.
+            {activeSchedule ? ` Cronograma ativo: ${activeSchedule.name}.` : ''}
+          </p>
         </div>
         <div className="calendar-toolbar w-fit">
           {VIEWS.map(v => (
@@ -262,9 +308,6 @@ export default function SchedulePage() {
           </span>
           <div className="flex items-center gap-2">
             <button onClick={() => navigate(1)} className="h-10 w-10 flex items-center justify-center rounded-full border border-border/60 hover:bg-muted transition-colors"><ChevronRight className="w-5 h-5" /></button>
-            {view !== 'weekly' && (
-              <Button variant="secondary" size="sm" className="rounded-full" onClick={() => setCurrentDate(new Date())}>Hoje</Button>
-            )}
           </div>
         </div>
       )}
@@ -309,19 +352,15 @@ export default function SchedulePage() {
           <DialogHeader><DialogTitle className="font-display">Adicionar materia</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">{addDate && new Date(addDate + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
-            <Select value={addSubjectId} onValueChange={setAddSubjectId}>
-              <SelectTrigger><SelectValue placeholder="Selecione a materia" /></SelectTrigger>
-              <SelectContent>
-                {data.subjects.filter(s => s.active).map(s => (
-                  <SelectItem key={s.id} value={s.id}>
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
-                      {s.name}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SubjectFinder
+              value={addSubjectId}
+              onChange={setAddSubjectId}
+              subjects={data.subjects}
+              areas={data.subjectAreas}
+              categories={data.subjectCategories}
+              onCreateSubject={openQuickSubjectDialog}
+              placeholder="Selecione a materia"
+            />
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={addOptional} onChange={e => setAddOptional(e.target.checked)} className="rounded" />
               Materia opcional
@@ -373,19 +412,15 @@ export default function SchedulePage() {
                 Trocar <strong>{getSubject(changeEntry.subjectId)?.name}</strong>
               </p>
             )}
-            <Select value={changeSubjectId} onValueChange={setChangeSubjectId}>
-              <SelectTrigger><SelectValue placeholder="Nova materia" /></SelectTrigger>
-              <SelectContent>
-                {data.subjects.filter(s => s.active).map(s => (
-                  <SelectItem key={s.id} value={s.id}>
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
-                      {s.name}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SubjectFinder
+              value={changeSubjectId}
+              onChange={setChangeSubjectId}
+              subjects={data.subjects}
+              areas={data.subjectAreas}
+              categories={data.subjectCategories}
+              onCreateSubject={openQuickSubjectDialog}
+              placeholder="Nova materia"
+            />
             <Button onClick={handleChangeSubject} className="w-full">
               <ArrowRightLeft className="w-4 h-4 mr-2" />Trocar
             </Button>
@@ -412,14 +447,166 @@ export default function SchedulePage() {
           templateName={applyTemplateName}
         />
       )}
+
+      <Dialog open={quickSubjectDialog} onOpenChange={setQuickSubjectDialog}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="font-display">Criar materia</DialogTitle>
+          </DialogHeader>
+          <SubjectForm
+            value={quickSubjectForm}
+            areas={data.subjectAreas}
+            categories={data.subjectCategories}
+            onChange={setQuickSubjectForm}
+            onSubmit={handleQuickSubjectSave}
+            onCancel={() => setQuickSubjectDialog(false)}
+            submitLabel="Criar materia"
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
 function MonthlyView({ currentDate, onDayClick }: { currentDate: Date; onDayClick: (d: string) => void }) {
   const { data, getSubject } = useStudy();
+  const isMobile = useIsMobile();
   const cells = buildMonthlyCells(currentDate, data.schedule, data.sessions, data.notes, data.dayPlans, data.sessionPauses);
   const today = toDateKey(new Date());
+  const monthCells = useMemo(() => cells.filter((cell) => cell.inCurrentMonth), [cells]);
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    const todayCell = cells.find((cell) => cell.date === today && cell.inCurrentMonth);
+    if (todayCell) return todayCell.date;
+    return monthCells[0]?.date || cells[0]?.date || today;
+  });
+
+  useEffect(() => {
+    if (!cells.some((cell) => cell.date === selectedDate)) {
+      const next = monthCells[0]?.date || cells[0]?.date;
+      if (next) setSelectedDate(next);
+    }
+  }, [cells, monthCells, selectedDate]);
+
+  if (isMobile) {
+    const selectedCell =
+      cells.find((cell) => cell.date === selectedDate) ||
+      monthCells[0] ||
+      cells[0];
+    const selectedMainSubjects =
+      selectedCell?.entries.filter((entry) => !entry.optional) || [];
+    const selectedOptionalSubjects =
+      selectedCell?.entries.filter((entry) => entry.optional) || [];
+
+    return (
+      <div className="workspace-panel p-2.5 space-y-3">
+        <div className="grid grid-cols-7 gap-1">
+          {DAY_NAMES_SHORT.map((dayName) => (
+            <div key={dayName} className="text-[10px] text-muted-foreground text-center font-semibold py-1 uppercase tracking-[0.08em]">
+              {dayName}
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-7 gap-1">
+          {cells.map((cell) => {
+            const isToday = cell.date === today;
+            const isSelected = cell.date === selectedCell?.date;
+            const hasStudy = cell.stats.total > 0 || cell.stats.minutes > 0;
+
+            return (
+              <button
+                key={cell.date}
+                type="button"
+                onClick={() => setSelectedDate(cell.date)}
+                className={`relative aspect-square rounded-xl border p-1 transition-all focus:outline-none ${
+                  cell.inCurrentMonth ? 'bg-card border-border/70' : 'bg-muted/25 border-border/40 text-muted-foreground'
+                } ${isSelected ? 'ring-2 ring-primary/55 border-primary/50 shadow-sm' : ''}`}
+              >
+                <span className={`text-xs font-semibold ${isToday ? 'text-primary' : 'text-foreground'}`}>
+                  {cell.day}
+                </span>
+
+                <div className="absolute bottom-1 left-1 right-1 flex items-center justify-center gap-1">
+                  <span className={`h-1.5 w-1.5 rounded-full ${cell.stats.total > 0 ? 'bg-primary/80' : 'bg-muted'}`} />
+                  <span className={`h-1.5 w-1.5 rounded-full ${cell.stats.hasPending ? 'bg-warning' : 'bg-muted'}`} />
+                  <span className={`h-1.5 w-1.5 rounded-full ${cell.stats.hasObservation ? 'bg-info' : 'bg-muted'}`} />
+                </div>
+
+                {hasStudy && (
+                  <span className="absolute top-1 right-1 text-[9px] text-muted-foreground tabular-nums">
+                    {cell.stats.completed}/{cell.stats.total}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {selectedCell && (
+          <div className="rounded-xl border border-border/70 bg-card/75 p-3 space-y-2.5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground capitalize">
+                  {new Date(`${selectedCell.date}T12:00:00`).toLocaleDateString('pt-BR', {
+                    weekday: 'long',
+                    day: '2-digit',
+                    month: 'long',
+                  })}
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {selectedCell.stats.completed}/{selectedCell.stats.total} concluidas • feito {formatMinutesCompact(selectedCell.stats.minutes)}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 rounded-full px-3 text-[11px]"
+                onClick={() => onDayClick(selectedCell.date)}
+              >
+                Abrir dia
+              </Button>
+            </div>
+
+            {(selectedCell.stats.plannedMinutes > 0 || selectedCell.stats.dayTargetMinutes !== undefined) && (
+              <p className="text-[11px] text-muted-foreground">
+                {selectedCell.stats.plannedMinutes > 0 ? `Planejado ${formatMinutesCompact(selectedCell.stats.plannedMinutes)}` : 'Planejado --'}{' '}
+                • {selectedCell.stats.dayTargetMinutes !== undefined ? `Meta ${formatMinutesCompact(selectedCell.stats.dayTargetMinutes)}` : 'Meta --'}
+              </p>
+            )}
+
+            {(selectedMainSubjects.length > 0 || selectedOptionalSubjects.length > 0) ? (
+              <div className="space-y-1.5">
+                {selectedMainSubjects.map((entry) => {
+                  const subject = getSubject(entry.subjectId);
+                  return (
+                    <div key={entry.id} className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/85 px-2.5 py-2">
+                      <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: subject?.color }} />
+                      <p className="text-xs text-foreground truncate flex-1">{subject?.name || 'Materia'}</p>
+                      <span className="text-[11px] text-muted-foreground tabular-nums">{entry.startTime || '--:--'}</span>
+                    </div>
+                  );
+                })}
+                {selectedOptionalSubjects.map((entry) => {
+                  const subject = getSubject(entry.subjectId);
+                  return (
+                    <div key={entry.id} className="flex items-center gap-2 rounded-lg border border-dashed border-border/70 bg-background/70 px-2.5 py-2">
+                      <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: subject?.color }} />
+                      <p className="text-xs text-foreground truncate flex-1">{subject?.name || 'Materia'}</p>
+                      <span className="text-[10px] text-muted-foreground">Opcional</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground rounded-lg border border-dashed border-border/70 px-3 py-3 text-center">
+                Sem materias planejadas neste dia.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="workspace-panel p-2 md:p-3 space-y-2">

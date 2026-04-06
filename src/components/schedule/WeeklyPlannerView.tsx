@@ -10,6 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ArrowRightLeft, FileText, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getSessionActualMinutes } from '@/features/tracker/session-metrics';
+import { ScheduleItemPlayButton } from '@/components/schedule/ScheduleItemPlayButton';
 
 interface WeeklyPlannerViewProps {
   currentDate: Date;
@@ -139,24 +140,27 @@ export default function WeeklyPlannerView({
           void toggleScheduleComplete(entry.id);
         },
         actions: (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted/60" title="Mais acoes">
-                <MoreHorizontal className="w-3.5 h-3.5" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onMove(entry)}>
-                Mover
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onChange(entry)}>
-                <ArrowRightLeft className="w-4 h-4 mr-2" />Trocar
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onRemove(entry.id)} className="text-destructive focus:text-destructive">
-                <Trash2 className="w-4 h-4 mr-2" />Remover
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <>
+            <ScheduleItemPlayButton entry={entry} date={date} />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted/60" title="Mais acoes">
+                  <MoreHorizontal className="w-3.5 h-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => onMove(entry)}>
+                  Mover
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onChange(entry)}>
+                  <ArrowRightLeft className="w-4 h-4 mr-2" />Trocar
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onRemove(entry.id)} className="text-destructive focus:text-destructive">
+                  <Trash2 className="w-4 h-4 mr-2" />Remover
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
         ),
       };
     });

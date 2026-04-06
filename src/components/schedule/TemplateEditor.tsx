@@ -1,23 +1,42 @@
-﻿import React, { useState } from 'react';
-import { useStudy } from '@/contexts/StudyContext';
+﻿import React, { useEffect, useState } from 'react';
+import { SubjectCreateInput, useStudy } from '@/contexts/StudyContext';
 import { useTemplates } from '@/hooks/useTemplates';
 import { DAY_NAMES } from '@/types/study';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, Trash2, FileText, Calendar, Pencil, Check, X } from 'lucide-react';
+import { Plus, Trash2, FileText, Calendar, Pencil, Check, X, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { ClockTimePickerField, DurationPickerField } from '@/components/generic/time-picker-fields';
+import { SubjectFinder } from '@/components/generic/subject-finder';
+import { SubjectForm } from '@/components/generic/subject-form';
+import {
+  TemplateQuickBuilder,
+  TemplateQuickGeneratePayload,
+} from '@/components/generic/template-quick-builder';
 
 interface TemplateEditorProps {
   onApply: (templateId: string) => void;
 }
 
 export default function TemplateEditor({ onApply }: TemplateEditorProps) {
-  const { data } = useStudy();
-  const { templates, loading, createTemplate, updateTemplateName, deleteTemplate, addTemplateItem, removeTemplateItem, setDayNote } = useTemplates();
+  const { data, createSubject } = useStudy();
+  const {
+    templates,
+    loading,
+    createTemplate,
+    duplicateTemplate,
+    updateTemplate,
+    updateTemplateName,
+    deleteTemplate,
+    addTemplateItem,
+    addTemplateItemsBatch,
+    removeTemplateItem,
+    removeTemplateItemsBatch,
+    setDayNote,
+    upsertTemplateDayNotesBatch,
+  } = useTemplates();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -36,9 +55,44 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
   const [noteDay, setNoteDay] = useState(0);
   const [noteContent, setNoteContent] = useState('');
   const [noteTargetMinutes, setNoteTargetMinutes] = useState<number | undefined>(undefined);
+  const [quickLoading, setQuickLoading] = useState(false);
+  const [quickSubjectDialog, setQuickSubjectDialog] = useState(false);
+  const [quickSubjectForm, setQuickSubjectForm] = useState<SubjectCreateInput>({
+    name: '',
+    color: '#5B8C7E',
+    active: true,
+    optional: false,
+    weeklyGoalHours: 0,
+    monthlyGoalHours: 0,
+  });
 
   const selected = templates.find(t => t.id === selectedId);
+  const [templateDescription, setTemplateDescription] = useState('');
+  const [templateStatus, setTemplateStatus] = useState<'active' | 'archived' | 'draft'>('active');
   const activeSubjects = data.subjects.filter(s => s.active);
+
+  useEffect(() => {
+    if (!selected) return;
+    setTemplateDescription(selected.description || '');
+    setTemplateStatus((selected.status as 'active' | 'archived' | 'draft') || 'active');
+  }, [selected?.id]);
+
+  const parseClockToMinutes = (value?: string): number | undefined => {
+    if (!value) return undefined;
+    const [hourRaw, minuteRaw] = value.split(':');
+    const hour = Number(hourRaw);
+    const minute = Number(minuteRaw);
+    if (!Number.isFinite(hour) || !Number.isFinite(minute)) return undefined;
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return undefined;
+    return hour * 60 + minute;
+  };
+
+  const minutesToClock = (totalMinutes: number): string => {
+    const bounded = ((totalMinutes % 1440) + 1440) % 1440;
+    const hour = Math.floor(bounded / 60).toString().padStart(2, '0');
+    const minute = (bounded % 60).toString().padStart(2, '0');
+    return `${hour}:${minute}`;
+  };
 
   const handleCreate = async () => {
     if (!newName.trim()) { toast.error('Digite um nome'); return; }
@@ -71,6 +125,28 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
     setNoteDialog(false);
   };
 
+  const openQuickSubjectDialog = () => {
+    setQuickSubjectForm({
+      name: '',
+      color: '#5B8C7E',
+      active: true,
+      optional: false,
+      weeklyGoalHours: 0,
+      monthlyGoalHours: 0,
+    });
+    setQuickSubjectDialog(true);
+  };
+
+  const handleQuickSubjectSave = async () => {
+    if (!quickSubjectForm.name?.trim()) {
+      toast.error('Informe o nome da materia');
+      return;
+    }
+    await createSubject(quickSubjectForm);
+    setQuickSubjectDialog(false);
+    toast.success('Materia criada');
+  };
+
   const openAddItem = (day: number) => {
     setAddDay(day);
     setAddSubjectId('');
@@ -86,6 +162,110 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
     setNoteContent(existing?.content || '');
     setNoteTargetMinutes(existing?.targetMinutes);
     setNoteDialog(true);
+  };
+
+  const handleQuickGenerate = async (payload: TemplateQuickGeneratePayload) => {
+    if (!selectedId) return;
+    const template = templates.find((t) => t.id === selectedId);
+    if (!template) return;
+
+    setQuickLoading(true);
+    try {
+      if (payload.replaceDays) {
+        const itemsToRemove = template.items
+          .filter((item) => payload.selectedDays.includes(item.dayOfWeek))
+          .map((item) => item.id);
+        if (itemsToRemove.length > 0) {
+          await removeTemplateItemsBatch(itemsToRemove);
+        }
+      }
+
+      const baseStartMinutes = parseClockToMinutes(payload.startTime);
+      const generatedItems = payload.selectedDays.flatMap((dayOfWeek) =>
+        payload.selectedSubjectIds.map((subjectId, index) => ({
+          dayOfWeek,
+          subjectId,
+          optional: false,
+          startTime:
+            baseStartMinutes === undefined
+              ? undefined
+              : minutesToClock(baseStartMinutes + index * payload.intervalMinutes),
+          plannedMinutes: payload.plannedMinutes,
+          sortOrder: payload.replaceDays ? index : undefined,
+        })),
+      );
+
+      await addTemplateItemsBatch(selectedId, generatedItems);
+
+      if (payload.setDayTargetFromPlan && payload.plannedMinutes !== undefined) {
+        const dayNotesPayload = payload.selectedDays.map((dayOfWeek) => {
+          const existingNote = template.dayNotes.find((note) => note.dayOfWeek === dayOfWeek);
+          return {
+            dayOfWeek,
+            content: existingNote?.content || '',
+            targetMinutes: payload.plannedMinutes! * payload.selectedSubjectIds.length,
+          };
+        });
+        await upsertTemplateDayNotesBatch(selectedId, dayNotesPayload);
+      }
+
+      toast.success('Template gerado rapidamente com sucesso.');
+    } finally {
+      setQuickLoading(false);
+    }
+  };
+
+  const handleQuickDuplicateDay = async (sourceDay: number, targetDay: number) => {
+    if (!selectedId) return;
+    const template = templates.find((t) => t.id === selectedId);
+    if (!template) return;
+
+    const sourceItems = template.items
+      .filter((item) => item.dayOfWeek === sourceDay)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+
+    if (sourceItems.length === 0) {
+      toast.error('O dia de origem nao possui materias.');
+      return;
+    }
+
+    setQuickLoading(true);
+    try {
+      const targetItemsToRemove = template.items
+        .filter((item) => item.dayOfWeek === targetDay)
+        .map((item) => item.id);
+      if (targetItemsToRemove.length > 0) {
+        await removeTemplateItemsBatch(targetItemsToRemove);
+      }
+
+      await addTemplateItemsBatch(
+        selectedId,
+        sourceItems.map((item, index) => ({
+          dayOfWeek: targetDay,
+          subjectId: item.subjectId,
+          optional: item.optional,
+          startTime: item.startTime,
+          plannedMinutes: item.plannedMinutes,
+          itemNote: item.itemNote,
+          sortOrder: index,
+        })),
+      );
+
+      const sourceNote = template.dayNotes.find((note) => note.dayOfWeek === sourceDay);
+      if (sourceNote) {
+        await upsertTemplateDayNotesBatch(selectedId, [
+          {
+            dayOfWeek: targetDay,
+            content: sourceNote.content || '',
+            targetMinutes: sourceNote.targetMinutes,
+          },
+        ]);
+      }
+
+      toast.success('Dia duplicado com sucesso.');
+    } finally {
+      setQuickLoading(false);
+    }
   };
 
   if (loading) {
@@ -137,6 +317,7 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
               <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                 <button onClick={() => { setEditingName(t.id); setEditName(t.name); }} className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Renomear"><Pencil className="w-3.5 h-3.5" /></button>
                 <button onClick={() => onApply(t.id)} className="p-1.5 rounded hover:bg-primary/10 text-primary" title="Aplicar template"><Calendar className="w-3.5 h-3.5" /></button>
+                <button onClick={() => duplicateTemplate(t.id)} className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Duplicar template"><Copy className="w-3.5 h-3.5" /></button>
                 <button onClick={() => { if (confirm('Excluir este template?')) deleteTemplate(t.id); }} className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive" title="Excluir"><Trash2 className="w-3.5 h-3.5" /></button>
               </div>
             </div>
@@ -150,6 +331,52 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
             <h3 className="text-lg font-display font-semibold text-foreground">{selected.name}</h3>
             <Button onClick={() => onApply(selected.id)} size="sm"><Calendar className="w-4 h-4 mr-1" />Aplicar Cronograma</Button>
           </div>
+
+          <div className="glass-card p-4 space-y-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div className="md:col-span-2 space-y-1.5">
+                <label className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Descricao</label>
+                <Textarea
+                  rows={2}
+                  value={templateDescription}
+                  onChange={(event) => setTemplateDescription(event.target.value)}
+                  placeholder="Contexto e objetivo do template"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Status</label>
+                <select
+                  value={templateStatus}
+                  onChange={(event) => setTemplateStatus(event.target.value as 'active' | 'archived' | 'draft')}
+                  className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm"
+                >
+                  <option value="active">Ativo</option>
+                  <option value="draft">Rascunho</option>
+                  <option value="archived">Arquivado</option>
+                </select>
+                <Button
+                  className="w-full"
+                  variant="outline"
+                  onClick={() =>
+                    updateTemplate(selected.id, {
+                      description: templateDescription,
+                      status: templateStatus,
+                    })
+                  }
+                >
+                  Salvar detalhes
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <TemplateQuickBuilder
+            dayNames={DAY_NAMES}
+            subjects={activeSubjects.map((subject) => ({ id: subject.id, name: subject.name, color: subject.color }))}
+            onGenerate={handleQuickGenerate}
+            onDuplicateDay={handleQuickDuplicateDay}
+            disabled={quickLoading}
+          />
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {DAY_NAMES.map((dayName, dow) => {
@@ -219,19 +446,15 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
         <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle className="font-display">Adicionar materia - {DAY_NAMES[addDay]}</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <Select value={addSubjectId} onValueChange={setAddSubjectId}>
-              <SelectTrigger><SelectValue placeholder="Selecione a materia" /></SelectTrigger>
-              <SelectContent>
-                {activeSubjects.map(s => (
-                  <SelectItem key={s.id} value={s.id}>
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
-                      {s.name}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SubjectFinder
+              value={addSubjectId}
+              onChange={setAddSubjectId}
+              subjects={data.subjects}
+              areas={data.subjectAreas}
+              categories={data.subjectCategories}
+              onCreateSubject={openQuickSubjectDialog}
+              placeholder="Selecione a materia"
+            />
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={addOptional} onChange={e => setAddOptional(e.target.checked)} className="rounded" />
               Materia opcional
@@ -253,7 +476,25 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
           <Button onClick={handleSaveNote} className="w-full">Salvar</Button>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={quickSubjectDialog} onOpenChange={setQuickSubjectDialog}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="font-display">Criar materia</DialogTitle>
+          </DialogHeader>
+          <SubjectForm
+            value={quickSubjectForm}
+            areas={data.subjectAreas}
+            categories={data.subjectCategories}
+            onChange={setQuickSubjectForm}
+            onSubmit={handleQuickSubjectSave}
+            onCancel={() => setQuickSubjectDialog(false)}
+            submitLabel="Criar materia"
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
 
