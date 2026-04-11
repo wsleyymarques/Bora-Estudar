@@ -19,7 +19,7 @@ function getFromDateByPeriod(period: FilterPeriod): string | undefined {
 }
 
 export default function HistoryPage() {
-  const { data, getSubject, getSessionPauses } = useStudy();
+  const { data, getSubject } = useStudy();
   const [period, setPeriod] = useState<FilterPeriod>('month');
   const [subjectFilter, setSubjectFilter] = useState<string>('all');
 

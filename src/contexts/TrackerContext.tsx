@@ -148,7 +148,7 @@ function summaryToSessionPayload(
     endTime: clockFromIso(summary.endedAt),
     durationMinutes: Math.round(summary.actualDurationSeconds / 60),
     note: runtime.note,
-    sessionMode: runtime.kind === 'pomodoro' ? 'pomodoro' : 'stopwatch',
+    sessionMode: (runtime.kind === 'pomodoro' ? 'pomodoro' : 'stopwatch') as SessionMode,
     status,
     source,
     pomodoroPhase: phase,
