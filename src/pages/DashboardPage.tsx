@@ -9,7 +9,7 @@ import { formatMinutesCompact } from '@/lib/duration-utils';
 import { getSessionActualMinutes } from '@/features/tracker/session-metrics';
 
 export default function DashboardPage() {
-  const { data, getSubject, getScheduleForDate, getTotalMinutesForDate, getTotalPauseMinutesForDate } = useStudy();
+  const { data, getSubject, getScheduleForDate, getTotalMinutesForDate } = useStudy();
   const { user } = useAuth();
   const navigate = useNavigate();
 

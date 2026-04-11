@@ -6,7 +6,7 @@ import { formatMinutesCompact } from '@/lib/duration-utils';
 import { getSessionActualMinutes, getSessionPauseSeconds } from '@/features/tracker/session-metrics';
 
 export default function StatsPage() {
-  const { data, getSubject, getTotalMinutesForDate, getTotalPauseMinutesForDate } = useStudy();
+  const { data, getSubject, getTotalMinutesForDate } = useStudy();
 
   const focusSessions = useMemo(
     () => data.sessions.filter((session) => session.isFocusSession !== false),
