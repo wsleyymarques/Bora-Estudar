@@ -35,6 +35,21 @@ export interface ScheduleDayPlan {
   isOverride?: boolean;
 }
 
+export type SessionMode = 'manual' | 'stopwatch' | 'pomodoro';
+export type SessionStatus = 'active' | 'paused' | 'completed' | 'abandoned';
+export type PomodoroPhase = 'focus' | 'short_break' | 'long_break';
+
+export interface StudySessionPause {
+  id: string;
+  sessionId: string;
+  userId?: string;
+  pauseStartedAt: string;
+  pauseEndedAt?: string;
+  durationSeconds?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface StudySession {
   id: string;
   subjectId: string;
@@ -43,6 +58,22 @@ export interface StudySession {
   endTime?: string;
   durationMinutes: number;
   note?: string;
+  sessionMode?: SessionMode;
+  status?: SessionStatus;
+  source?: 'tracker' | 'manual' | 'import' | 'pomodoro';
+  pomodoroPhase?: PomodoroPhase;
+  pomodoroCycle?: number;
+  isFocusSession?: boolean;
+  startedAt?: string;
+  endedAt?: string;
+  actualDurationSeconds?: number;
+  totalPauseSeconds?: number;
+  clockDurationSeconds?: number;
+  plannedStartTime?: string;
+  plannedMinutes?: number;
+  scheduleDate?: string;
+  scheduleEntryId?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface Note {
@@ -58,6 +89,7 @@ export interface UserData {
   schedule: ScheduleEntry[];
   dayPlans: ScheduleDayPlan[];
   sessions: StudySession[];
+  sessionPauses: StudySessionPause[];
   notes: Note[];
 }
 
