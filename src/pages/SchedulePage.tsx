@@ -44,7 +44,7 @@ export default function SchedulePage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const {
     data,
-    activeSchedule,
+    
     createSubject,
     getSubject,
     getScheduleForDate,
@@ -282,7 +282,7 @@ export default function SchedulePage() {
           <h1 className="text-2xl md:text-3xl font-display font-bold text-foreground">Cronograma</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Planejamento semanal, mensal e anual com detalhe por dia.
-            {activeSchedule ? ` Cronograma ativo: ${activeSchedule.name}.` : ''}
+            {''}
           </p>
         </div>
         <div className="calendar-toolbar w-fit">
@@ -356,8 +356,8 @@ export default function SchedulePage() {
               value={addSubjectId}
               onChange={setAddSubjectId}
               subjects={data.subjects}
-              areas={data.subjectAreas}
-              categories={data.subjectCategories}
+              
+              
               onCreateSubject={openQuickSubjectDialog}
               placeholder="Selecione a materia"
             />
@@ -416,8 +416,8 @@ export default function SchedulePage() {
               value={changeSubjectId}
               onChange={setChangeSubjectId}
               subjects={data.subjects}
-              areas={data.subjectAreas}
-              categories={data.subjectCategories}
+              
+              
               onCreateSubject={openQuickSubjectDialog}
               placeholder="Nova materia"
             />
@@ -455,8 +455,8 @@ export default function SchedulePage() {
           </DialogHeader>
           <SubjectForm
             value={quickSubjectForm}
-            areas={data.subjectAreas}
-            categories={data.subjectCategories}
+            
+            
             onChange={setQuickSubjectForm}
             onSubmit={handleQuickSubjectSave}
             onCancel={() => setQuickSubjectDialog(false)}
