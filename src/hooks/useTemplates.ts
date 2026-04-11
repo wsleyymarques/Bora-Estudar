@@ -22,11 +22,11 @@ export interface CreateTemplateInput {
 function mapTemplate(row: any, items: any[], notes: any[]): WeeklyTemplate {
   return {
     id: row.id,
-    scheduleId: row.schedule_id || undefined,
+    
     name: row.name,
     description: row.description || undefined,
-    type: row.type || 'weekly',
-    status: row.status || 'active',
+    
+    
     items: items
       .filter((item) => item.template_id === row.id)
       .map((item) => ({
@@ -54,7 +54,7 @@ function mapTemplate(row: any, items: any[], notes: any[]): WeeklyTemplate {
 
 export function useTemplates() {
   const { user } = useAuth();
-  const { activeScheduleId } = useStudy();
+  
   const [templates, setTemplates] = useState<WeeklyTemplate[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -67,8 +67,8 @@ export function useTemplates() {
 
     setLoading(true);
     let templatesQuery: any = db.from('weekly_templates').select('*').order('created_at');
-    if (activeScheduleId) {
-      templatesQuery = templatesQuery.eq('schedule_id', activeScheduleId);
+    if (undefined) {
+      templatesQuery = templatesQuery.eq('schedule_id', undefined);
     }
 
     let templatesRes = await templatesQuery;
@@ -103,7 +103,7 @@ export function useTemplates() {
     const mapped = templateRows.map((row: any) => mapTemplate(row, itemsRes.data || [], notesRes.data || []));
     setTemplates(mapped);
     setLoading(false);
-  }, [user, activeScheduleId]);
+  }, [user, undefined]);
 
   useEffect(() => {
     void fetchTemplates();
@@ -126,7 +126,7 @@ export function useTemplates() {
       .from('weekly_templates')
       .insert({
         user_id: user.id,
-        schedule_id: parsedInput.scheduleId || activeScheduleId || null,
+        schedule_id: parsedInput.scheduleId || undefined || null,
         name: parsedInput.name.trim(),
         description: parsedInput.description || null,
         type: parsedInput.type || 'weekly',
@@ -173,9 +173,9 @@ export function useTemplates() {
     const newTemplateId = await createTemplate({
       name: duplicateName || `${template.name} (copia)`,
       description: template.description,
-      type: template.type,
+      type: undefined,
       status: 'draft',
-      scheduleId: template.scheduleId || activeScheduleId,
+      scheduleId: undefined || undefined,
     });
 
     if (!newTemplateId) return null;
@@ -374,7 +374,7 @@ export function useTemplates() {
 
     const { entries, dayPlans } = buildTemplateEntries({
       userId: user.id,
-      scheduleId: template.scheduleId || activeScheduleId,
+      scheduleId: undefined || undefined,
       template,
       templateId,
       startDate,

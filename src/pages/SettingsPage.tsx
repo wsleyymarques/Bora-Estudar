@@ -20,7 +20,7 @@ export default function SettingsPage() {
     templatesLoading,
     setTemplateKey,
     setMode,
-    createTemplate,
+    
   } = useAppTheme();
 
   const [newTemplateName, setNewTemplateName] = useState('');
@@ -50,7 +50,7 @@ export default function SettingsPage() {
     setCreatingTemplate(true);
 
     try {
-      const created = await createTemplate({
+      // template creation disabled
         name: newTemplateName,
         description: newTemplateDescription,
         baseTemplateKey,
