@@ -1,3 +1,4 @@
+import { SessionMode } from '@/types/study';
 import React, { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useStudy } from '@/contexts/StudyContext';

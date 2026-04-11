@@ -40,7 +40,7 @@ export default function StatsPage() {
       for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
         const date = toDateKey(addDays(weekStart, dayIndex));
         totalMinutes += getTotalMinutesForDate(date);
-        totalPauseMinutes += getTotalPauseMinutesForDate(date);
+        
       }
 
       weeks.push({
@@ -51,7 +51,7 @@ export default function StatsPage() {
     }
 
     return weeks;
-  }, [getTotalMinutesForDate, getTotalPauseMinutesForDate]);
+  }, [getTotalMinutesForDate]);
 
   const activeDays = new Set(focusSessions.map((session) => session.date)).size;
   const totalMinutes = focusSessions.reduce((acc, session) => acc + getSessionActualMinutes(session), 0);

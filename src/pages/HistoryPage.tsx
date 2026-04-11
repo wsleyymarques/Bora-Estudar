@@ -140,7 +140,7 @@ export default function HistoryPage() {
               <div className="space-y-2">
                 {sessions.map((session) => {
                   const subject = getSubject(session.subjectId);
-                  const pauses = getSessionPauses(session.id);
+                  
                   const actual = formatMinutesCompact(getSessionActualMinutes(session));
                   const paused = formatMinutesCompact(Math.round(getSessionPauseSeconds(session, pauses) / 60));
                   const startLabel = getSessionStartLabel(session);
