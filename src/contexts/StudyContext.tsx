@@ -128,6 +128,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     schedule: [],
     dayPlans: [],
     sessions: [],
+    sessionPauses: [],
     notes: [],
   });
   const [loading, setLoading] = useState(true);
