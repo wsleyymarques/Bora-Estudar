@@ -135,7 +135,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
   const fetchAll = useCallback(async () => {
     if (!user) {
-      setData({ subjects: [], schedule: [], dayPlans: [], sessions: [], notes: [] });
+      setData({ subjects: [], schedule: [], dayPlans: [], sessions: [], sessionPauses: [], notes: [] });
       setLoading(false);
       return;
     }
