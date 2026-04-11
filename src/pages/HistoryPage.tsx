@@ -19,7 +19,7 @@ function getFromDateByPeriod(period: FilterPeriod): string | undefined {
 }
 
 export default function HistoryPage() {
-  const { data, getSubject, getSessionPauses } = useStudy();
+  const { data, getSubject } = useStudy();
   const [period, setPeriod] = useState<FilterPeriod>('month');
   const [subjectFilter, setSubjectFilter] = useState<string>('all');
 
@@ -140,7 +140,7 @@ export default function HistoryPage() {
               <div className="space-y-2">
                 {sessions.map((session) => {
                   const subject = getSubject(session.subjectId);
-                  const pauses = getSessionPauses(session.id);
+                  
                   const actual = formatMinutesCompact(getSessionActualMinutes(session));
                   const paused = formatMinutesCompact(Math.round(getSessionPauseSeconds(session, pauses) / 60));
                   const startLabel = getSessionStartLabel(session);

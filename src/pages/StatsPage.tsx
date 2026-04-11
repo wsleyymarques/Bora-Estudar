@@ -6,7 +6,7 @@ import { formatMinutesCompact } from '@/lib/duration-utils';
 import { getSessionActualMinutes, getSessionPauseSeconds } from '@/features/tracker/session-metrics';
 
 export default function StatsPage() {
-  const { data, getSubject, getTotalMinutesForDate, getTotalPauseMinutesForDate } = useStudy();
+  const { data, getSubject, getTotalMinutesForDate } = useStudy();
 
   const focusSessions = useMemo(
     () => data.sessions.filter((session) => session.isFocusSession !== false),
@@ -40,7 +40,7 @@ export default function StatsPage() {
       for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
         const date = toDateKey(addDays(weekStart, dayIndex));
         totalMinutes += getTotalMinutesForDate(date);
-        totalPauseMinutes += getTotalPauseMinutesForDate(date);
+        
       }
 
       weeks.push({
@@ -51,7 +51,7 @@ export default function StatsPage() {
     }
 
     return weeks;
-  }, [getTotalMinutesForDate, getTotalPauseMinutesForDate]);
+  }, [getTotalMinutesForDate]);
 
   const activeDays = new Set(focusSessions.map((session) => session.date)).size;
   const totalMinutes = focusSessions.reduce((acc, session) => acc + getSessionActualMinutes(session), 0);

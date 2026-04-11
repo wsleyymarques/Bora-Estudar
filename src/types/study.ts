@@ -3,18 +3,7 @@ export interface Subject {
   name: string;
   color: string;
   userId?: string;
-  slug?: string;
-  description?: string;
-  icon?: string;
-  origin?: SubjectOrigin;
-  status?: SubjectStatus;
   category?: string;
-  areaId?: string;
-  categoryId?: string;
-  subcategoryId?: string;
-  areaName?: string;
-  categoryName?: string;
-  subcategoryName?: string;
   active: boolean;
   optional: boolean;
   weeklyGoalHours: number;
@@ -22,53 +11,8 @@ export interface Subject {
   order: number;
 }
 
-export type SubjectOrigin = 'global' | 'user';
-export type SubjectStatus = 'active' | 'archived' | 'draft';
-
-export interface SubjectArea {
-  id: string;
-  name: string;
-  slug?: string;
-  description?: string;
-  isSystem: boolean;
-  createdBy?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface SubjectCategory {
-  id: string;
-  areaId?: string;
-  parentId?: string;
-  name: string;
-  slug?: string;
-  description?: string;
-  isSystem: boolean;
-  createdBy?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export type ScheduleStatus = 'active' | 'archived' | 'draft';
-
-export interface StudySchedule {
-  id: string;
-  userId: string;
-  name: string;
-  description?: string;
-  color?: string;
-  status: ScheduleStatus;
-  startDate: string;
-  endDate?: string;
-  isActive: boolean;
-  viewSettings?: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface ScheduleEntry {
   id: string;
-  scheduleId?: string;
   date: string; // YYYY-MM-DD
   subjectId: string;
   optional: boolean;
@@ -84,7 +28,6 @@ export interface ScheduleEntry {
 
 export interface ScheduleDayPlan {
   id: string;
-  scheduleId?: string;
   date: string; // YYYY-MM-DD
   dayNote?: string;
   dayTargetMinutes?: number;
@@ -109,7 +52,6 @@ export interface StudySessionPause {
 
 export interface StudySession {
   id: string;
-  scheduleId?: string;
   subjectId: string;
   date: string;
   startTime: string;
@@ -136,17 +78,13 @@ export interface StudySession {
 
 export interface Note {
   id: string;
-  scheduleId?: string;
   type: 'day' | 'week' | 'session';
-  referenceDate: string; // YYYY-MM-DD or YYYY-Www
+  referenceDate: string;
   content: string;
   createdAt: string;
 }
 
 export interface UserData {
-  schedules: StudySchedule[];
-  subjectAreas: SubjectArea[];
-  subjectCategories: SubjectCategory[];
   subjects: Subject[];
   schedule: ScheduleEntry[];
   dayPlans: ScheduleDayPlan[];
@@ -160,11 +98,8 @@ export type ScheduleView = 'weekly' | 'monthly' | 'yearly' | 'templates';
 // Template types
 export interface WeeklyTemplate {
   id: string;
-  scheduleId?: string;
   name: string;
   description?: string;
-  type?: 'weekly' | 'monthly' | 'custom';
-  status?: 'active' | 'archived' | 'draft';
   items: WeeklyTemplateItem[];
   dayNotes: WeeklyTemplateDayNote[];
 }

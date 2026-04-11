@@ -9,7 +9,7 @@ import { formatMinutesCompact } from '@/lib/duration-utils';
 import { getSessionActualMinutes } from '@/features/tracker/session-metrics';
 
 export default function DashboardPage() {
-  const { data, getSubject, getScheduleForDate, getTotalMinutesForDate, getTotalPauseMinutesForDate } = useStudy();
+  const { data, getSubject, getScheduleForDate, getTotalMinutesForDate } = useStudy();
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -18,9 +18,9 @@ export default function DashboardPage() {
   const weekDates = useMemo(() => Array.from({ length: 7 }, (_, index) => toDateKey(addDays(monday, index))), [monday]);
 
   const todayMinutes = getTotalMinutesForDate(today);
-  const todayPauseMinutes = getTotalPauseMinutesForDate(today);
+  const todayPauseMinutes = 0;
   const weekMinutes = weekDates.reduce((acc, date) => acc + getTotalMinutesForDate(date), 0);
-  const weekPauseMinutes = weekDates.reduce((acc, date) => acc + getTotalPauseMinutesForDate(date), 0);
+  const weekPauseMinutes = weekDates.reduce((acc, date) => acc + 0, 0);
   const todaySchedule = getScheduleForDate(today);
   const completedToday = todaySchedule.filter((entry) => entry.completed).length;
   const pendingToday = todaySchedule.filter((entry) => !entry.completed && !entry.optional);
@@ -39,7 +39,7 @@ export default function DashboardPage() {
   const weekChartData = weekDates.map((date) => ({
     day: new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'short' }),
     minutos: getTotalMinutesForDate(date),
-    pausas: getTotalPauseMinutesForDate(date),
+    pausas: 0,
   }));
 
   const pieData = subjectMinutes.slice(0, 6).map(([subjectId, minutes]) => {

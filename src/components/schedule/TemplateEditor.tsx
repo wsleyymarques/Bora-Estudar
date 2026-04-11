@@ -450,8 +450,8 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
               value={addSubjectId}
               onChange={setAddSubjectId}
               subjects={data.subjects}
-              areas={data.subjectAreas}
-              categories={data.subjectCategories}
+              
+              
               onCreateSubject={openQuickSubjectDialog}
               placeholder="Selecione a materia"
             />
@@ -484,8 +484,8 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
           </DialogHeader>
           <SubjectForm
             value={quickSubjectForm}
-            areas={data.subjectAreas}
-            categories={data.subjectCategories}
+            
+            
             onChange={setQuickSubjectForm}
             onSubmit={handleQuickSubjectSave}
             onCancel={() => setQuickSubjectDialog(false)}
