@@ -165,6 +165,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       schedule: (scheduleRes.data || []).map(mapScheduleEntry),
       dayPlans: (dayPlanRes.data || []).map(mapScheduleDayPlan),
       sessions: (sessionRes.data || []).map(mapSession),
+      sessionPauses: [],
       notes: (noteRes.data || []).map(mapNote),
     });
 
