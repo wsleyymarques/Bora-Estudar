@@ -16,20 +16,25 @@ create table if not exists public.study_plans (
 
 alter table public.study_plans enable row level security;
 
-create policy if not exists "Users can view own study plans"
+drop policy if exists "Users can view own study plans" on public.study_plans;
+drop policy if exists "Users can create own study plans" on public.study_plans;
+drop policy if exists "Users can update own study plans" on public.study_plans;
+drop policy if exists "Users can delete own study plans" on public.study_plans;
+
+create policy "Users can view own study plans"
   on public.study_plans for select
   using (auth.uid() = user_id);
 
-create policy if not exists "Users can create own study plans"
+create policy "Users can create own study plans"
   on public.study_plans for insert
   with check (auth.uid() = user_id);
 
-create policy if not exists "Users can update own study plans"
+create policy "Users can update own study plans"
   on public.study_plans for update
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
-create policy if not exists "Users can delete own study plans"
+create policy "Users can delete own study plans"
   on public.study_plans for delete
   using (auth.uid() = user_id);
 
