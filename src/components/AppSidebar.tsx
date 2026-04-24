@@ -14,6 +14,7 @@ import { NavLink } from '@/components/NavLink';
 
 const menuItems: AppSidebarNavItem[] = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
+  { title: 'Planos de Estudos', url: '/plans', icon: Layers },
   { title: 'Cronograma', url: '/schedule', icon: Calendar },
   { title: 'Cronogramas', url: '/schedules', icon: CalendarClock },
   { title: 'Templates', url: '/templates', icon: Layers },
@@ -82,11 +83,6 @@ export function AppSidebar() {
                 <LogOut className="w-4 h-4" />
                 {!collapsed && <span>Sair</span>}
               </button>
-              {collapsed && user && (
-                <span className="text-[10px] text-sidebar-foreground/66 max-w-[56px] truncate text-center px-1">
-                  {user.user_metadata?.full_name || user.email?.split('@')[0]}
-                </span>
-              )}
             </div>
           </div>
         </SidebarContent>
@@ -94,60 +90,5 @@ export function AppSidebar() {
     );
   }
 
-  return (
-    <Sidebar collapsible="icon" className="workspace-sidebar">
-      <SidebarContent className="flex flex-col justify-between h-full workspace-sidebar border-r border-sidebar-border/60">
-        <div>
-          <div className="p-4 md:p-5 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-sidebar-accent/70 flex items-center justify-center flex-shrink-0 border border-sidebar-border/70">
-              <BookOpen className="w-4.5 h-4.5 text-sidebar-accent-foreground" />
-            </div>
-            {!collapsed && (
-              <div>
-                <span className="font-display font-bold text-sidebar-foreground text-lg leading-none">StudyFlow</span>
-                <p className="text-[11px] text-sidebar-foreground/60 mt-1">Workspace</p>
-              </div>
-            )}
-          </div>
-
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {[...menuItems, ...accountItems].map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild>
-                      <NavLink
-                        to={item.url}
-                        end={item.url === '/'}
-                        className="rounded-xl text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-                        activeClassName="rounded-xl bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
-                      >
-                        <item.icon className="mr-2 h-4 w-4" />
-                        {!collapsed && <span>{item.title}</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        </div>
-
-        <div className="p-4 border-t border-sidebar-border/60">
-          {!collapsed && user && (
-            <p className="text-xs text-sidebar-foreground/60 mb-2 truncate">
-              {user.user_metadata?.full_name || user.email?.split('@')[0]}
-            </p>
-          )}
-          <button
-            onClick={logout}
-            className="flex items-center gap-2 text-sm text-sidebar-foreground/80 hover:text-sidebar-foreground transition-colors w-full"
-          >
-            <LogOut className="w-4 h-4" />
-            {!collapsed && <span>Sair</span>}
-          </button>
-        </div>
-      </SidebarContent>
-    </Sidebar>
-  );
+  return null;
 }
