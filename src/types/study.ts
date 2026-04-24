@@ -1,5 +1,6 @@
 export interface Subject {
   id: string;
+  planId?: string;
   name: string;
   color: string;
   userId?: string;
