@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useNavigate } from 'react-router-dom';
-import { CalendarDays, Loader2, Plus, Search, Trophy } from 'lucide-react';
+import { CalendarDays, CheckCircle2, Loader2, Plus, Search, Trophy } from 'lucide-react';
 import { toast } from 'sonner';
 
 const INITIAL_FORM: StudyPlanInput = {
@@ -75,7 +75,7 @@ export default function PlansPage() {
       });
 
       if (plan) {
-        toast.success('Plano de estudos criado com sucesso.');
+        toast.success('Plano de estudos e cronograma vinculados criados com sucesso.');
         setDialogOpen(false);
         resetForm();
         navigate(`/plans/${plan.id}`);
@@ -98,7 +98,7 @@ export default function PlansPage() {
               Organize seus concursos por plano
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-              Crie um plano geral para cada concurso, com banca, cargo, descrição, imagem e intervalo de revisão.
+              Crie um plano geral para cada concurso. Cada plano já nasce com um cronograma próprio vinculado para receber matérias, templates, sessões e revisões.
             </p>
           </div>
 
@@ -137,7 +137,7 @@ export default function PlansPage() {
           </div>
           <h2 className="mt-4 text-lg font-semibold text-foreground">Nenhum plano encontrado</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Crie seu primeiro plano para estudar por concurso, banca, cargo e revisões automáticas.
+            Crie seu primeiro plano para estudar por concurso, banca, cargo, cronograma próprio e revisões automáticas.
           </p>
           <Button onClick={openCreateDialog} className="mt-4 rounded-xl">
             Criar primeiro plano
@@ -177,9 +177,15 @@ export default function PlansPage() {
 
                 {plan.description ? <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{plan.description}</p> : null}
 
-                <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
-                  <CalendarDays className="h-4 w-4" />
-                  Revisão a cada {plan.review_interval_days || 7} dias
+                <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-border/70 px-2 py-1">
+                    <CalendarDays className="h-4 w-4" />
+                    Revisão a cada {plan.review_interval_days || 7} dias
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full border border-border/70 px-2 py-1">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Cronograma vinculado
+                  </span>
                 </div>
               </div>
             </button>
@@ -192,11 +198,20 @@ export default function PlansPage() {
           <DialogHeader>
             <DialogTitle className="font-display">Criar Plano de Estudos</DialogTitle>
             <DialogDescription>
-              Cadastre o plano geral do concurso. Depois você poderá vincular matérias, modelo semanal, cronograma e revisões.
+              Cadastre o plano geral do concurso. O sistema criará automaticamente um cronograma vinculado a este plano para receber matérias, templates e revisões.
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-2">
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm text-muted-foreground">
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 text-primary" />
+                <p>
+                  Ao criar o plano, um cronograma interno será criado junto e ficará vinculado a ele. Depois, tudo que for adicionado no fluxo do plano será salvo nesse cronograma.
+                </p>
+              </div>
+            </div>
+
             <div className="grid gap-2">
               <Label htmlFor="plan-name">Nome do plano *</Label>
               <Input
@@ -278,7 +293,7 @@ export default function PlansPage() {
             </Button>
             <Button onClick={handleCreate} disabled={submitting}>
               {submitting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plus className="mr-1.5 h-4 w-4" />}
-              Criar plano
+              Criar plano e cronograma
             </Button>
           </div>
         </DialogContent>
