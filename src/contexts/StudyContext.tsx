@@ -1,11 +1,14 @@
-
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, ReactNode, useMemo, useState } from 'react';
 import {
-  Subject,
-  ScheduleEntry,
-  ScheduleDayPlan,
-  StudySession,
   Note,
+  ScheduleDayPlan,
+  ScheduleEntry,
+  StudyPlan,
+  StudySession,
+  Subject,
+  SubjectArea,
+  SubjectCategory,
+  SubjectSubcategory,
   UserData,
 } from '@/types/study';
 import { useAuth } from './AuthContext';
@@ -25,15 +28,35 @@ export interface SubjectCreateInput {
   active?: boolean;
   weeklyGoalHours?: number;
   monthlyGoalHours?: number;
+  planId?: string;
+  description?: string;
+  icon?: string;
+  areaId?: string;
+  categoryId?: string;
+  subcategoryId?: string;
+  origin?: 'global' | 'user' | 'plan';
+  status?: 'active' | 'inactive' | 'archived';
 }
+
+type FindSubjectsFilters = {
+  query?: string;
+  areaId?: string;
+  categoryId?: string;
+  subcategoryId?: string;
+  planId?: string;
+  origin?: 'all' | 'global' | 'user' | 'plan';
+  activeOnly?: boolean;
+};
 
 interface StudyContextType {
   data: UserData;
   loading: boolean;
+  activeStudyPlan?: StudyPlan;
   addSubject: (s: Omit<Subject, 'id' | 'order'>) => Promise<void>;
   createSubject: (s: SubjectCreateInput) => Promise<void>;
   updateSubject: (id: string, s: Partial<Subject>) => Promise<void>;
   deleteSubject: (id: string) => Promise<void>;
+  findSubjects: (filters?: FindSubjectsFilters) => Subject[];
   addScheduleEntry: (e: Omit<ScheduleEntry, 'id'>) => Promise<void>;
   updateScheduleEntry: (id: string, e: Partial<ScheduleEntry>) => Promise<void>;
   deleteScheduleEntry: (id: string) => Promise<void>;
@@ -53,17 +76,70 @@ interface StudyContextType {
   refreshData: () => Promise<void>;
 }
 
+const EMPTY_DATA: UserData = {
+  studyPlans: [],
+  activeStudyPlanId: undefined,
+  subjectAreas: [],
+  subjectCategories: [],
+  subjectSubcategories: [],
+  subjects: [],
+  schedule: [],
+  dayPlans: [],
+  sessions: [],
+  sessionPauses: [],
+  notes: [],
+};
+
 const StudyContext = createContext<StudyContextType | undefined>(undefined);
 const db = supabase as any;
+
+const hasMissingColumnError = (error: any) => String(error?.message || '').toLowerCase().includes('column');
+
+function mapStudyPlan(row: any): StudyPlan {
+  return {
+    id: row.id,
+    userId: row.user_id || undefined,
+    title: row.title || row.name || row.exam_name || 'Plano de Estudos',
+    name: row.name || row.title || undefined,
+    examName: row.exam_name || undefined,
+    board: row.board || undefined,
+    role: row.role || undefined,
+    description: row.description || undefined,
+    imageUrl: row.image_url || undefined,
+    reviewIntervalDays: row.review_interval_days ?? undefined,
+    createdAt: row.created_at || undefined,
+    updatedAt: row.updated_at || undefined,
+  };
+}
+
+function mapSubjectArea(row: any): SubjectArea {
+  return { id: row.id, name: row.name, description: row.description || undefined, icon: row.icon || undefined, sortOrder: row.sort_order ?? 0 };
+}
+
+function mapSubjectCategory(row: any): SubjectCategory {
+  return { id: row.id, areaId: row.area_id || undefined, name: row.name, description: row.description || undefined, sortOrder: row.sort_order ?? 0 };
+}
+
+function mapSubjectSubcategory(row: any): SubjectSubcategory {
+  return { id: row.id, categoryId: row.category_id || undefined, name: row.name, description: row.description || undefined, sortOrder: row.sort_order ?? 0 };
+}
 
 function mapSubject(row: any): Subject {
   return {
     id: row.id,
     name: row.name,
-    color: row.color,
+    color: row.color || '#5B8C7E',
     userId: row.user_id || undefined,
+    planId: row.plan_id || undefined,
     category: row.category || undefined,
-    active: row.active ?? true,
+    description: row.description || undefined,
+    icon: row.icon || undefined,
+    areaId: row.area_id || undefined,
+    categoryId: row.category_id || undefined,
+    subcategoryId: row.subcategory_id || undefined,
+    origin: row.origin || (row.plan_id ? 'plan' : row.user_id ? 'user' : 'global'),
+    status: row.status || (row.active === false ? 'inactive' : 'active'),
+    active: row.active ?? row.status !== 'inactive',
     optional: row.optional ?? false,
     weeklyGoalHours: Number(row.weekly_goal_hours ?? 0),
     monthlyGoalHours: Number(row.monthly_goal_hours ?? 0),
@@ -76,6 +152,7 @@ function mapScheduleEntry(row: any): ScheduleEntry {
     id: row.id,
     date: row.date,
     subjectId: row.subject_id,
+    planId: row.plan_id || undefined,
     optional: Boolean(row.optional),
     completed: Boolean(row.completed),
     order: row.sort_order,
@@ -92,6 +169,7 @@ function mapScheduleDayPlan(row: any): ScheduleDayPlan {
   return {
     id: row.id,
     date: row.date,
+    planId: row.plan_id || undefined,
     dayNote: row.day_note || undefined,
     dayTargetMinutes: row.day_target_minutes ?? undefined,
     templateId: row.template_id || undefined,
@@ -103,6 +181,7 @@ function mapSession(row: any): StudySession {
   return {
     id: row.id,
     subjectId: row.subject_id,
+    planId: row.plan_id || undefined,
     date: row.date,
     startTime: row.start_time,
     endTime: row.end_time || undefined,
@@ -123,26 +202,23 @@ function mapNote(row: any): Note {
 
 export function StudyProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const [data, setData] = useState<UserData>({
-    subjects: [],
-    schedule: [],
-    dayPlans: [],
-    sessions: [],
-    sessionPauses: [],
-    notes: [],
-  });
+  const [data, setData] = useState<UserData>(EMPTY_DATA);
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
     if (!user) {
-      setData({ subjects: [], schedule: [], dayPlans: [], sessions: [], sessionPauses: [], notes: [] });
+      setData(EMPTY_DATA);
       setLoading(false);
       return;
     }
 
     setLoading(true);
 
-    const [subjectsRes, scheduleRes, dayPlanRes, sessionRes, noteRes] = await Promise.all([
+    const [plansRes, areasRes, categoriesRes, subcategoriesRes, subjectsRes, scheduleRes, dayPlanRes, sessionRes, noteRes] = await Promise.all([
+      db.from('study_plans').select('*').order('created_at', { ascending: false }),
+      db.from('subject_areas').select('*').order('sort_order').order('name'),
+      db.from('subject_categories').select('*').order('sort_order').order('name'),
+      db.from('subject_subcategories').select('*').order('sort_order').order('name'),
       db.from('subjects').select('*').order('sort_order').order('name'),
       db.from('schedule_entries').select('*').order('sort_order'),
       db.from('schedule_day_plans').select('*'),
@@ -151,7 +227,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     ]);
 
     if (subjectsRes.error) {
-      toast.error('Erro ao carregar materias');
+      toast.error('Erro ao carregar matérias');
       console.error(subjectsRes.error);
     }
 
@@ -160,13 +236,20 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       console.error(scheduleRes.error);
     }
 
+    const studyPlans = plansRes.error ? [] : (plansRes.data || []).map(mapStudyPlan);
+
     setData({
-      subjects: (subjectsRes.data || []).map(mapSubject),
-      schedule: (scheduleRes.data || []).map(mapScheduleEntry),
-      dayPlans: (dayPlanRes.data || []).map(mapScheduleDayPlan),
-      sessions: (sessionRes.data || []).map(mapSession),
+      studyPlans,
+      activeStudyPlanId: studyPlans[0]?.id,
+      subjectAreas: areasRes.error ? [] : (areasRes.data || []).map(mapSubjectArea),
+      subjectCategories: categoriesRes.error ? [] : (categoriesRes.data || []).map(mapSubjectCategory),
+      subjectSubcategories: subcategoriesRes.error ? [] : (subcategoriesRes.data || []).map(mapSubjectSubcategory),
+      subjects: subjectsRes.error ? [] : (subjectsRes.data || []).map(mapSubject),
+      schedule: scheduleRes.error ? [] : (scheduleRes.data || []).map(mapScheduleEntry),
+      dayPlans: dayPlanRes.error ? [] : (dayPlanRes.data || []).map(mapScheduleDayPlan),
+      sessions: sessionRes.error ? [] : (sessionRes.data || []).map(mapSession),
       sessionPauses: [],
-      notes: (noteRes.data || []).map(mapNote),
+      notes: noteRes.error ? [] : (noteRes.data || []).map(mapNote),
     });
 
     setLoading(false);
@@ -176,24 +259,80 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     void fetchAll();
   }, [fetchAll]);
 
+  const activeStudyPlan = useMemo(
+    () => data.studyPlans.find((plan) => plan.id === data.activeStudyPlanId) || data.studyPlans[0],
+    [data.activeStudyPlanId, data.studyPlans],
+  );
+
+  const findSubjects = useCallback(
+    (filters: FindSubjectsFilters = {}) => {
+      const normalizedQuery = (filters.query || '').trim().toLowerCase();
+      return data.subjects.filter((subject) => {
+        if (filters.activeOnly && !subject.active) return false;
+        if (filters.planId && subject.planId !== filters.planId) return false;
+        if (filters.areaId && subject.areaId !== filters.areaId) return false;
+        if (filters.categoryId && subject.categoryId !== filters.categoryId) return false;
+        if (filters.subcategoryId && subject.subcategoryId !== filters.subcategoryId) return false;
+        if (filters.origin && filters.origin !== 'all') {
+          if (filters.origin === 'user' && subject.origin === 'global') return false;
+          if (filters.origin !== 'user' && subject.origin !== filters.origin) return false;
+        }
+        if (!normalizedQuery) return true;
+        return [subject.name, subject.category, subject.description].some((value) =>
+          String(value || '').toLowerCase().includes(normalizedQuery),
+        );
+      });
+    },
+    [data.subjects],
+  );
+
   const createSubject = async (input: SubjectCreateInput) => {
     if (!user) return;
 
-    const { error } = await db.from('subjects').insert({
+    const sortOrder = input.planId
+      ? data.subjects.filter((subject) => subject.planId === input.planId).length
+      : data.subjects.filter((subject) => subject.origin !== 'global' && !subject.planId).length;
+
+    const extendedPayload: any = {
       user_id: user.id,
+      plan_id: input.planId || null,
       name: input.name,
       color: input.color || '#5B8C7E',
       category: input.category || null,
+      description: input.description || null,
+      icon: input.icon || null,
+      area_id: input.areaId || null,
+      category_id: input.categoryId || null,
+      subcategory_id: input.subcategoryId || null,
+      origin: input.origin || (input.planId ? 'plan' : 'user'),
+      status: input.status || 'active',
       active: input.active ?? true,
       optional: input.optional ?? false,
       weekly_goal_hours: input.weeklyGoalHours ?? 4,
       monthly_goal_hours: input.monthlyGoalHours ?? 16,
-      sort_order: data.subjects.length,
-    });
+      sort_order: sortOrder,
+    };
 
-    if (error) {
-      toast.error('Erro ao salvar materia');
-      console.error(error);
+    let response = await db.from('subjects').insert(extendedPayload);
+
+    if (response.error && hasMissingColumnError(response.error)) {
+      const legacyPayload = {
+        user_id: user.id,
+        name: input.name,
+        color: input.color || '#5B8C7E',
+        category: input.category || null,
+        active: input.active ?? true,
+        optional: input.optional ?? false,
+        weekly_goal_hours: input.weeklyGoalHours ?? 4,
+        monthly_goal_hours: input.monthlyGoalHours ?? 16,
+        sort_order: sortOrder,
+      };
+      response = await db.from('subjects').insert(legacyPayload);
+    }
+
+    if (response.error) {
+      toast.error('Erro ao salvar matéria');
+      console.error(response.error);
       return;
     }
 
@@ -209,6 +348,14 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       active: s.active,
       weeklyGoalHours: s.weeklyGoalHours,
       monthlyGoalHours: s.monthlyGoalHours,
+      planId: s.planId,
+      description: s.description,
+      icon: s.icon,
+      areaId: s.areaId,
+      categoryId: s.categoryId,
+      subcategoryId: s.subcategoryId,
+      origin: s.origin,
+      status: s.status,
     });
   };
 
@@ -217,16 +364,33 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     if (s.name !== undefined) update.name = s.name;
     if (s.color !== undefined) update.color = s.color;
     if (s.category !== undefined) update.category = s.category || null;
+    if (s.description !== undefined) update.description = s.description || null;
+    if (s.icon !== undefined) update.icon = s.icon || null;
+    if (s.areaId !== undefined) update.area_id = s.areaId || null;
+    if (s.categoryId !== undefined) update.category_id = s.categoryId || null;
+    if (s.subcategoryId !== undefined) update.subcategory_id = s.subcategoryId || null;
+    if (s.planId !== undefined) update.plan_id = s.planId || null;
+    if (s.origin !== undefined) update.origin = s.origin;
+    if (s.status !== undefined) update.status = s.status;
     if (s.active !== undefined) update.active = s.active;
     if (s.optional !== undefined) update.optional = s.optional;
     if (s.weeklyGoalHours !== undefined) update.weekly_goal_hours = s.weeklyGoalHours;
     if (s.monthlyGoalHours !== undefined) update.monthly_goal_hours = s.monthlyGoalHours;
     if (s.order !== undefined) update.sort_order = s.order;
 
-    const { error } = await db.from('subjects').update(update).eq('id', id);
-    if (error) {
-      toast.error('Erro ao atualizar materia');
-      console.error(error);
+    let response = await db.from('subjects').update(update).eq('id', id);
+
+    if (response.error && hasMissingColumnError(response.error)) {
+      const legacyUpdate: any = {};
+      ['name', 'color', 'category', 'active', 'optional', 'weekly_goal_hours', 'monthly_goal_hours', 'sort_order'].forEach((key) => {
+        if (update[key] !== undefined) legacyUpdate[key] = update[key];
+      });
+      response = await db.from('subjects').update(legacyUpdate).eq('id', id);
+    }
+
+    if (response.error) {
+      toast.error('Erro ao atualizar matéria');
+      console.error(response.error);
       return;
     }
 
@@ -236,7 +400,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   const deleteSubject = async (id: string) => {
     const { error } = await db.from('subjects').delete().eq('id', id);
     if (error) {
-      toast.error('Erro ao excluir materia');
+      toast.error('Erro ao excluir matéria');
       console.error(error);
       return;
     }
@@ -246,8 +410,9 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   const addScheduleEntry = async (e: Omit<ScheduleEntry, 'id'>) => {
     if (!user) return;
 
-    const { error } = await db.from('schedule_entries').insert({
+    const payload: any = {
       user_id: user.id,
+      plan_id: e.planId || null,
       subject_id: e.subjectId,
       date: e.date,
       optional: e.optional,
@@ -259,11 +424,17 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       template_id: e.templateId || null,
       is_override: e.isOverride || false,
       day_note: e.dayNote || null,
-    });
+    };
 
-    if (error) {
+    let response = await db.from('schedule_entries').insert(payload);
+    if (response.error && hasMissingColumnError(response.error)) {
+      const { plan_id, ...legacyPayload } = payload;
+      response = await db.from('schedule_entries').insert(legacyPayload);
+    }
+
+    if (response.error) {
       toast.error('Erro ao adicionar ao cronograma');
-      console.error(error);
+      console.error(response.error);
       return;
     }
 
@@ -273,6 +444,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   const updateScheduleEntry = async (id: string, e: Partial<ScheduleEntry>) => {
     const update: any = {};
     if (e.date !== undefined) update.date = e.date;
+    if (e.planId !== undefined) update.plan_id = e.planId || null;
     if (e.subjectId !== undefined) update.subject_id = e.subjectId;
     if (e.optional !== undefined) update.optional = e.optional;
     if (e.completed !== undefined) update.completed = e.completed;
@@ -284,10 +456,15 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     if (e.isOverride !== undefined) update.is_override = e.isOverride;
     if (e.dayNote !== undefined) update.day_note = e.dayNote || null;
 
-    const { error } = await db.from('schedule_entries').update(update).eq('id', id);
-    if (error) {
+    let response = await db.from('schedule_entries').update(update).eq('id', id);
+    if (response.error && hasMissingColumnError(response.error)) {
+      delete update.plan_id;
+      response = await db.from('schedule_entries').update(update).eq('id', id);
+    }
+
+    if (response.error) {
       toast.error('Erro ao atualizar cronograma');
-      console.error(error);
+      console.error(response.error);
       return;
     }
 
@@ -313,10 +490,11 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   const upsertScheduleDayPlan = async (date: string, plan: Partial<Omit<ScheduleDayPlan, 'id' | 'date'>>) => {
     if (!user) return;
 
-    const existing = data.dayPlans.find((dp) => dp.date === date);
+    const existing = data.dayPlans.find((dp) => dp.date === date && (plan.planId ? dp.planId === plan.planId : true));
 
     const payload: any = {
       user_id: user.id,
+      plan_id: plan.planId || null,
       date,
     };
 
@@ -325,11 +503,15 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     if (plan.templateId !== undefined) payload.template_id = plan.templateId || null;
     if (plan.isOverride !== undefined) payload.is_override = plan.isOverride;
 
-    let response;
-    if (existing) {
-      response = await db.from('schedule_day_plans').update(payload).eq('id', existing.id);
-    } else {
-      response = await db.from('schedule_day_plans').insert(payload);
+    let response = existing
+      ? await db.from('schedule_day_plans').update(payload).eq('id', existing.id)
+      : await db.from('schedule_day_plans').insert(payload);
+
+    if (response.error && hasMissingColumnError(response.error)) {
+      delete payload.plan_id;
+      response = existing
+        ? await db.from('schedule_day_plans').update(payload).eq('id', existing.id)
+        : await db.from('schedule_day_plans').insert(payload);
     }
 
     if (response.error) {
@@ -344,23 +526,26 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   const addSession = async (s: SessionInput) => {
     if (!user) return;
 
-    const { error } = await db
-      .from('study_sessions')
-      .insert({
-        user_id: user.id,
-        subject_id: s.subjectId,
-        date: s.date,
-        start_time: s.startTime,
-        end_time: s.endTime || null,
-        duration_minutes: s.durationMinutes ?? 0,
-        note: s.note || null,
-      })
-      .select('id')
-      .single();
+    const payload: any = {
+      user_id: user.id,
+      plan_id: s.planId || null,
+      subject_id: s.subjectId,
+      date: s.date,
+      start_time: s.startTime,
+      end_time: s.endTime || null,
+      duration_minutes: s.durationMinutes ?? 0,
+      note: s.note || null,
+    };
 
-    if (error) {
-      toast.error('Erro ao registrar sessao');
-      console.error(error);
+    let response = await db.from('study_sessions').insert(payload).select('id').single();
+    if (response.error && hasMissingColumnError(response.error)) {
+      delete payload.plan_id;
+      response = await db.from('study_sessions').insert(payload).select('id').single();
+    }
+
+    if (response.error) {
+      toast.error('Erro ao registrar sessão');
+      console.error(response.error);
       return;
     }
 
@@ -369,6 +554,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
   const updateSession = async (id: string, s: Partial<StudySession>) => {
     const update: any = {};
+    if (s.planId !== undefined) update.plan_id = s.planId || null;
     if (s.subjectId !== undefined) update.subject_id = s.subjectId;
     if (s.date !== undefined) update.date = s.date;
     if (s.startTime !== undefined) update.start_time = s.startTime;
@@ -376,10 +562,15 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     if (s.durationMinutes !== undefined) update.duration_minutes = s.durationMinutes;
     if (s.note !== undefined) update.note = s.note;
 
-    const { error } = await db.from('study_sessions').update(update).eq('id', id);
-    if (error) {
-      toast.error('Erro ao atualizar sessao');
-      console.error(error);
+    let response = await db.from('study_sessions').update(update).eq('id', id);
+    if (response.error && hasMissingColumnError(response.error)) {
+      delete update.plan_id;
+      response = await db.from('study_sessions').update(update).eq('id', id);
+    }
+
+    if (response.error) {
+      toast.error('Erro ao atualizar sessão');
+      console.error(response.error);
       return;
     }
 
@@ -436,14 +627,9 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     data.schedule
       .filter((entry) => entry.date === date)
       .sort((left, right) => {
-        if (left.startTime && right.startTime) {
-          if (left.startTime < right.startTime) return -1;
-          if (left.startTime > right.startTime) return 1;
-        } else if (left.startTime && !right.startTime) {
-          return -1;
-        } else if (!left.startTime && right.startTime) {
-          return 1;
-        }
+        if (left.startTime && right.startTime) return left.startTime.localeCompare(right.startTime);
+        if (left.startTime && !right.startTime) return -1;
+        if (!left.startTime && right.startTime) return 1;
         return left.order - right.order;
       });
 
@@ -464,10 +650,12 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       value={{
         data,
         loading,
+        activeStudyPlan,
         addSubject,
         createSubject,
         updateSubject,
         deleteSubject,
+        findSubjects,
         addScheduleEntry,
         updateScheduleEntry,
         deleteScheduleEntry,
