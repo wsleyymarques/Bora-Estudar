@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 export interface StudyPlan {
   id: string;
   user_id: string;
+  schedule_id?: string | null;
   name: string;
   title?: string;
   exam_name?: string;
@@ -58,6 +59,34 @@ export function useStudyPlans() {
   const [plans, setPlans] = useState<StudyPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const createLinkedSchedule = useCallback(
+    async (planName: string, startDate?: string) => {
+      if (!user) return null;
+
+      const { data, error: scheduleError } = await supabase
+        .from('study_schedules')
+        .insert({
+          user_id: user.id,
+          name: `Cronograma - ${planName}`,
+          description: 'Cronograma vinculado ao Plano de Estudos.',
+          status: 'active',
+          start_date: startDate || new Date().toISOString().slice(0, 10),
+          is_active: false,
+          view_settings: { source: 'study-plan' },
+        })
+        .select('id')
+        .single();
+
+      if (scheduleError) {
+        console.error(scheduleError);
+        throw scheduleError;
+      }
+
+      return data?.id || null;
+    },
+    [user],
+  );
 
   const fetchPlans = useCallback(async () => {
     if (!user) {
@@ -113,6 +142,34 @@ export function useStudyPlans() {
     [user],
   );
 
+  const ensurePlanSchedule = useCallback(
+    async (plan: StudyPlan) => {
+      if (!user) return null;
+      if (plan.schedule_id) return plan.schedule_id;
+
+      const scheduleId = await createLinkedSchedule(plan.name, plan.start_date);
+      if (!scheduleId) return null;
+
+      const { data, error: updateError } = await supabase
+        .from('study_plans')
+        .update({ schedule_id: scheduleId, updated_at: new Date().toISOString() })
+        .eq('id', plan.id)
+        .eq('user_id', user.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        setError(updateError.message);
+        throw updateError;
+      }
+
+      const updated = normalizePlan(data as StudyPlan);
+      setPlans((current) => current.map((item) => (item.id === plan.id ? updated : item)));
+      return scheduleId;
+    },
+    [createLinkedSchedule, user],
+  );
+
   const createPlan = async (input: StudyPlanInput) => {
     if (!user) return null;
 
@@ -120,6 +177,7 @@ export function useStudyPlans() {
     if (!name) return null;
 
     setError(null);
+    const scheduleId = await createLinkedSchedule(name, input.start_date);
     const payload = cleanPayload({
       ...input,
       name,
@@ -136,6 +194,7 @@ export function useStudyPlans() {
         role: input.role_name || undefined,
         image_url: input.cover_image_url || undefined,
         user_id: user.id,
+        schedule_id: scheduleId,
       })
       .select()
       .single();
@@ -207,6 +266,7 @@ export function useStudyPlans() {
     error,
     fetchPlans,
     getPlan,
+    ensurePlanSchedule,
     createPlan,
     updatePlan,
     deletePlan,
