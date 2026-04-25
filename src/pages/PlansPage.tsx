@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useStudyPlans, StudyPlanInput } from '@/hooks/useStudyPlans';
+import { ImageUpload } from '@/components/generic/image-upload';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -187,7 +188,7 @@ export default function PlansPage() {
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="font-display">Criar Plano de Estudos</DialogTitle>
             <DialogDescription>
@@ -236,16 +237,15 @@ export default function PlansPage() {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-[1fr_180px]">
-              <div className="grid gap-2">
-                <Label htmlFor="cover-image-url">URL da imagem</Label>
-                <Input
-                  id="cover-image-url"
-                  value={form.cover_image_url}
-                  onChange={(event) => updateForm('cover_image_url', event.target.value)}
-                  placeholder="https://..."
-                />
-              </div>
+            <div className="grid gap-3 sm:grid-cols-[1fr_180px] sm:items-start">
+              <ImageUpload
+                value={form.cover_image_url}
+                onChange={(url) => updateForm('cover_image_url', url)}
+                folder="study-plans"
+                label="Imagem do plano"
+                helperText="Faça upload de uma imagem ou informe uma URL externa para a capa do plano."
+                disabled={submitting}
+              />
               <div className="grid gap-2">
                 <Label htmlFor="review-interval-days">Revisão automática</Label>
                 <Input
