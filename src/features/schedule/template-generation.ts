@@ -4,6 +4,7 @@ import { eachDayInclusive, getWeekdayMondayIndex, toDateKey } from '@/lib/date-u
 interface BuildTemplateEntriesParams {
   userId: string;
   scheduleId?: string;
+  planId?: string;
   template: WeeklyTemplate;
   templateId: string;
   startDate: Date;
@@ -13,6 +14,7 @@ interface BuildTemplateEntriesParams {
 export interface GeneratedScheduleEntryInsert {
   user_id: string;
   schedule_id?: string;
+  plan_id?: string;
   subject_id: string;
   date: string;
   optional: boolean;
@@ -28,6 +30,7 @@ export interface GeneratedScheduleEntryInsert {
 export interface GeneratedScheduleDayPlanInsert {
   user_id: string;
   schedule_id?: string;
+  plan_id?: string;
   date: string;
   day_note: string | null;
   day_target_minutes: number | null;
@@ -38,6 +41,7 @@ export interface GeneratedScheduleDayPlanInsert {
 export function buildTemplateEntries({
   userId,
   scheduleId,
+  planId,
   template,
   templateId,
   startDate,
@@ -59,6 +63,7 @@ export function buildTemplateEntries({
       dayPlans.push({
         user_id: userId,
         schedule_id: scheduleId,
+        plan_id: planId,
         date,
         day_note: dayNote,
         day_target_minutes: dayTargetMinutes,
@@ -71,6 +76,7 @@ export function buildTemplateEntries({
       entries.push({
         user_id: userId,
         schedule_id: scheduleId,
+        plan_id: planId,
         subject_id: item.subjectId,
         date,
         optional: item.optional,
