@@ -1,9 +1,12 @@
 import React from 'react';
 import { SubjectCreateInput } from '@/contexts/StudyContext';
+import { SubjectArea, SubjectCategory, SubjectSubcategory } from '@/types/study';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 
 export interface SubjectFormProps {
@@ -14,9 +17,26 @@ export interface SubjectFormProps {
   submitLabel?: string;
   disabled?: boolean;
   className?: string;
+  areas?: SubjectArea[];
+  categories?: SubjectCategory[];
+  subcategories?: SubjectSubcategory[];
 }
 
-export function SubjectForm({ value, onChange, onSubmit, onCancel, submitLabel = 'Salvar materia', disabled = false, className }: SubjectFormProps) {
+export function SubjectForm({
+  value,
+  onChange,
+  onSubmit,
+  onCancel,
+  submitLabel = 'Salvar matéria',
+  disabled = false,
+  className,
+  areas = [],
+  categories = [],
+  subcategories = [],
+}: SubjectFormProps) {
+  const visibleCategories = value.areaId ? categories.filter((category) => category.areaId === value.areaId) : categories;
+  const visibleSubcategories = value.categoryId ? subcategories.filter((subcategory) => subcategory.categoryId === value.categoryId) : subcategories;
+
   return (
     <div className={cn('space-y-4', className)}>
       <div className="space-y-1.5">
@@ -26,7 +46,7 @@ export function SubjectForm({ value, onChange, onSubmit, onCancel, submitLabel =
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label>Categoria</Label>
+          <Label>Categoria livre</Label>
           <Input value={value.category || ''} onChange={(e) => onChange({ ...value, category: e.target.value })} placeholder="Ex: Jurídico" disabled={disabled} />
         </div>
         <div className="space-y-1.5">
@@ -36,6 +56,66 @@ export function SubjectForm({ value, onChange, onSubmit, onCancel, submitLabel =
             <span className="text-xs text-muted-foreground">{value.color || '#5B8C7E'}</span>
           </div>
         </div>
+      </div>
+
+      {(areas.length > 0 || categories.length > 0) && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {areas.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Área</Label>
+              <Select
+                value={value.areaId || '__none__'}
+                onValueChange={(next) => onChange({ ...value, areaId: next === '__none__' ? undefined : next, categoryId: undefined, subcategoryId: undefined })}
+                disabled={disabled}
+              >
+                <SelectTrigger className="rounded-xl"><SelectValue placeholder="Área" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sem área</SelectItem>
+                  {areas.map((area) => <SelectItem key={area.id} value={area.id}>{area.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {categories.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Categoria</Label>
+              <Select
+                value={value.categoryId || '__none__'}
+                onValueChange={(next) => onChange({ ...value, categoryId: next === '__none__' ? undefined : next, subcategoryId: undefined })}
+                disabled={disabled}
+              >
+                <SelectTrigger className="rounded-xl"><SelectValue placeholder="Categoria" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sem categoria</SelectItem>
+                  {visibleCategories.map((category) => <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {subcategories.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Subcategoria</Label>
+              <Select
+                value={value.subcategoryId || '__none__'}
+                onValueChange={(next) => onChange({ ...value, subcategoryId: next === '__none__' ? undefined : next })}
+                disabled={disabled}
+              >
+                <SelectTrigger className="rounded-xl"><SelectValue placeholder="Subcategoria" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sem subcategoria</SelectItem>
+                  {visibleSubcategories.map((subcategory) => <SelectItem key={subcategory.id} value={subcategory.id}>{subcategory.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="space-y-1.5">
+        <Label>Descrição</Label>
+        <Textarea value={value.description || ''} onChange={(e) => onChange({ ...value, description: e.target.value })} placeholder="Observações sobre a matéria" disabled={disabled} />
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -51,12 +131,12 @@ export function SubjectForm({ value, onChange, onSubmit, onCancel, submitLabel =
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <label className="flex items-center justify-between rounded-xl border border-border px-3 py-2.5">
-          <span className="text-sm text-foreground">Materia opcional</span>
-          <Switch checked={Boolean(value.optional)} onCheckedChange={(c) => onChange({ ...value, optional: c })} disabled={disabled} />
+          <span className="text-sm text-foreground">Matéria opcional</span>
+          <Switch checked={Boolean(value.optional)} onCheckedChange={(checked) => onChange({ ...value, optional: checked })} disabled={disabled} />
         </label>
         <label className="flex items-center justify-between rounded-xl border border-border px-3 py-2.5">
-          <span className="text-sm text-foreground">Materia ativa</span>
-          <Switch checked={value.active !== false} onCheckedChange={(c) => onChange({ ...value, active: c })} disabled={disabled} />
+          <span className="text-sm text-foreground">Matéria ativa</span>
+          <Switch checked={value.active !== false} onCheckedChange={(checked) => onChange({ ...value, active: checked, status: checked ? 'active' : 'inactive' })} disabled={disabled} />
         </label>
       </div>
 
