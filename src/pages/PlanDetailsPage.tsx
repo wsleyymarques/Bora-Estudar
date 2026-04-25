@@ -65,6 +65,17 @@ const EMPTY_ENTRY_FORM = {
   item_note: '',
 };
 
+function slugify(value: string): string {
+  return value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
+}
+
 export default function PlanDetailsPage() {
   const { planId } = useParams();
   const { user } = useAuth();
@@ -198,6 +209,7 @@ export default function PlanDetailsPage() {
       user_id: user.id,
       plan_id: planId,
       name: subjectForm.name.trim(),
+      slug: slugify(subjectForm.name),
       color: subjectForm.color || '#5B8C7E',
       category: subjectForm.category || null,
       weekly_goal_hours: Number(subjectForm.weekly_goal_hours) || 0,
@@ -205,13 +217,18 @@ export default function PlanDetailsPage() {
       description: subjectForm.description || null,
       active: true,
       optional: false,
-      origin: 'plan',
+      origin: 'user',
       status: 'active',
-      sort_order: subjects.length,
+      sort_order: editingSubjectId ? undefined : subjects.length,
     };
 
     const response = editingSubjectId
-      ? await supabase.from('subjects').update(payload).eq('id', editingSubjectId).eq('user_id', user.id)
+      ? await supabase
+          .from('subjects')
+          .update({ ...payload, sort_order: undefined })
+          .eq('id', editingSubjectId)
+          .eq('user_id', user.id)
+          .eq('plan_id', planId)
       : await supabase.from('subjects').insert(payload);
 
     if (response.error) {
@@ -227,7 +244,7 @@ export default function PlanDetailsPage() {
 
   const deleteSubject = async (subjectId: string) => {
     if (!user || !confirm('Deseja excluir esta matéria do plano?')) return;
-    const { error } = await supabase.from('subjects').delete().eq('id', subjectId).eq('user_id', user.id);
+    const { error } = await supabase.from('subjects').delete().eq('id', subjectId).eq('user_id', user.id).eq('plan_id', planId);
     if (error) {
       toast.error('Erro ao excluir matéria.');
       console.error(error);
