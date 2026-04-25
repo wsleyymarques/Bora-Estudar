@@ -23,7 +23,7 @@ export interface Subject {
   order: number;
 }
 
-export type SubjectOrigin = 'global' | 'user';
+export type SubjectOrigin = 'global' | 'user' | 'plan';
 export type SubjectStatus = 'active' | 'archived' | 'draft';
 
 export interface SubjectArea {
