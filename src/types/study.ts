@@ -1,9 +1,59 @@
+export type SubjectOrigin = 'global' | 'user' | 'plan';
+export type SubjectStatus = 'active' | 'inactive' | 'archived';
+
+export interface StudyPlan {
+  id: string;
+  userId?: string;
+  title: string;
+  name?: string;
+  examName?: string;
+  board?: string;
+  role?: string;
+  description?: string;
+  imageUrl?: string;
+  reviewIntervalDays?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SubjectArea {
+  id: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  sortOrder?: number;
+}
+
+export interface SubjectCategory {
+  id: string;
+  areaId?: string;
+  name: string;
+  description?: string;
+  sortOrder?: number;
+}
+
+export interface SubjectSubcategory {
+  id: string;
+  categoryId?: string;
+  name: string;
+  description?: string;
+  sortOrder?: number;
+}
+
 export interface Subject {
   id: string;
   name: string;
   color: string;
   userId?: string;
+  planId?: string;
   category?: string;
+  description?: string;
+  icon?: string;
+  areaId?: string;
+  categoryId?: string;
+  subcategoryId?: string;
+  origin?: SubjectOrigin;
+  status?: SubjectStatus;
   active: boolean;
   optional: boolean;
   weeklyGoalHours: number;
@@ -15,6 +65,7 @@ export interface ScheduleEntry {
   id: string;
   date: string; // YYYY-MM-DD
   subjectId: string;
+  planId?: string;
   optional: boolean;
   completed: boolean;
   order: number;
@@ -29,6 +80,7 @@ export interface ScheduleEntry {
 export interface ScheduleDayPlan {
   id: string;
   date: string; // YYYY-MM-DD
+  planId?: string;
   dayNote?: string;
   dayTargetMinutes?: number;
   templateId?: string;
@@ -53,6 +105,7 @@ export interface StudySessionPause {
 export interface StudySession {
   id: string;
   subjectId: string;
+  planId?: string;
   date: string;
   startTime: string;
   endTime?: string;
@@ -85,6 +138,11 @@ export interface Note {
 }
 
 export interface UserData {
+  studyPlans: StudyPlan[];
+  activeStudyPlanId?: string;
+  subjectAreas: SubjectArea[];
+  subjectCategories: SubjectCategory[];
+  subjectSubcategories: SubjectSubcategory[];
   subjects: Subject[];
   schedule: ScheduleEntry[];
   dayPlans: ScheduleDayPlan[];
