@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useStudyPlans, StudyPlanInput } from '@/hooks/useStudyPlans';
 import { usePlanSubjects, SubjectRow } from '@/hooks/usePlanSubjects';
+import { useTemplates } from '@/hooks/useTemplates';
 import { supabase } from '@/integrations/supabase/client';
 import { ImageUpload } from '@/components/generic/image-upload';
 import { Button } from '@/components/ui/button';
@@ -12,351 +13,133 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CalendarDays, CheckCircle2, Clock, Link2, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
+import { CalendarDays, CheckCircle2, Clock, Copy, Link2, Loader2, Pencil, Plus, Trash2, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { DAY_NAMES_SHORT } from '@/types/study';
 
-interface ScheduleEntryRow {
-  id: string;
-  user_id?: string;
-  plan_id?: string | null;
-  schedule_id?: string | null;
-  date: string;
-  subject_id: string;
-  start_time?: string | null;
-  planned_minutes?: number | null;
-  completed?: boolean | null;
-  optional?: boolean | null;
-  item_note?: string | null;
-  sort_order?: number | null;
-}
+interface ScheduleEntryRow { id: string; user_id?: string; plan_id?: string | null; schedule_id?: string | null; date: string; subject_id: string; start_time?: string | null; planned_minutes?: number | null; completed?: boolean | null; optional?: boolean | null; item_note?: string | null; sort_order?: number | null; }
 
-const EMPTY_PLAN_FORM: StudyPlanInput = {
-  name: '',
-  exam_name: '',
-  board_name: '',
-  role_name: '',
-  description: '',
-  cover_image_url: '',
-  review_interval_days: 7,
-};
-
-const EMPTY_SUBJECT_FORM = {
-  name: '',
-  color: '#5B8C7E',
-  category: '',
-  weekly_goal_hours: 4,
-  monthly_goal_hours: 16,
-  description: '',
-};
-
-const EMPTY_ENTRY_FORM = {
-  date: new Date().toISOString().slice(0, 10),
-  subject_id: '',
-  start_time: '',
-  planned_minutes: 60,
-  item_note: '',
-};
+const EMPTY_PLAN_FORM: StudyPlanInput = { name: '', exam_name: '', board_name: '', role_name: '', description: '', cover_image_url: '', review_interval_days: 7 };
+const EMPTY_SUBJECT_FORM = { name: '', color: '#5B8C7E', category: '', weekly_goal_hours: 4, monthly_goal_hours: 16, description: '' };
+const EMPTY_ENTRY_FORM = { date: new Date().toISOString().slice(0, 10), subject_id: '', start_time: '', planned_minutes: 60, item_note: '' };
+const EMPTY_TEMPLATE_FORM = { name: '', description: '' };
+const EMPTY_TEMPLATE_ITEM_FORM = { template_id: '', day_of_week: '0', subject_id: '', start_time: '', planned_minutes: 60, item_note: '' };
+const EMPTY_APPLY_TEMPLATE_FORM = { template_id: '', start_date: new Date().toISOString().slice(0, 10), end_date: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10) };
 
 export default function PlanDetailsPage() {
   const { planId } = useParams();
   const { user } = useAuth();
   const { plans, updatePlan, ensurePlanSchedule } = useStudyPlans();
   const plan = plans.find((item) => item.id === planId);
-
-  const {
-    loading: loadingSubjects,
-    planSubjects,
-    availableSubjects,
-    addExistingSubjectToPlan,
-    createAndLinkSubject,
-    removeSubjectFromPlan,
-    updateSubject,
-  } = usePlanSubjects(planId);
+  const { loading: loadingSubjects, planSubjects, availableSubjects, addExistingSubjectToPlan, createAndLinkSubject, removeSubjectFromPlan, updateSubject } = usePlanSubjects(planId);
+  const { templates, loading: loadingTemplates, createTemplate, duplicateTemplate, deleteTemplate, addTemplateItem, removeTemplateItem, applyTemplate } = useTemplates({ planId: planId || null, scheduleId: plan?.schedule_id || null, includeGlobal: true });
 
   const [entries, setEntries] = useState<ScheduleEntryRow[]>([]);
   const [loadingFlow, setLoadingFlow] = useState(false);
   const [editPlanOpen, setEditPlanOpen] = useState(false);
   const [subjectOpen, setSubjectOpen] = useState(false);
   const [entryOpen, setEntryOpen] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const [templateItemOpen, setTemplateItemOpen] = useState(false);
+  const [applyTemplateOpen, setApplyTemplateOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [planForm, setPlanForm] = useState<StudyPlanInput>(EMPTY_PLAN_FORM);
   const [subjectForm, setSubjectForm] = useState(EMPTY_SUBJECT_FORM);
   const [entryForm, setEntryForm] = useState(EMPTY_ENTRY_FORM);
+  const [templateForm, setTemplateForm] = useState(EMPTY_TEMPLATE_FORM);
+  const [templateItemForm, setTemplateItemForm] = useState(EMPTY_TEMPLATE_ITEM_FORM);
+  const [applyTemplateForm, setApplyTemplateForm] = useState(EMPTY_APPLY_TEMPLATE_FORM);
   const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null);
   const [selectedExistingSubjectId, setSelectedExistingSubjectId] = useState('');
 
   const subjectById = useMemo(() => new Map(planSubjects.map((subject) => [subject.id, subject])), [planSubjects]);
-  const sortedEntries = useMemo(
-    () => [...entries].sort((left, right) => `${left.date}${left.start_time || ''}`.localeCompare(`${right.date}${right.start_time || ''}`)),
-    [entries],
-  );
+  const planTemplates = useMemo(() => templates.filter((template) => !template.planId || template.planId === planId || template.scheduleId === plan?.schedule_id), [templates, planId, plan?.schedule_id]);
+  const sortedEntries = useMemo(() => [...entries].sort((left, right) => `${left.date}${left.start_time || ''}`.localeCompare(`${right.date}${right.start_time || ''}`)), [entries]);
 
   const loadFlow = async () => {
     if (!planId) return;
     setLoadingFlow(true);
-
-    const { data, error } = await supabase
-      .from('schedule_entries')
-      .select('*')
-      .eq('plan_id', planId)
-      .order('date', { ascending: true })
-      .order('sort_order', { ascending: true });
-
-    if (error) {
-      console.error(error);
-      toast.error('Erro ao carregar cronograma do plano.');
-    } else {
-      setEntries((data || []) as ScheduleEntryRow[]);
-    }
-
+    const { data, error } = await supabase.from('schedule_entries').select('*').eq('plan_id', planId).order('date', { ascending: true }).order('sort_order', { ascending: true });
+    if (error) { console.error(error); toast.error('Erro ao carregar cronograma do plano.'); } else { setEntries((data || []) as ScheduleEntryRow[]); }
     setLoadingFlow(false);
   };
 
-  useEffect(() => {
-    void loadFlow();
-  }, [planId]);
+  useEffect(() => { void loadFlow(); }, [planId]);
 
   const openEditPlan = () => {
     if (!plan) return;
-    setPlanForm({
-      name: plan.name || '',
-      exam_name: plan.exam_name || '',
-      board_name: plan.board_name || '',
-      role_name: plan.role_name || '',
-      description: plan.description || '',
-      cover_image_url: plan.cover_image_url || '',
-      review_interval_days: plan.review_interval_days || 7,
-      status: plan.status,
-      start_date: plan.start_date || '',
-      target_date: plan.target_date || '',
-    });
+    setPlanForm({ name: plan.name || '', exam_name: plan.exam_name || '', board_name: plan.board_name || '', role_name: plan.role_name || '', description: plan.description || '', cover_image_url: plan.cover_image_url || '', review_interval_days: plan.review_interval_days || 7, status: plan.status, start_date: plan.start_date || '', target_date: plan.target_date || '' });
     setEditPlanOpen(true);
   };
 
   const savePlan = async () => {
-    if (!planId || !planForm.name.trim()) {
-      toast.error('Informe o nome do plano.');
-      return;
-    }
-
+    if (!planId || !planForm.name.trim()) { toast.error('Informe o nome do plano.'); return; }
     setSubmitting(true);
-    try {
-      await updatePlan(planId, {
-        ...planForm,
-        name: planForm.name.trim(),
-        review_interval_days: Number(planForm.review_interval_days) || 7,
-      });
-      toast.success('Plano atualizado com sucesso.');
-      setEditPlanOpen(false);
-    } finally {
-      setSubmitting(false);
-    }
+    try { await updatePlan(planId, { ...planForm, name: planForm.name.trim(), review_interval_days: Number(planForm.review_interval_days) || 7 }); toast.success('Plano atualizado com sucesso.'); setEditPlanOpen(false); } finally { setSubmitting(false); }
   };
 
-  const openCreateSubject = () => {
-    setEditingSubjectId(null);
-    setSubjectForm(EMPTY_SUBJECT_FORM);
-    setSelectedExistingSubjectId('');
-    setSubjectOpen(true);
-  };
-
-  const openEditSubject = (subject: SubjectRow) => {
-    setEditingSubjectId(subject.id);
-    setSubjectForm({
-      name: subject.name || '',
-      color: subject.color || '#5B8C7E',
-      category: subject.category || '',
-      weekly_goal_hours: Number(subject.weekly_goal_hours || 0),
-      monthly_goal_hours: Number(subject.monthly_goal_hours || 0),
-      description: subject.description || '',
-    });
-    setSubjectOpen(true);
-  };
-
-  const saveNewSubject = async () => {
-    if (!subjectForm.name.trim()) {
-      toast.error('Informe o nome da matéria.');
-      return;
-    }
-
-    setSubmitting(true);
-    const success = editingSubjectId
-      ? await updateSubject(editingSubjectId, subjectForm)
-      : await createAndLinkSubject(subjectForm);
-
-    if (success) setSubjectOpen(false);
-    setSubmitting(false);
-  };
-
-  const linkExistingSubject = async () => {
-    if (!selectedExistingSubjectId) {
-      toast.error('Selecione uma matéria existente.');
-      return;
-    }
-
-    setSubmitting(true);
-    const success = await addExistingSubjectToPlan(selectedExistingSubjectId);
-    if (success) {
-      setSelectedExistingSubjectId('');
-      setSubjectOpen(false);
-    }
-    setSubmitting(false);
-  };
-
-  const deleteSubject = async (subjectId: string) => {
-    if (!confirm('Deseja remover esta matéria apenas deste plano?')) return;
-    await removeSubjectFromPlan(subjectId);
-  };
+  const openCreateSubject = () => { setEditingSubjectId(null); setSubjectForm(EMPTY_SUBJECT_FORM); setSelectedExistingSubjectId(''); setSubjectOpen(true); };
+  const openEditSubject = (subject: SubjectRow) => { setEditingSubjectId(subject.id); setSubjectForm({ name: subject.name || '', color: subject.color || '#5B8C7E', category: subject.category || '', weekly_goal_hours: Number(subject.weekly_goal_hours || 0), monthly_goal_hours: Number(subject.monthly_goal_hours || 0), description: subject.description || '' }); setSubjectOpen(true); };
+  const saveNewSubject = async () => { if (!subjectForm.name.trim()) { toast.error('Informe o nome da matéria.'); return; } setSubmitting(true); const success = editingSubjectId ? await updateSubject(editingSubjectId, subjectForm) : await createAndLinkSubject(subjectForm); if (success) setSubjectOpen(false); setSubmitting(false); };
+  const linkExistingSubject = async () => { if (!selectedExistingSubjectId) { toast.error('Selecione uma matéria existente.'); return; } setSubmitting(true); const success = await addExistingSubjectToPlan(selectedExistingSubjectId); if (success) { setSelectedExistingSubjectId(''); setSubjectOpen(false); } setSubmitting(false); };
+  const deleteSubject = async (subjectId: string) => { if (!confirm('Deseja remover esta matéria apenas deste plano?')) return; await removeSubjectFromPlan(subjectId); };
 
   const saveEntry = async () => {
-    if (!user || !plan || !planId || !entryForm.subject_id || !entryForm.date) {
-      toast.error('Informe a data e a matéria.');
-      return;
-    }
-
+    if (!user || !plan || !planId || !entryForm.subject_id || !entryForm.date) { toast.error('Informe a data e a matéria.'); return; }
     setSubmitting(true);
     try {
       const scheduleId = await ensurePlanSchedule(plan);
-      const { error } = await supabase.from('schedule_entries').insert({
-        user_id: user.id,
-        plan_id: planId,
-        schedule_id: scheduleId,
-        subject_id: entryForm.subject_id,
-        date: entryForm.date,
-        start_time: entryForm.start_time || null,
-        planned_minutes: Number(entryForm.planned_minutes) || 60,
-        item_note: entryForm.item_note || null,
-        optional: false,
-        completed: false,
-        sort_order: entries.filter((entry) => entry.date === entryForm.date).length,
-      });
-
+      const { error } = await supabase.from('schedule_entries').insert({ user_id: user.id, plan_id: planId, schedule_id: scheduleId, subject_id: entryForm.subject_id, date: entryForm.date, start_time: entryForm.start_time || null, planned_minutes: Number(entryForm.planned_minutes) || 60, item_note: entryForm.item_note || null, optional: false, completed: false, sort_order: entries.filter((entry) => entry.date === entryForm.date).length });
       if (error) throw error;
-
-      toast.success('Item adicionado ao cronograma.');
-      setEntryOpen(false);
-      setEntryForm(EMPTY_ENTRY_FORM);
-      await loadFlow();
-    } catch (error) {
-      console.error(error);
-      toast.error('Erro ao adicionar item no cronograma.');
-    } finally {
-      setSubmitting(false);
-    }
+      toast.success('Item adicionado ao cronograma.'); setEntryOpen(false); setEntryForm(EMPTY_ENTRY_FORM); await loadFlow();
+    } catch (error) { console.error(error); toast.error('Erro ao adicionar item no cronograma.'); } finally { setSubmitting(false); }
   };
 
-  const toggleEntry = async (entry: ScheduleEntryRow) => {
-    const { error } = await supabase
-      .from('schedule_entries')
-      .update({ completed: !entry.completed })
-      .eq('id', entry.id)
-      .eq('user_id', user?.id || '');
-    if (error) {
-      toast.error('Erro ao atualizar item.');
-      return;
-    }
-    await loadFlow();
+  const openCreateTemplate = async () => { if (!plan) return; await ensurePlanSchedule(plan); setTemplateForm({ name: '', description: '' }); setTemplateOpen(true); };
+  const saveTemplate = async () => {
+    if (!plan || !planId || !templateForm.name.trim()) { toast.error('Informe o nome do template.'); return; }
+    setSubmitting(true);
+    try {
+      const scheduleId = await ensurePlanSchedule(plan);
+      const templateId = await createTemplate({ name: templateForm.name.trim(), description: templateForm.description, planId, scheduleId: scheduleId || undefined, type: 'weekly', status: 'active' });
+      if (templateId) { toast.success('Template criado e vinculado ao plano.'); setTemplateOpen(false); setTemplateItemForm((form) => ({ ...form, template_id: templateId, subject_id: planSubjects[0]?.id || '' })); setTemplateItemOpen(true); }
+    } finally { setSubmitting(false); }
+  };
+  const openAddTemplateItem = (templateId?: string) => { setTemplateItemForm({ ...EMPTY_TEMPLATE_ITEM_FORM, template_id: templateId || planTemplates[0]?.id || '', subject_id: planSubjects[0]?.id || '' }); setTemplateItemOpen(true); };
+  const saveTemplateItem = async () => {
+    if (!templateItemForm.template_id || !templateItemForm.subject_id) { toast.error('Selecione o template e a matéria.'); return; }
+    setSubmitting(true);
+    try { await addTemplateItem(templateItemForm.template_id, Number(templateItemForm.day_of_week), templateItemForm.subject_id, false, { startTime: templateItemForm.start_time, plannedMinutes: Number(templateItemForm.planned_minutes) || 60, itemNote: templateItemForm.item_note }); toast.success('Matéria adicionada ao modelo semanal.'); setTemplateItemOpen(false); } finally { setSubmitting(false); }
+  };
+  const openApplyTemplate = (templateId?: string) => { setApplyTemplateForm((form) => ({ ...form, template_id: templateId || planTemplates[0]?.id || '' })); setApplyTemplateOpen(true); };
+  const applySelectedTemplate = async () => {
+    if (!applyTemplateForm.template_id || !applyTemplateForm.start_date || !applyTemplateForm.end_date) { toast.error('Selecione o template e o período.'); return; }
+    setSubmitting(true);
+    try { await applyTemplate(applyTemplateForm.template_id, new Date(`${applyTemplateForm.start_date}T00:00:00`), new Date(`${applyTemplateForm.end_date}T00:00:00`), loadFlow); setApplyTemplateOpen(false); } finally { setSubmitting(false); }
   };
 
-  const deleteEntry = async (entryId: string) => {
-    if (!confirm('Deseja remover este item do cronograma?')) return;
-    const { error } = await supabase.from('schedule_entries').delete().eq('id', entryId).eq('user_id', user?.id || '');
-    if (error) {
-      toast.error('Erro ao remover item.');
-      return;
-    }
-    await loadFlow();
-  };
+  const toggleEntry = async (entry: ScheduleEntryRow) => { const { error } = await supabase.from('schedule_entries').update({ completed: !entry.completed }).eq('id', entry.id).eq('user_id', user?.id || ''); if (error) { toast.error('Erro ao atualizar item.'); return; } await loadFlow(); };
+  const deleteEntry = async (entryId: string) => { if (!confirm('Deseja remover este item do cronograma?')) return; const { error } = await supabase.from('schedule_entries').delete().eq('id', entryId).eq('user_id', user?.id || ''); if (error) { toast.error('Erro ao remover item.'); return; } await loadFlow(); };
 
-  if (!plan) {
-    return (
-      <div className="space-y-4">
-        <p className="text-muted-foreground">Plano de Estudos não encontrado ou ainda carregando.</p>
-        <Button asChild variant="outline"><Link to="/plans">Voltar para planos</Link></Button>
-      </div>
-    );
-  }
+  if (!plan) return <div className="space-y-4"><p className="text-muted-foreground">Plano de Estudos não encontrado ou ainda carregando.</p><Button asChild variant="outline"><Link to="/plans">Voltar para planos</Link></Button></div>;
 
-  return (
-    <div className="space-y-6">
-      <div className="workspace-panel overflow-hidden">
-        {plan.cover_image_url ? <img src={plan.cover_image_url} alt={plan.name} className="h-44 w-full object-cover" /> : null}
-        <div className="p-5">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Plano de Estudos</p>
-              <h1 className="text-2xl font-display font-bold">{plan.name}</h1>
-            </div>
-            <Button onClick={openEditPlan} variant="outline" className="rounded-xl">
-              <Pencil className="mr-1.5 h-4 w-4" />
-              Editar plano
-            </Button>
-          </div>
-          <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-4">
-            <span>Concurso: {plan.exam_name || '-'}</span>
-            <span>Banca: {plan.board_name || '-'}</span>
-            <span>Cargo: {plan.role_name || '-'}</span>
-            <span>Revisão: a cada {plan.review_interval_days || 7} dias</span>
-          </div>
-          {plan.description ? <p className="mt-3 text-sm text-muted-foreground">{plan.description}</p> : null}
-        </div>
-      </div>
-      <div className="grid gap-3 md:grid-cols-3">
-        <div className="rounded-xl border bg-card p-4 text-sm"><p className="font-medium">Matérias</p><p className="mt-1 text-2xl font-bold">{planSubjects.length}</p></div>
-        <div className="rounded-xl border bg-card p-4 text-sm"><p className="font-medium">Itens no cronograma</p><p className="mt-1 text-2xl font-bold">{entries.length}</p></div>
-        <div className="rounded-xl border bg-card p-4 text-sm"><p className="font-medium">Concluídos</p><p className="mt-1 text-2xl font-bold">{entries.filter((entry) => entry.completed).length}</p></div>
-      </div>
-      <div className="grid gap-4 xl:grid-cols-[420px_1fr]">
-        <section className="workspace-panel p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div><h2 className="font-display text-lg font-bold">Matérias do plano</h2><p className="text-sm text-muted-foreground">Vincule matérias existentes ou crie uma nova.</p></div>
-            <Button onClick={openCreateSubject} size="sm" className="rounded-xl"><Plus className="mr-1 h-4 w-4" />Matéria</Button>
-          </div>
-          <div className="mt-4 space-y-2">
-            {loadingSubjects ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Carregando...</p> : planSubjects.length === 0 ? <p className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Nenhuma matéria vinculada a este plano.</p> : planSubjects.map((subject) => (
-              <div key={subject.id} className="flex items-center gap-3 rounded-xl border bg-card/70 px-3 py-2.5">
-                <span className="h-3 w-3 rounded-full" style={{ backgroundColor: subject.color }} />
-                <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{subject.name}</p><p className="text-xs text-muted-foreground">{subject.category || 'Sem categoria'} · {subject.weekly_goal_hours || 0}h/sem</p></div>
-                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditSubject(subject)}><Pencil className="h-4 w-4" /></Button>
-                <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => void deleteSubject(subject.id)}><Trash2 className="h-4 w-4" /></Button>
-              </div>
-            ))}
-          </div>
-        </section>
-        <section className="workspace-panel p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div><h2 className="font-display text-lg font-bold">Cronograma do plano</h2><p className="text-sm text-muted-foreground">Os itens salvos aqui também ficam ligados ao cronograma interno do plano.</p></div>
-            <Button onClick={() => setEntryOpen(true)} disabled={planSubjects.length === 0} className="rounded-xl"><CalendarDays className="mr-1.5 h-4 w-4" />Adicionar no cronograma</Button>
-          </div>
-          <div className="mt-4 space-y-2">
-            {loadingFlow ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Carregando...</p> : sortedEntries.length === 0 ? <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">Vincule matérias e depois adicione itens no cronograma do plano.</p> : sortedEntries.map((entry) => {
-              const subject = subjectById.get(entry.subject_id);
-              return (
-                <div key={entry.id} className="flex flex-col gap-3 rounded-xl border bg-card/70 p-3 sm:flex-row sm:items-center">
-                  <button type="button" onClick={() => void toggleEntry(entry)} className="flex items-center gap-2 text-left"><CheckCircle2 className={`h-5 w-5 ${entry.completed ? 'text-primary' : 'text-muted-foreground'}`} /><div><p className="text-sm font-medium">{subject?.name || 'Matéria removida'}</p><p className="text-xs text-muted-foreground">{entry.date} {entry.start_time ? `· ${entry.start_time}` : ''}</p></div></button>
-                  <div className="flex flex-1 items-center gap-2 text-xs text-muted-foreground sm:justify-end"><Clock className="h-4 w-4" />{entry.planned_minutes || 0} min{entry.item_note ? <span className="line-clamp-1">· {entry.item_note}</span> : null}</div>
-                  <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => void deleteEntry(entry.id)}><Trash2 className="h-4 w-4" /></Button>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      </div>
-      <Dialog open={editPlanOpen} onOpenChange={setEditPlanOpen}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>Editar Plano de Estudos</DialogTitle><DialogDescription>Atualize as informações principais do plano.</DialogDescription></DialogHeader><div className="grid gap-4 py-2"><div className="grid gap-2"><Label>Nome do plano *</Label><Input value={planForm.name} onChange={(e) => setPlanForm((f) => ({ ...f, name: e.target.value }))} /></div><div className="grid gap-3 sm:grid-cols-3"><div className="grid gap-2"><Label>Concurso</Label><Input value={planForm.exam_name} onChange={(e) => setPlanForm((f) => ({ ...f, exam_name: e.target.value }))} /></div><div className="grid gap-2"><Label>Banca</Label><Input value={planForm.board_name} onChange={(e) => setPlanForm((f) => ({ ...f, board_name: e.target.value }))} /></div><div className="grid gap-2"><Label>Cargo</Label><Input value={planForm.role_name} onChange={(e) => setPlanForm((f) => ({ ...f, role_name: e.target.value }))} /></div></div><div className="grid gap-3 sm:grid-cols-[1fr_180px] sm:items-start"><ImageUpload value={planForm.cover_image_url} onChange={(url) => setPlanForm((f) => ({ ...f, cover_image_url: url }))} folder="study-plans" label="Imagem do plano" /><div className="grid gap-2"><Label>Revisão automática</Label><Input type="number" min={1} value={planForm.review_interval_days} onChange={(e) => setPlanForm((f) => ({ ...f, review_interval_days: Number(e.target.value) }))} /><p className="text-xs text-muted-foreground">Intervalo em dias</p></div></div><div className="grid gap-2"><Label>Descrição</Label><Textarea rows={4} value={planForm.description} onChange={(e) => setPlanForm((f) => ({ ...f, description: e.target.value }))} /></div></div><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEditPlanOpen(false)}>Cancelar</Button><Button onClick={savePlan} disabled={submitting}>{submitting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}Salvar alterações</Button></div></DialogContent>
-      </Dialog>
-      <Dialog open={subjectOpen} onOpenChange={setSubjectOpen}>
-        <DialogContent className="sm:max-w-xl"><DialogHeader><DialogTitle>{editingSubjectId ? 'Editar matéria' : 'Adicionar matéria ao plano'}</DialogTitle><DialogDescription>{editingSubjectId ? 'Atualize os dados da matéria.' : 'Use uma matéria já cadastrada ou crie uma nova.'}</DialogDescription></DialogHeader>{editingSubjectId ? <SubjectForm subjectForm={subjectForm} setSubjectForm={setSubjectForm} /> : <Tabs defaultValue="existing" className="pt-2"><TabsList className="grid w-full grid-cols-2"><TabsTrigger value="existing">Matéria existente</TabsTrigger><TabsTrigger value="new">Nova matéria</TabsTrigger></TabsList><TabsContent value="existing" className="space-y-4 pt-4"><div className="grid gap-2"><Label>Matéria cadastrada</Label><Select value={selectedExistingSubjectId} onValueChange={setSelectedExistingSubjectId}><SelectTrigger><SelectValue placeholder="Selecione uma matéria" /></SelectTrigger><SelectContent>{availableSubjects.map((subject) => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent></Select>{availableSubjects.length === 0 ? <p className="text-xs text-muted-foreground">Todas as matérias já estão vinculadas a este plano.</p> : null}</div><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setSubjectOpen(false)}>Cancelar</Button><Button onClick={linkExistingSubject} disabled={submitting || !selectedExistingSubjectId}><Link2 className="mr-1.5 h-4 w-4" />Adicionar existente</Button></div></TabsContent><TabsContent value="new" className="space-y-4 pt-4"><SubjectForm subjectForm={subjectForm} setSubjectForm={setSubjectForm} /><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setSubjectOpen(false)}>Cancelar</Button><Button onClick={saveNewSubject} disabled={submitting}><Plus className="mr-1.5 h-4 w-4" />Criar e adicionar</Button></div></TabsContent></Tabs>}{editingSubjectId ? <div className="flex justify-end gap-2 pt-2"><Button variant="outline" onClick={() => setSubjectOpen(false)}>Cancelar</Button><Button onClick={saveNewSubject} disabled={submitting}>Salvar matéria</Button></div> : null}</DialogContent>
-      </Dialog>
-      <Dialog open={entryOpen} onOpenChange={setEntryOpen}>
-        <DialogContent className="sm:max-w-xl"><DialogHeader><DialogTitle>Adicionar no cronograma</DialogTitle><DialogDescription>Escolha a matéria, data e tempo planejado.</DialogDescription></DialogHeader><div className="grid gap-4 py-2"><div className="grid gap-2"><Label>Matéria *</Label><Select value={entryForm.subject_id} onValueChange={(value) => setEntryForm((f) => ({ ...f, subject_id: value }))}><SelectTrigger><SelectValue placeholder="Selecione uma matéria" /></SelectTrigger><SelectContent>{planSubjects.map((subject) => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent></Select></div><div className="grid gap-3 sm:grid-cols-3"><div className="grid gap-2"><Label>Data *</Label><Input type="date" value={entryForm.date} onChange={(e) => setEntryForm((f) => ({ ...f, date: e.target.value }))} /></div><div className="grid gap-2"><Label>Horário</Label><Input type="time" value={entryForm.start_time} onChange={(e) => setEntryForm((f) => ({ ...f, start_time: e.target.value }))} /></div><div className="grid gap-2"><Label>Minutos</Label><Input type="number" min={1} value={entryForm.planned_minutes} onChange={(e) => setEntryForm((f) => ({ ...f, planned_minutes: Number(e.target.value) }))} /></div></div><div className="grid gap-2"><Label>Observação</Label><Textarea value={entryForm.item_note} onChange={(e) => setEntryForm((f) => ({ ...f, item_note: e.target.value }))} placeholder="Ex.: teoria, questões ou revisão" /></div></div><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEntryOpen(false)}>Cancelar</Button><Button onClick={saveEntry} disabled={submitting}>Adicionar</Button></div></DialogContent>
-      </Dialog>
+  return <div className="space-y-6">
+    <div className="workspace-panel overflow-hidden">{plan.cover_image_url ? <img src={plan.cover_image_url} alt={plan.name} className="h-44 w-full object-cover" /> : null}<div className="p-5"><div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div><p className="text-sm text-muted-foreground">Plano de Estudos</p><h1 className="text-2xl font-display font-bold">{plan.name}</h1></div><Button onClick={openEditPlan} variant="outline" className="rounded-xl"><Pencil className="mr-1.5 h-4 w-4" />Editar plano</Button></div><div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-4"><span>Concurso: {plan.exam_name || '-'}</span><span>Banca: {plan.board_name || '-'}</span><span>Cargo: {plan.role_name || '-'}</span><span>Revisão: a cada {plan.review_interval_days || 7} dias</span></div>{plan.description ? <p className="mt-3 text-sm text-muted-foreground">{plan.description}</p> : null}</div></div>
+    <div className="grid gap-3 md:grid-cols-4"><div className="rounded-xl border bg-card p-4 text-sm"><p className="font-medium">Matérias</p><p className="mt-1 text-2xl font-bold">{planSubjects.length}</p></div><div className="rounded-xl border bg-card p-4 text-sm"><p className="font-medium">Templates</p><p className="mt-1 text-2xl font-bold">{planTemplates.length}</p></div><div className="rounded-xl border bg-card p-4 text-sm"><p className="font-medium">Itens no cronograma</p><p className="mt-1 text-2xl font-bold">{entries.length}</p></div><div className="rounded-xl border bg-card p-4 text-sm"><p className="font-medium">Concluídos</p><p className="mt-1 text-2xl font-bold">{entries.filter((entry) => entry.completed).length}</p></div></div>
+    <div className="grid gap-4 xl:grid-cols-[420px_1fr]">
+      <section className="workspace-panel p-4"><div className="flex items-center justify-between gap-3"><div><h2 className="font-display text-lg font-bold">Matérias do plano</h2><p className="text-sm text-muted-foreground">Vincule matérias existentes ou crie uma nova.</p></div><Button onClick={openCreateSubject} size="sm" className="rounded-xl"><Plus className="mr-1 h-4 w-4" />Matéria</Button></div><div className="mt-4 space-y-2">{loadingSubjects ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Carregando...</p> : planSubjects.length === 0 ? <p className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Nenhuma matéria vinculada a este plano.</p> : planSubjects.map((subject) => <div key={subject.id} className="flex items-center gap-3 rounded-xl border bg-card/70 px-3 py-2.5"><span className="h-3 w-3 rounded-full" style={{ backgroundColor: subject.color }} /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{subject.name}</p><p className="text-xs text-muted-foreground">{subject.category || 'Sem categoria'} · {subject.weekly_goal_hours || 0}h/sem</p></div><Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditSubject(subject)}><Pencil className="h-4 w-4" /></Button><Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => void deleteSubject(subject.id)}><Trash2 className="h-4 w-4" /></Button></div>)}</div></section>
+      <section className="workspace-panel p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-display text-lg font-bold">Modelo semanal do plano</h2><p className="text-sm text-muted-foreground">Crie templates dentro do plano e aplique no cronograma vinculado.</p></div><div className="flex flex-wrap gap-2"><Button onClick={() => void openCreateTemplate()} className="rounded-xl" size="sm"><Wand2 className="mr-1.5 h-4 w-4" />Criar template</Button><Button onClick={() => openAddTemplateItem()} disabled={planTemplates.length === 0 || planSubjects.length === 0} variant="outline" className="rounded-xl" size="sm"><Plus className="mr-1.5 h-4 w-4" />Matéria no template</Button><Button onClick={() => openApplyTemplate()} disabled={planTemplates.length === 0} variant="outline" className="rounded-xl" size="sm"><CalendarDays className="mr-1.5 h-4 w-4" />Aplicar</Button></div></div><div className="mt-4 space-y-3">{loadingTemplates ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Carregando templates...</p> : planTemplates.length === 0 ? <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhum template criado para este plano. Crie um modelo semanal para gerar o cronograma automaticamente.</p> : planTemplates.map((template) => <div key={template.id} className="rounded-xl border bg-card/70 p-3"><div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div><p className="font-medium">{template.name}</p><p className="text-xs text-muted-foreground">{template.description || 'Modelo semanal'} · {template.items.length} matérias</p></div><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => openAddTemplateItem(template.id)}><Plus className="mr-1 h-4 w-4" />Item</Button><Button size="sm" variant="outline" onClick={() => openApplyTemplate(template.id)}>Aplicar</Button><Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => void duplicateTemplate(template.id)}><Copy className="h-4 w-4" /></Button><Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => void deleteTemplate(template.id)}><Trash2 className="h-4 w-4" /></Button></div></div><div className="mt-3 grid gap-2 md:grid-cols-7">{DAY_NAMES_SHORT.map((dayName, dayIndex) => { const dayItems = template.items.filter((item) => item.dayOfWeek === dayIndex); return <div key={dayName} className="rounded-lg border bg-background/60 p-2"><p className="text-xs font-semibold uppercase text-muted-foreground">{dayName}</p><div className="mt-2 space-y-1">{dayItems.length === 0 ? <p className="text-xs text-muted-foreground">Vazio</p> : dayItems.map((item) => { const subject = subjectById.get(item.subjectId); return <div key={item.id} className="flex items-center gap-1 rounded-md bg-muted/60 px-2 py-1 text-xs"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: subject?.color || '#5B8C7E' }} /><span className="min-w-0 flex-1 truncate">{subject?.name || 'Matéria'}</span><button type="button" onClick={() => void removeTemplateItem(item.id)} className="text-muted-foreground hover:text-destructive">×</button></div>; })}</div></div>; })}</div></div>)}</div></section>
     </div>
-  );
+    <section className="workspace-panel p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-display text-lg font-bold">Cronograma do plano</h2><p className="text-sm text-muted-foreground">Os itens salvos aqui também ficam ligados ao cronograma interno do plano.</p></div><Button onClick={() => setEntryOpen(true)} disabled={planSubjects.length === 0} className="rounded-xl"><CalendarDays className="mr-1.5 h-4 w-4" />Adicionar manualmente</Button></div><div className="mt-4 space-y-2">{loadingFlow ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Carregando...</p> : sortedEntries.length === 0 ? <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">Vincule matérias e depois adicione itens manualmente ou aplique um template do plano.</p> : sortedEntries.map((entry) => { const subject = subjectById.get(entry.subject_id); return <div key={entry.id} className="flex flex-col gap-3 rounded-xl border bg-card/70 p-3 sm:flex-row sm:items-center"><button type="button" onClick={() => void toggleEntry(entry)} className="flex items-center gap-2 text-left"><CheckCircle2 className={`h-5 w-5 ${entry.completed ? 'text-primary' : 'text-muted-foreground'}`} /><div><p className="text-sm font-medium">{subject?.name || 'Matéria removida'}</p><p className="text-xs text-muted-foreground">{entry.date} {entry.start_time ? `· ${entry.start_time}` : ''}</p></div></button><div className="flex flex-1 items-center gap-2 text-xs text-muted-foreground sm:justify-end"><Clock className="h-4 w-4" />{entry.planned_minutes || 0} min{entry.item_note ? <span className="line-clamp-1">· {entry.item_note}</span> : null}</div><Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => void deleteEntry(entry.id)}><Trash2 className="h-4 w-4" /></Button></div>; })}</div></section>
+    <Dialog open={editPlanOpen} onOpenChange={setEditPlanOpen}><DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>Editar Plano de Estudos</DialogTitle><DialogDescription>Atualize as informações principais do plano.</DialogDescription></DialogHeader><div className="grid gap-4 py-2"><div className="grid gap-2"><Label>Nome do plano *</Label><Input value={planForm.name} onChange={(e) => setPlanForm((f) => ({ ...f, name: e.target.value }))} /></div><div className="grid gap-3 sm:grid-cols-3"><div className="grid gap-2"><Label>Concurso</Label><Input value={planForm.exam_name} onChange={(e) => setPlanForm((f) => ({ ...f, exam_name: e.target.value }))} /></div><div className="grid gap-2"><Label>Banca</Label><Input value={planForm.board_name} onChange={(e) => setPlanForm((f) => ({ ...f, board_name: e.target.value }))} /></div><div className="grid gap-2"><Label>Cargo</Label><Input value={planForm.role_name} onChange={(e) => setPlanForm((f) => ({ ...f, role_name: e.target.value }))} /></div></div><div className="grid gap-3 sm:grid-cols-[1fr_180px] sm:items-start"><ImageUpload value={planForm.cover_image_url} onChange={(url) => setPlanForm((f) => ({ ...f, cover_image_url: url }))} folder="study-plans" label="Imagem do plano" /><div className="grid gap-2"><Label>Revisão automática</Label><Input type="number" min={1} value={planForm.review_interval_days} onChange={(e) => setPlanForm((f) => ({ ...f, review_interval_days: Number(e.target.value) }))} /><p className="text-xs text-muted-foreground">Intervalo em dias</p></div></div><div className="grid gap-2"><Label>Descrição</Label><Textarea rows={4} value={planForm.description} onChange={(e) => setPlanForm((f) => ({ ...f, description: e.target.value }))} /></div></div><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEditPlanOpen(false)}>Cancelar</Button><Button onClick={savePlan} disabled={submitting}>{submitting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}Salvar alterações</Button></div></DialogContent></Dialog>
+    <Dialog open={subjectOpen} onOpenChange={setSubjectOpen}><DialogContent className="sm:max-w-xl"><DialogHeader><DialogTitle>{editingSubjectId ? 'Editar matéria' : 'Adicionar matéria ao plano'}</DialogTitle><DialogDescription>{editingSubjectId ? 'Atualize os dados da matéria.' : 'Use uma matéria já cadastrada ou crie uma nova.'}</DialogDescription></DialogHeader>{editingSubjectId ? <SubjectForm subjectForm={subjectForm} setSubjectForm={setSubjectForm} /> : <Tabs defaultValue="existing" className="pt-2"><TabsList className="grid w-full grid-cols-2"><TabsTrigger value="existing">Matéria existente</TabsTrigger><TabsTrigger value="new">Nova matéria</TabsTrigger></TabsList><TabsContent value="existing" className="space-y-4 pt-4"><div className="grid gap-2"><Label>Matéria cadastrada</Label><Select value={selectedExistingSubjectId} onValueChange={setSelectedExistingSubjectId}><SelectTrigger><SelectValue placeholder="Selecione uma matéria" /></SelectTrigger><SelectContent>{availableSubjects.map((subject) => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent></Select>{availableSubjects.length === 0 ? <p className="text-xs text-muted-foreground">Todas as matérias já estão vinculadas a este plano.</p> : null}</div><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setSubjectOpen(false)}>Cancelar</Button><Button onClick={linkExistingSubject} disabled={submitting || !selectedExistingSubjectId}><Link2 className="mr-1.5 h-4 w-4" />Adicionar existente</Button></div></TabsContent><TabsContent value="new" className="space-y-4 pt-4"><SubjectForm subjectForm={subjectForm} setSubjectForm={setSubjectForm} /><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setSubjectOpen(false)}>Cancelar</Button><Button onClick={saveNewSubject} disabled={submitting}><Plus className="mr-1.5 h-4 w-4" />Criar e adicionar</Button></div></TabsContent></Tabs>}{editingSubjectId ? <div className="flex justify-end gap-2 pt-2"><Button variant="outline" onClick={() => setSubjectOpen(false)}>Cancelar</Button><Button onClick={saveNewSubject} disabled={submitting}>Salvar matéria</Button></div> : null}</DialogContent></Dialog>
+    <Dialog open={templateOpen} onOpenChange={setTemplateOpen}><DialogContent className="sm:max-w-xl"><DialogHeader><DialogTitle>Criar template do plano</DialogTitle><DialogDescription>Este modelo semanal ficará vinculado ao plano e ao cronograma interno dele.</DialogDescription></DialogHeader><div className="grid gap-4 py-2"><div className="grid gap-2"><Label>Nome do template *</Label><Input value={templateForm.name} onChange={(e) => setTemplateForm((f) => ({ ...f, name: e.target.value }))} placeholder="Ex.: Semana padrão PMDF" /></div><div className="grid gap-2"><Label>Descrição</Label><Textarea value={templateForm.description} onChange={(e) => setTemplateForm((f) => ({ ...f, description: e.target.value }))} placeholder="Ex.: Modelo base com matérias por dia" /></div></div><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setTemplateOpen(false)}>Cancelar</Button><Button onClick={saveTemplate} disabled={submitting}>{submitting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Wand2 className="mr-1.5 h-4 w-4" />}Criar template</Button></div></DialogContent></Dialog>
+    <Dialog open={templateItemOpen} onOpenChange={setTemplateItemOpen}><DialogContent className="sm:max-w-xl"><DialogHeader><DialogTitle>Adicionar matéria ao template</DialogTitle><DialogDescription>Escolha o dia da semana e a matéria do plano.</DialogDescription></DialogHeader><div className="grid gap-4 py-2"><div className="grid gap-2"><Label>Template *</Label><Select value={templateItemForm.template_id} onValueChange={(value) => setTemplateItemForm((f) => ({ ...f, template_id: value }))}><SelectTrigger><SelectValue placeholder="Selecione um template" /></SelectTrigger><SelectContent>{planTemplates.map((template) => <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>)}</SelectContent></Select></div><div className="grid gap-3 sm:grid-cols-2"><div className="grid gap-2"><Label>Dia da semana *</Label><Select value={templateItemForm.day_of_week} onValueChange={(value) => setTemplateItemForm((f) => ({ ...f, day_of_week: value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{DAY_NAMES_SHORT.map((day, index) => <SelectItem key={day} value={String(index)}>{day}</SelectItem>)}</SelectContent></Select></div><div className="grid gap-2"><Label>Matéria *</Label><Select value={templateItemForm.subject_id} onValueChange={(value) => setTemplateItemForm((f) => ({ ...f, subject_id: value }))}><SelectTrigger><SelectValue placeholder="Selecione uma matéria" /></SelectTrigger><SelectContent>{planSubjects.map((subject) => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent></Select></div></div><div className="grid gap-3 sm:grid-cols-2"><div className="grid gap-2"><Label>Horário</Label><Input type="time" value={templateItemForm.start_time} onChange={(e) => setTemplateItemForm((f) => ({ ...f, start_time: e.target.value }))} /></div><div className="grid gap-2"><Label>Minutos</Label><Input type="number" min={1} value={templateItemForm.planned_minutes} onChange={(e) => setTemplateItemForm((f) => ({ ...f, planned_minutes: Number(e.target.value) }))} /></div></div><div className="grid gap-2"><Label>Observação</Label><Textarea value={templateItemForm.item_note} onChange={(e) => setTemplateItemForm((f) => ({ ...f, item_note: e.target.value }))} placeholder="Ex.: teoria, questões ou revisão" /></div></div><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setTemplateItemOpen(false)}>Cancelar</Button><Button onClick={saveTemplateItem} disabled={submitting}>Adicionar ao template</Button></div></DialogContent></Dialog>
+    <Dialog open={applyTemplateOpen} onOpenChange={setApplyTemplateOpen}><DialogContent className="sm:max-w-xl"><DialogHeader><DialogTitle>Aplicar template no cronograma</DialogTitle><DialogDescription>O sistema vai gerar os itens no cronograma vinculado a este plano.</DialogDescription></DialogHeader><div className="grid gap-4 py-2"><div className="grid gap-2"><Label>Template *</Label><Select value={applyTemplateForm.template_id} onValueChange={(value) => setApplyTemplateForm((f) => ({ ...f, template_id: value }))}><SelectTrigger><SelectValue placeholder="Selecione um template" /></SelectTrigger><SelectContent>{planTemplates.map((template) => <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>)}</SelectContent></Select></div><div className="grid gap-3 sm:grid-cols-2"><div className="grid gap-2"><Label>Data inicial *</Label><Input type="date" value={applyTemplateForm.start_date} onChange={(e) => setApplyTemplateForm((f) => ({ ...f, start_date: e.target.value }))} /></div><div className="grid gap-2"><Label>Data final *</Label><Input type="date" value={applyTemplateForm.end_date} onChange={(e) => setApplyTemplateForm((f) => ({ ...f, end_date: e.target.value }))} /></div></div></div><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setApplyTemplateOpen(false)}>Cancelar</Button><Button onClick={applySelectedTemplate} disabled={submitting}>{submitting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CalendarDays className="mr-1.5 h-4 w-4" />}Aplicar no cronograma</Button></div></DialogContent></Dialog>
+    <Dialog open={entryOpen} onOpenChange={setEntryOpen}><DialogContent className="sm:max-w-xl"><DialogHeader><DialogTitle>Adicionar no cronograma</DialogTitle><DialogDescription>Escolha a matéria, data e tempo planejado.</DialogDescription></DialogHeader><div className="grid gap-4 py-2"><div className="grid gap-2"><Label>Matéria *</Label><Select value={entryForm.subject_id} onValueChange={(value) => setEntryForm((f) => ({ ...f, subject_id: value }))}><SelectTrigger><SelectValue placeholder="Selecione uma matéria" /></SelectTrigger><SelectContent>{planSubjects.map((subject) => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent></Select></div><div className="grid gap-3 sm:grid-cols-3"><div className="grid gap-2"><Label>Data *</Label><Input type="date" value={entryForm.date} onChange={(e) => setEntryForm((f) => ({ ...f, date: e.target.value }))} /></div><div className="grid gap-2"><Label>Horário</Label><Input type="time" value={entryForm.start_time} onChange={(e) => setEntryForm((f) => ({ ...f, start_time: e.target.value }))} /></div><div className="grid gap-2"><Label>Minutos</Label><Input type="number" min={1} value={entryForm.planned_minutes} onChange={(e) => setEntryForm((f) => ({ ...f, planned_minutes: Number(e.target.value) }))} /></div></div><div className="grid gap-2"><Label>Observação</Label><Textarea value={entryForm.item_note} onChange={(e) => setEntryForm((f) => ({ ...f, item_note: e.target.value }))} placeholder="Ex.: teoria, questões ou revisão" /></div></div><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEntryOpen(false)}>Cancelar</Button><Button onClick={saveEntry} disabled={submitting}>Adicionar</Button></div></DialogContent></Dialog>
+  </div>;
 }
 
 function SubjectForm({ subjectForm, setSubjectForm }: { subjectForm: typeof EMPTY_SUBJECT_FORM; setSubjectForm: React.Dispatch<React.SetStateAction<typeof EMPTY_SUBJECT_FORM>> }) {
-  return (
-    <div className="grid gap-4 py-2"><div className="grid gap-2"><Label>Nome da matéria *</Label><Input value={subjectForm.name} onChange={(e) => setSubjectForm((f) => ({ ...f, name: e.target.value }))} placeholder="Ex.: Português" /></div><div className="grid gap-3 sm:grid-cols-2"><div className="grid gap-2"><Label>Categoria</Label><Input value={subjectForm.category} onChange={(e) => setSubjectForm((f) => ({ ...f, category: e.target.value }))} placeholder="Ex.: Conhecimentos básicos" /></div><div className="grid gap-2"><Label>Cor</Label><Input type="color" value={subjectForm.color} onChange={(e) => setSubjectForm((f) => ({ ...f, color: e.target.value }))} /></div></div><div className="grid gap-3 sm:grid-cols-2"><div className="grid gap-2"><Label>Meta semanal (h)</Label><Input type="number" min={0} value={subjectForm.weekly_goal_hours} onChange={(e) => setSubjectForm((f) => ({ ...f, weekly_goal_hours: Number(e.target.value) }))} /></div><div className="grid gap-2"><Label>Meta mensal (h)</Label><Input type="number" min={0} value={subjectForm.monthly_goal_hours} onChange={(e) => setSubjectForm((f) => ({ ...f, monthly_goal_hours: Number(e.target.value) }))} /></div></div><div className="grid gap-2"><Label>Descrição</Label><Textarea value={subjectForm.description} onChange={(e) => setSubjectForm((f) => ({ ...f, description: e.target.value }))} /></div></div>
-  );
+  return <div className="grid gap-4 py-2"><div className="grid gap-2"><Label>Nome da matéria *</Label><Input value={subjectForm.name} onChange={(e) => setSubjectForm((f) => ({ ...f, name: e.target.value }))} placeholder="Ex.: Português" /></div><div className="grid gap-3 sm:grid-cols-2"><div className="grid gap-2"><Label>Categoria</Label><Input value={subjectForm.category} onChange={(e) => setSubjectForm((f) => ({ ...f, category: e.target.value }))} placeholder="Ex.: Conhecimentos básicos" /></div><div className="grid gap-2"><Label>Cor</Label><Input type="color" value={subjectForm.color} onChange={(e) => setSubjectForm((f) => ({ ...f, color: e.target.value }))} /></div></div><div className="grid gap-3 sm:grid-cols-2"><div className="grid gap-2"><Label>Meta semanal (h)</Label><Input type="number" min={0} value={subjectForm.weekly_goal_hours} onChange={(e) => setSubjectForm((f) => ({ ...f, weekly_goal_hours: Number(e.target.value) }))} /></div><div className="grid gap-2"><Label>Meta mensal (h)</Label><Input type="number" min={0} value={subjectForm.monthly_goal_hours} onChange={(e) => setSubjectForm((f) => ({ ...f, monthly_goal_hours: Number(e.target.value) }))} /></div></div><div className="grid gap-2"><Label>Descrição</Label><Textarea value={subjectForm.description} onChange={(e) => setSubjectForm((f) => ({ ...f, description: e.target.value }))} /></div></div>;
 }
