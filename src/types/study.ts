@@ -70,6 +70,7 @@ export interface StudySchedule {
 export interface ScheduleEntry {
   id: string;
   scheduleId?: string;
+  planId?: string;
   date: string; // YYYY-MM-DD
   subjectId: string;
   optional: boolean;
@@ -86,6 +87,7 @@ export interface ScheduleEntry {
 export interface ScheduleDayPlan {
   id: string;
   scheduleId?: string;
+  planId?: string;
   date: string; // YYYY-MM-DD
   dayNote?: string;
   dayTargetMinutes?: number;
@@ -162,6 +164,7 @@ export type ScheduleView = 'weekly' | 'monthly' | 'yearly' | 'templates';
 export interface WeeklyTemplate {
   id: string;
   scheduleId?: string;
+  planId?: string;
   name: string;
   description?: string;
   type?: 'weekly' | 'monthly' | 'custom';
