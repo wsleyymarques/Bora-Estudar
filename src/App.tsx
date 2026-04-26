@@ -20,6 +20,7 @@ import StatsPage from "@/pages/StatsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import PlansPage from "@/pages/PlansPage";
 import PlanDetailsPage from "@/pages/PlanDetailsPage";
+import PlanWizardPage from "@/pages/PlanWizardPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -42,6 +43,7 @@ function AppRoutes() {
           <Routes>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/plans" element={<PlansPage />} />
+            <Route path="/plans/new" element={<PlanWizardPage />} />
             <Route path="/plans/:planId" element={<PlanDetailsPage />} />
             <Route path="/subjects" element={<SubjectsPage />} />
             <Route path="/schedule" element={<SchedulePage />} />
