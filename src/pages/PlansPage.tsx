@@ -1,31 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { useStudyPlans, StudyPlanInput } from '@/hooks/useStudyPlans';
-import { ImageUpload } from '@/components/generic/image-upload';
+import { useStudyPlans } from '@/hooks/useStudyPlans';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import { useNavigate } from 'react-router-dom';
 import { CalendarDays, CheckCircle2, Loader2, Plus, Search, Trophy } from 'lucide-react';
-import { toast } from 'sonner';
-
-const INITIAL_FORM: StudyPlanInput = {
-  name: '',
-  exam_name: '',
-  board_name: '',
-  role_name: '',
-  description: '',
-  cover_image_url: '',
-  review_interval_days: 7,
-};
 
 export default function PlansPage() {
-  const { plans, loading, error, createPlan } = useStudyPlans();
+  const { plans, loading, error } = useStudyPlans();
   const [query, setQuery] = useState('');
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState<StudyPlanInput>(INITIAL_FORM);
-  const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
 
   const filteredPlans = useMemo(() => {
@@ -39,53 +21,8 @@ export default function PlansPage() {
     );
   }, [plans, query]);
 
-  const updateForm = <K extends keyof StudyPlanInput>(key: K, value: StudyPlanInput[K]) => {
-    setForm((current) => ({ ...current, [key]: value }));
-  };
-
-  const resetForm = () => {
-    setForm(INITIAL_FORM);
-  };
-
   const openCreateDialog = () => {
-    resetForm();
-    setDialogOpen(true);
-  };
-
-  const handleCreate = async () => {
-    const name = form.name.trim();
-
-    if (!name) {
-      toast.error('Informe o nome do plano de estudos.');
-      return;
-    }
-
-    setSubmitting(true);
-
-    try {
-      const plan = await createPlan({
-        ...form,
-        name,
-        exam_name: form.exam_name?.trim(),
-        board_name: form.board_name?.trim(),
-        role_name: form.role_name?.trim(),
-        description: form.description?.trim(),
-        cover_image_url: form.cover_image_url?.trim(),
-        review_interval_days: Number(form.review_interval_days) || 7,
-      });
-
-      if (plan) {
-        toast.success('Plano de estudos e cronograma vinculados criados com sucesso.');
-        setDialogOpen(false);
-        resetForm();
-        navigate(`/plans/${plan.id}`);
-      }
-    } catch (createError) {
-      console.error(createError);
-      toast.error('Não foi possível criar o plano de estudos.');
-    } finally {
-      setSubmitting(false);
-    }
+    navigate('/plans/new');
   };
 
   return (
@@ -104,7 +41,7 @@ export default function PlansPage() {
 
           <Button onClick={openCreateDialog} className="rounded-xl">
             <Plus className="mr-1.5 h-4 w-4" />
-            Criar plano
+            Criar plano guiado
           </Button>
         </div>
 
@@ -140,7 +77,7 @@ export default function PlansPage() {
             Crie seu primeiro plano para estudar por concurso, banca, cargo, cronograma próprio e revisões automáticas.
           </p>
           <Button onClick={openCreateDialog} className="mt-4 rounded-xl">
-            Criar primeiro plano
+            Criar primeiro plano guiado
           </Button>
         </div>
       ) : (
@@ -192,112 +129,6 @@ export default function PlansPage() {
           ))}
         </div>
       )}
-
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="font-display">Criar Plano de Estudos</DialogTitle>
-            <DialogDescription>
-              Cadastre o plano geral do concurso. O sistema criará automaticamente um cronograma vinculado a este plano para receber matérias, templates e revisões.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-4 py-2">
-            <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm text-muted-foreground">
-              <div className="flex items-start gap-2">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 text-primary" />
-                <p>
-                  Ao criar o plano, um cronograma interno será criado junto e ficará vinculado a ele. Depois, tudo que for adicionado no fluxo do plano será salvo nesse cronograma.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="plan-name">Nome do plano *</Label>
-              <Input
-                id="plan-name"
-                value={form.name}
-                onChange={(event) => updateForm('name', event.target.value)}
-                placeholder="Ex.: Soldado PMDF 2026"
-              />
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="grid gap-2">
-                <Label htmlFor="exam-name">Concurso</Label>
-                <Input
-                  id="exam-name"
-                  value={form.exam_name}
-                  onChange={(event) => updateForm('exam_name', event.target.value)}
-                  placeholder="Ex.: PMDF"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="board-name">Banca</Label>
-                <Input
-                  id="board-name"
-                  value={form.board_name}
-                  onChange={(event) => updateForm('board_name', event.target.value)}
-                  placeholder="Ex.: Cebraspe"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="role-name">Cargo</Label>
-                <Input
-                  id="role-name"
-                  value={form.role_name}
-                  onChange={(event) => updateForm('role_name', event.target.value)}
-                  placeholder="Ex.: Soldado"
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-[1fr_180px] sm:items-start">
-              <ImageUpload
-                value={form.cover_image_url}
-                onChange={(url) => updateForm('cover_image_url', url)}
-                folder="study-plans"
-                label="Imagem do plano"
-                helperText="Faça upload de uma imagem ou informe uma URL externa para a capa do plano."
-                disabled={submitting}
-              />
-              <div className="grid gap-2">
-                <Label htmlFor="review-interval-days">Revisão automática</Label>
-                <Input
-                  id="review-interval-days"
-                  type="number"
-                  min={1}
-                  value={form.review_interval_days}
-                  onChange={(event) => updateForm('review_interval_days', Number(event.target.value))}
-                  placeholder="7"
-                />
-                <p className="text-xs text-muted-foreground">Intervalo em dias</p>
-              </div>
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="plan-description">Descrição</Label>
-              <Textarea
-                id="plan-description"
-                value={form.description}
-                onChange={(event) => updateForm('description', event.target.value)}
-                placeholder="Objetivo, edital, observações e estratégia inicial do plano."
-                rows={4}
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>
-              Cancelar
-            </Button>
-            <Button onClick={handleCreate} disabled={submitting}>
-              {submitting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plus className="mr-1.5 h-4 w-4" />}
-              Criar plano e cronograma
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
