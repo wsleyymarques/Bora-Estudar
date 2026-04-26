@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { SubjectCreateInput, useStudy } from '@/contexts/StudyContext';
 import { useTemplates } from '@/hooks/useTemplates';
 import { DAY_NAMES } from '@/types/study';
@@ -16,11 +16,30 @@ import {
   TemplateQuickGeneratePayload,
 } from '@/components/generic/template-quick-builder';
 
+type TemplateSubjectOption = {
+  id: string;
+  name: string;
+  color?: string;
+  active?: boolean | null;
+};
+
 interface TemplateEditorProps {
-  onApply: (templateId: string) => void;
+  onApply: (templateId: string) => void | Promise<void>;
+  planId?: string | null;
+  scheduleId?: string | null;
+  includeGlobalTemplates?: boolean;
+  subjectOptions?: TemplateSubjectOption[];
+  onCreateSubject?: () => void;
 }
 
-export default function TemplateEditor({ onApply }: TemplateEditorProps) {
+export default function TemplateEditor({
+  onApply,
+  planId = null,
+  scheduleId = null,
+  includeGlobalTemplates,
+  subjectOptions,
+  onCreateSubject,
+}: TemplateEditorProps) {
   const { data, createSubject } = useStudy();
   const {
     templates,
@@ -36,7 +55,11 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
     removeTemplateItemsBatch,
     setDayNote,
     upsertTemplateDayNotesBatch,
-  } = useTemplates();
+  } = useTemplates({
+    planId,
+    scheduleId,
+    includeGlobal: includeGlobalTemplates ?? !planId,
+  });
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -69,7 +92,14 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
   const selected = templates.find(t => t.id === selectedId);
   const [templateDescription, setTemplateDescription] = useState('');
   const [templateStatus, setTemplateStatus] = useState<'active' | 'archived' | 'draft'>('active');
-  const activeSubjects = data.subjects.filter(s => s.active);
+
+  const activeSubjects = useMemo(() => {
+    const source = subjectOptions?.length ? subjectOptions : data.subjects;
+    return source.filter(s => s.active !== false);
+  }, [data.subjects, subjectOptions]);
+
+  const getSubjectById = (subjectId: string) =>
+    activeSubjects.find((subject) => subject.id === subjectId) || data.subjects.find((subject) => subject.id === subjectId);
 
   useEffect(() => {
     if (!selected) return;
@@ -96,7 +126,10 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
 
   const handleCreate = async () => {
     if (!newName.trim()) { toast.error('Digite um nome'); return; }
-    const id = await createTemplate(newName.trim());
+    const id = await createTemplate(newName.trim(), {
+      planId: planId || undefined,
+      scheduleId: scheduleId || undefined,
+    });
     if (id) { setSelectedId(id); setCreating(false); setNewName(''); }
   };
 
@@ -107,7 +140,7 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
   };
 
   const handleAddItem = async () => {
-    if (!selectedId || !addSubjectId) { toast.error('Selecione uma materia'); return; }
+    if (!selectedId || !addSubjectId) { toast.error('Selecione uma matéria'); return; }
     await addTemplateItem(selectedId, addDay, addSubjectId, addOptional, {
       startTime: addStartTime || undefined,
       plannedMinutes: addPlannedMinutes,
@@ -126,6 +159,16 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
   };
 
   const openQuickSubjectDialog = () => {
+    if (onCreateSubject) {
+      onCreateSubject();
+      return;
+    }
+
+    if (planId) {
+      toast.info('Crie ou vincule a matéria pela área de matérias do plano para manter o vínculo correto.');
+      return;
+    }
+
     setQuickSubjectForm({
       name: '',
       color: '#5B8C7E',
@@ -139,12 +182,12 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
 
   const handleQuickSubjectSave = async () => {
     if (!quickSubjectForm.name?.trim()) {
-      toast.error('Informe o nome da materia');
+      toast.error('Informe o nome da matéria');
       return;
     }
     await createSubject(quickSubjectForm);
     setQuickSubjectDialog(false);
-    toast.success('Materia criada');
+    toast.success('Matéria criada');
   };
 
   const openAddItem = (day: number) => {
@@ -225,7 +268,7 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
       .sort((a, b) => a.sortOrder - b.sortOrder);
 
     if (sourceItems.length === 0) {
-      toast.error('O dia de origem nao possui materias.');
+      toast.error('O dia de origem não possui matérias.');
       return;
     }
 
@@ -276,7 +319,16 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
     <div className="space-y-6">
       <div className="glass-card p-5">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-display font-bold text-foreground">Templates Semanais</h2>
+          <div>
+            <h2 className="text-lg font-display font-bold text-foreground">
+              {planId ? 'Modelo semanal do plano' : 'Templates Semanais'}
+            </h2>
+            {planId && (
+              <p className="text-sm text-muted-foreground">
+                Use o mesmo editor de templates, porém vinculado ao plano e ao cronograma dele.
+              </p>
+            )}
+          </div>
           <Button variant="outline" size="sm" onClick={() => setCreating(true)}>
             <Plus className="w-4 h-4 mr-1" />Novo Template
           </Button>
@@ -310,7 +362,7 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
                 ) : (
                   <>
                     <p className="text-sm font-medium text-foreground truncate">{t.name}</p>
-                    <p className="text-xs text-muted-foreground">{t.items.length} materias configuradas</p>
+                    <p className="text-xs text-muted-foreground">{t.items.length} matérias configuradas</p>
                   </>
                 )}
               </div>
@@ -335,7 +387,7 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
           <div className="glass-card p-4 space-y-3">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <div className="md:col-span-2 space-y-1.5">
-                <label className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Descricao</label>
+                <label className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Descrição</label>
                 <Textarea
                   rows={2}
                   value={templateDescription}
@@ -390,8 +442,8 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-semibold text-foreground">{dayName}</h4>
                     <div className="flex items-center gap-1">
-                      <button onClick={() => openDayNote(dow)} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Observacao"><FileText className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => openAddItem(dow)} className="p-1 rounded hover:bg-primary/10 text-primary" title="Adicionar materia"><Plus className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => openDayNote(dow)} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Observação"><FileText className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => openAddItem(dow)} className="p-1 rounded hover:bg-primary/10 text-primary" title="Adicionar matéria"><Plus className="w-3.5 h-3.5" /></button>
                     </div>
                   </div>
 
@@ -403,7 +455,7 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
 
                   <div className="flex-1 space-y-1">
                     {mainItems.map(item => {
-                      const subj = data.subjects.find(s => s.id === item.subjectId);
+                      const subj = getSubjectById(item.subjectId);
                       return (
                         <div key={item.id} className="flex items-center gap-2 group">
                           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: subj?.color }} />
@@ -416,7 +468,7 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
                     {optionalItems.length > 0 && (
                       <div className="pt-1.5 mt-1.5 border-t border-border/30 space-y-1">
                         {optionalItems.map(item => {
-                          const subj = data.subjects.find(s => s.id === item.subjectId);
+                          const subj = getSubjectById(item.subjectId);
                           return (
                             <div key={item.id} className="flex items-center gap-2 opacity-70 group">
                               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: subj?.color }} />
@@ -444,20 +496,25 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
 
       <Dialog open={addDialog} onOpenChange={setAddDialog}>
         <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle className="font-display">Adicionar materia - {DAY_NAMES[addDay]}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="font-display">Adicionar matéria - {DAY_NAMES[addDay]}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <SubjectFinder
               value={addSubjectId}
               onChange={setAddSubjectId}
-              subjects={data.subjects}
+              subjects={activeSubjects as never}
               areas={data.subjectAreas}
               categories={data.subjectCategories}
               onCreateSubject={openQuickSubjectDialog}
-              placeholder="Selecione a materia"
+              placeholder={planId ? 'Selecione uma matéria do plano' : 'Selecione a matéria'}
             />
+            {planId && activeSubjects.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                Nenhuma matéria vinculada ao plano. Adicione ou crie uma matéria na área de matérias do plano.
+              </p>
+            )}
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={addOptional} onChange={e => setAddOptional(e.target.checked)} className="rounded" />
-              Materia opcional
+              Matéria opcional
             </label>
             <div className="grid grid-cols-2 gap-2">
               <ClockTimePickerField value={addStartTime || undefined} onChange={(v) => setAddStartTime(v || '')} placeholder="--:--" />
@@ -470,8 +527,8 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
 
       <Dialog open={noteDialog} onOpenChange={setNoteDialog}>
         <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle className="font-display">Observacao - {DAY_NAMES[noteDay]}</DialogTitle></DialogHeader>
-          <Textarea value={noteContent} onChange={e => setNoteContent(e.target.value)} placeholder="Ex: Revisao do dia anterior" rows={3} />
+          <DialogHeader><DialogTitle className="font-display">Observação - {DAY_NAMES[noteDay]}</DialogTitle></DialogHeader>
+          <Textarea value={noteContent} onChange={e => setNoteContent(e.target.value)} placeholder="Ex.: Revisão do dia anterior" rows={3} />
           <DurationPickerField valueMinutes={noteTargetMinutes} onChangeMinutes={setNoteTargetMinutes} placeholder="Meta do dia" includeSeconds />
           <Button onClick={handleSaveNote} className="w-full">Salvar</Button>
         </DialogContent>
@@ -480,7 +537,7 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
       <Dialog open={quickSubjectDialog} onOpenChange={setQuickSubjectDialog}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle className="font-display">Criar materia</DialogTitle>
+            <DialogTitle className="font-display">Criar matéria</DialogTitle>
           </DialogHeader>
           <SubjectForm
             value={quickSubjectForm}
@@ -489,12 +546,10 @@ export default function TemplateEditor({ onApply }: TemplateEditorProps) {
             onChange={setQuickSubjectForm}
             onSubmit={handleQuickSubjectSave}
             onCancel={() => setQuickSubjectDialog(false)}
-            submitLabel="Criar materia"
+            submitLabel="Criar matéria"
           />
         </DialogContent>
       </Dialog>
     </div>
   );
 }
-
-
