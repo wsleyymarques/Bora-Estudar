@@ -4,7 +4,9 @@ import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock, Loader2, 
 import { toast } from 'sonner';
 
 import { ImageUpload } from '@/components/generic/image-upload';
+import { SubjectFinder } from '@/components/generic/subject-finder';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -367,12 +369,16 @@ function PlanSubjectsStep({ plan, onNext }: { plan: StudyPlan; onNext: () => voi
 }
 
 function PlanTemplateStep({ plan, onBack, onNext }: { plan: StudyPlan; onBack: () => void; onNext: () => void }) {
-  const { planSubjects } = usePlanSubjects(plan.id);
+  const { planSubjects, createAndLinkSubject } = usePlanSubjects(plan.id);
   const { templates, createTemplate, addTemplateItem, removeTemplateItem, applyTemplate } = useTemplates({ planId: plan.id, scheduleId: plan.schedule_id, includeGlobal: false });
   const [templateName, setTemplateName] = useState('Modelo semanal do plano');
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [itemForm, setItemForm] = useState({ dayOfWeek: 1, subjectId: '', plannedMinutes: 60, startTime: '' });
+  const [addItemDialogOpen, setAddItemDialogOpen] = useState(false);
+  const [quickSubjectDialogOpen, setQuickSubjectDialogOpen] = useState(false);
+  const [quickSubject, setQuickSubject] = useState({ name: '', category: '', color: '#5B8C7E', weekly_goal_hours: 4, monthly_goal_hours: 16 });
   const selectedTemplate = useMemo(() => templates.find((template) => template.id === selectedTemplateId) || templates[0], [selectedTemplateId, templates]);
+  const selectedDay = DAYS.find((day) => day.value === Number(itemForm.dayOfWeek));
 
   const handleSelectDayToAdd = (dayOfWeek: number) => {
     if (!selectedTemplate) {
@@ -381,7 +387,7 @@ function PlanTemplateStep({ plan, onBack, onNext }: { plan: StudyPlan; onBack: (
     }
 
     setItemForm((current) => ({ ...current, dayOfWeek }));
-    document.getElementById('plan-template-add-item-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setAddItemDialogOpen(true);
   };
 
   const handleCreateTemplate = async () => {
@@ -407,6 +413,21 @@ function PlanTemplateStep({ plan, onBack, onNext }: { plan: StudyPlan; onBack: (
       startTime: itemForm.startTime || undefined,
     });
     setItemForm((current) => ({ ...current, subjectId: '', startTime: '' }));
+    setAddItemDialogOpen(false);
+  };
+
+  const handleQuickCreateSubject = async () => {
+    if (!quickSubject.name.trim()) {
+      toast.error('Informe o nome da matéria.');
+      return;
+    }
+
+    const created = await createAndLinkSubject(quickSubject);
+    if (created) {
+      setQuickSubject({ name: '', category: '', color: '#5B8C7E', weekly_goal_hours: 4, monthly_goal_hours: 16 });
+      setQuickSubjectDialogOpen(false);
+      toast.success('Matéria criada e vinculada ao plano.');
+    }
   };
 
   const handleQuickApply = async () => {
@@ -446,7 +467,7 @@ function PlanTemplateStep({ plan, onBack, onNext }: { plan: StudyPlan; onBack: (
 
           <div id="plan-template-add-item-form" className="border-t border-border/70 pt-4">
             <h3 className="font-semibold text-foreground">Adicionar item no template</h3>
-            <p className="mt-1 text-xs text-muted-foreground">Clique no + de um dia para preencher automaticamente o dia da semana.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Clique no + de um dia para abrir a janela de adição, igual ao cronograma.</p>
             <div className="mt-3 grid gap-3">
               <Select value={selectedTemplate?.id || ''} onValueChange={setSelectedTemplateId}>
                 <SelectTrigger><SelectValue placeholder="Template do plano" /></SelectTrigger>
@@ -454,25 +475,113 @@ function PlanTemplateStep({ plan, onBack, onNext }: { plan: StudyPlan; onBack: (
                   {templates.map((template) => <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Select value={String(itemForm.dayOfWeek)} onValueChange={(value) => setItemForm((current) => ({ ...current, dayOfWeek: Number(value) }))}>
-                <SelectTrigger><SelectValue placeholder="Dia da semana" /></SelectTrigger>
-                <SelectContent>{DAYS.map((day) => <SelectItem key={day.value} value={String(day.value)}>{day.label}</SelectItem>)}</SelectContent>
-              </Select>
-              <Select value={itemForm.subjectId} onValueChange={(value) => setItemForm((current) => ({ ...current, subjectId: value }))}>
-                <SelectTrigger><SelectValue placeholder="Matéria" /></SelectTrigger>
-                <SelectContent>{planSubjects.map((subject) => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent>
-              </Select>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Input type="time" value={itemForm.startTime} onChange={(event) => setItemForm((current) => ({ ...current, startTime: event.target.value }))} />
-                <Input type="number" min={1} value={itemForm.plannedMinutes} onChange={(event) => setItemForm((current) => ({ ...current, plannedMinutes: Number(event.target.value) }))} placeholder="Minutos" />
-              </div>
-              <Button onClick={handleAddItem}>Adicionar matéria ao dia</Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!selectedTemplate}
+                onClick={() => handleSelectDayToAdd(Number(itemForm.dayOfWeek))}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Abrir janela de adição
+              </Button>
             </div>
           </div>
         </div>
 
         <TemplateWeekBoard template={selectedTemplate} subjects={planSubjects} onRemove={removeTemplateItem} onSelectDayToAdd={handleSelectDayToAdd} />
       </div>
+
+      <Dialog open={addItemDialogOpen} onOpenChange={setAddItemDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Adicionar matéria no template</DialogTitle>
+            <DialogDescription>
+              Selecione a matéria, o tempo planejado e o horário para {selectedDay?.label || 'o dia selecionado'}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-2">
+            <div className="grid gap-2">
+              <Label>Dia da semana</Label>
+              <Select value={String(itemForm.dayOfWeek)} onValueChange={(value) => setItemForm((current) => ({ ...current, dayOfWeek: Number(value) }))}>
+                <SelectTrigger><SelectValue placeholder="Dia da semana" /></SelectTrigger>
+                <SelectContent>{DAYS.map((day) => <SelectItem key={day.value} value={String(day.value)}>{day.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Matéria</Label>
+              <SubjectFinder
+                subjects={planSubjects as any[]}
+                value={itemForm.subjectId}
+                onChange={(value) => setItemForm((current) => ({ ...current, subjectId: value }))}
+                placeholder="Buscar ou selecionar matéria"
+                onCreateSubject={() => setQuickSubjectDialogOpen(true)}
+              />
+              <p className="text-xs text-muted-foreground">A lista mostra somente matérias vinculadas a este plano.</p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>Horário</Label>
+                <Input type="time" value={itemForm.startTime} onChange={(event) => setItemForm((current) => ({ ...current, startTime: event.target.value }))} />
+              </div>
+              <div className="grid gap-2">
+                <Label>Duração em minutos</Label>
+                <Input type="number" min={1} value={itemForm.plannedMinutes} onChange={(event) => setItemForm((current) => ({ ...current, plannedMinutes: Number(event.target.value) }))} />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => setAddItemDialogOpen(false)}>Cancelar</Button>
+            <Button type="button" onClick={handleAddItem}>Adicionar ao dia</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={quickSubjectDialogOpen} onOpenChange={setQuickSubjectDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Criar matéria no plano</DialogTitle>
+            <DialogDescription>
+              Crie uma matéria rapidamente para usar no template deste plano.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3 py-2">
+            <div className="grid gap-2">
+              <Label>Nome da matéria *</Label>
+              <Input value={quickSubject.name} onChange={(event) => setQuickSubject((current) => ({ ...current, name: event.target.value }))} placeholder="Ex.: Português" />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>Categoria</Label>
+                <Input value={quickSubject.category} onChange={(event) => setQuickSubject((current) => ({ ...current, category: event.target.value }))} placeholder="Ex.: Conhecimentos básicos" />
+              </div>
+              <div className="grid gap-2">
+                <Label>Cor</Label>
+                <Input type="color" value={quickSubject.color} onChange={(event) => setQuickSubject((current) => ({ ...current, color: event.target.value }))} />
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>Meta semanal (h)</Label>
+                <Input type="number" min={0} value={quickSubject.weekly_goal_hours} onChange={(event) => setQuickSubject((current) => ({ ...current, weekly_goal_hours: Number(event.target.value) }))} />
+              </div>
+              <div className="grid gap-2">
+                <Label>Meta mensal (h)</Label>
+                <Input type="number" min={0} value={quickSubject.monthly_goal_hours} onChange={(event) => setQuickSubject((current) => ({ ...current, monthly_goal_hours: Number(event.target.value) }))} />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => setQuickSubjectDialogOpen(false)}>Cancelar</Button>
+            <Button type="button" onClick={handleQuickCreateSubject}>Criar matéria</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
