@@ -3,11 +3,14 @@ import { useStudyPlans } from '@/hooks/useStudyPlans';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useNavigate } from 'react-router-dom';
-import { CalendarDays, CheckCircle2, Loader2, Plus, Search, Trophy } from 'lucide-react';
+import { CalendarDays, CheckCircle2, Loader2, MoreVertical, Plus, Search, Trash2, Trophy } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function PlansPage() {
-  const { plans, loading, error } = useStudyPlans();
+  const { plans, loading, error, deletePlan } = useStudyPlans();
   const [query, setQuery] = useState('');
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [deletingPlanId, setDeletingPlanId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const filteredPlans = useMemo(() => {
@@ -23,6 +26,28 @@ export default function PlansPage() {
 
   const openCreateDialog = () => {
     navigate('/plans/new');
+  };
+
+  const handleDeletePlan = async (event: React.MouseEvent, planId: string, planName: string) => {
+    event.stopPropagation();
+    setOpenMenuId(null);
+
+    const confirmed = window.confirm(
+      `Tem certeza que deseja excluir o plano "${planName}"? Essa ação não poderá ser desfeita.`,
+    );
+
+    if (!confirmed) return;
+
+    setDeletingPlanId(planId);
+    try {
+      await deletePlan(planId);
+      toast.success('Plano excluído com sucesso.');
+    } catch (deleteError) {
+      console.error(deleteError);
+      toast.error('Não foi possível excluir o plano.');
+    } finally {
+      setDeletingPlanId(null);
+    }
   };
 
   return (
@@ -83,11 +108,17 @@ export default function PlansPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
           {filteredPlans.map((plan) => (
-            <button
+            <div
               key={plan.id}
-              type="button"
+              role="button"
+              tabIndex={0}
               onClick={() => navigate(`/plans/${plan.id}`)}
-              className="workspace-panel group overflow-hidden text-left transition hover:-translate-y-0.5 hover:shadow-lg"
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  navigate(`/plans/${plan.id}`);
+                }
+              }}
+              className="workspace-panel group relative cursor-pointer overflow-hidden text-left transition hover:-translate-y-0.5 hover:shadow-lg"
             >
               {plan.cover_image_url ? (
                 <div className="h-32 w-full overflow-hidden bg-muted">
@@ -101,9 +132,45 @@ export default function PlansPage() {
                     <p className="text-xs font-medium uppercase tracking-wide text-primary">Plano de Estudos</p>
                     <h2 className="mt-1 truncate text-lg font-display font-bold text-foreground">{plan.name}</h2>
                   </div>
-                  <span className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
-                    {plan.status === 'active' ? 'Ativo' : plan.status}
-                  </span>
+
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
+                      {plan.status === 'active' ? 'Ativo' : plan.status}
+                    </span>
+
+                    <div className="relative">
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 rounded-full"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setOpenMenuId((current) => (current === plan.id ? null : plan.id));
+                        }}
+                        disabled={deletingPlanId === plan.id}
+                        aria-label={`Abrir ações do plano ${plan.name}`}
+                      >
+                        {deletingPlanId === plan.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreVertical className="h-4 w-4" />}
+                      </Button>
+
+                      {openMenuId === plan.id ? (
+                        <div
+                          className="absolute right-0 z-20 mt-2 w-44 rounded-xl border border-border bg-background p-1 shadow-lg"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            onClick={(event) => handleDeletePlan(event, plan.id, plan.name)}
+                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-destructive transition hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Excluir plano
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="mt-3 space-y-1 text-sm text-muted-foreground">
@@ -125,7 +192,7 @@ export default function PlansPage() {
                   </span>
                 </div>
               </div>
-            </button>
+            </div>
           ))}
         </div>
       )}
