@@ -374,6 +374,16 @@ function PlanTemplateStep({ plan, onBack, onNext }: { plan: StudyPlan; onBack: (
   const [itemForm, setItemForm] = useState({ dayOfWeek: 1, subjectId: '', plannedMinutes: 60, startTime: '' });
   const selectedTemplate = useMemo(() => templates.find((template) => template.id === selectedTemplateId) || templates[0], [selectedTemplateId, templates]);
 
+  const handleSelectDayToAdd = (dayOfWeek: number) => {
+    if (!selectedTemplate) {
+      toast.error('Crie um template antes de adicionar matérias.');
+      return;
+    }
+
+    setItemForm((current) => ({ ...current, dayOfWeek }));
+    document.getElementById('plan-template-add-item-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
   const handleCreateTemplate = async () => {
     const id = await createTemplate({ name: templateName, planId: plan.id, scheduleId: plan.schedule_id || undefined, type: 'weekly', status: 'active' });
     if (id) {
@@ -434,8 +444,9 @@ function PlanTemplateStep({ plan, onBack, onNext }: { plan: StudyPlan; onBack: (
             <Button onClick={handleCreateTemplate}><Plus className="mr-2 h-4 w-4" />Criar template</Button>
           </div>
 
-          <div className="border-t border-border/70 pt-4">
+          <div id="plan-template-add-item-form" className="border-t border-border/70 pt-4">
             <h3 className="font-semibold text-foreground">Adicionar item no template</h3>
+            <p className="mt-1 text-xs text-muted-foreground">Clique no + de um dia para preencher automaticamente o dia da semana.</p>
             <div className="mt-3 grid gap-3">
               <Select value={selectedTemplate?.id || ''} onValueChange={setSelectedTemplateId}>
                 <SelectTrigger><SelectValue placeholder="Template do plano" /></SelectTrigger>
@@ -460,13 +471,23 @@ function PlanTemplateStep({ plan, onBack, onNext }: { plan: StudyPlan; onBack: (
           </div>
         </div>
 
-        <TemplateWeekBoard template={selectedTemplate} subjects={planSubjects} onRemove={removeTemplateItem} />
+        <TemplateWeekBoard template={selectedTemplate} subjects={planSubjects} onRemove={removeTemplateItem} onSelectDayToAdd={handleSelectDayToAdd} />
       </div>
     </section>
   );
 }
 
-function TemplateWeekBoard({ template, subjects, onRemove }: { template: any; subjects: any[]; onRemove: (itemId: string) => Promise<void> }) {
+function TemplateWeekBoard({
+  template,
+  subjects,
+  onRemove,
+  onSelectDayToAdd,
+}: {
+  template: any;
+  subjects: any[];
+  onRemove: (itemId: string) => Promise<void>;
+  onSelectDayToAdd: (dayOfWeek: number) => void;
+}) {
   const subjectById = useMemo(() => new Map(subjects.map((subject) => [subject.id, subject])), [subjects]);
 
   return (
@@ -486,7 +507,20 @@ function TemplateWeekBoard({ template, subjects, onRemove }: { template: any; su
             <div key={day.value} className="min-h-44 rounded-2xl border border-border/70 bg-card p-4">
               <div className="flex items-center justify-between gap-2">
                 <h4 className="font-semibold text-foreground">{day.label}</h4>
-                <span className="text-xs text-muted-foreground">{items.length} itens</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">{items.length} itens</span>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    className="h-7 w-7 rounded-full"
+                    onClick={() => onSelectDayToAdd(day.value)}
+                    title={`Adicionar matéria em ${day.label}`}
+                    disabled={!template}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               </div>
               <div className="mt-4 space-y-2">
                 {items.length === 0 ? (
