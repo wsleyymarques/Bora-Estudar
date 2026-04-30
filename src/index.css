@@ -347,4 +347,8 @@
   .study-gradient {
     background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--info)) 100%);
   }
+
+  .plan-dashboard-stats {
+    display: none;
+  }
 }
