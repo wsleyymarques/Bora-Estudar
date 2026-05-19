@@ -276,78 +276,60 @@ export default function SchedulePage() {
   const applyTemplateName = templates.find(t => t.id === applyTemplateId)?.name || '';
 
   return (
-    <div className="flex min-h-full flex-col gap-4 md:gap-5 w-full min-w-0 max-w-full">
-      <ScheduleShell
-        title="Cronograma"
-        description={`Planejamento semanal, mensal e anual com detalhe por dia.${activeSchedule ? ` Cronograma ativo: ${activeSchedule.name}.` : ''}`}
-        view={view}
-        views={VIEWS}
-        currentLabel={
-          view === 'weekly'
-            ? formatWeekRangeLabel(currentDate)
-            : view === 'monthly'
-              ? currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
-              : currentDate.getFullYear().toString()
-        }
-        onViewChange={(nextView) => setView(nextView as ScheduleView)}
-        onNavigate={(direction) => navigate(direction)}
-        className="flex-1 min-h-0"
-      >
-        {view === 'weekly' && (
-          <WeeklyPlannerView
-            currentDate={currentDate}
-            onAdd={openAddFor}
-            onNote={openNoteFor}
-            onMove={openMoveFor}
-            onChange={openChangeFor}
-            onRemove={handleRemoveEntry}
-            onOpenDay={openDayDetail}
-          />
-        )}
+    <div className="space-y-5 sm:space-y-6 max-w-6xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <h1 className="text-2xl font-display font-bold text-foreground">Cronograma</h1>
+        <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5 w-full sm:w-auto overflow-x-auto">
+          {VIEWS.map(v => (
+            <button key={v.key} onClick={() => setView(v.key)}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${view === v.key ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
+              {v.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-        {view === 'monthly' && (
-          <ScheduleMonthlyView
-            currentDate={currentDate}
-            onDayClick={openDayDetail}
-          />
-        )}
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <button onClick={() => navigate(-1)} className="p-1.5 rounded-md hover:bg-muted"><ChevronLeft className="w-4 h-4" /></button>
+        <span className="text-sm font-medium text-foreground min-w-[120px] text-center">
+          {view === 'daily' && currentDate.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+          {view === 'weekly' && `Semana de ${getMonday(currentDate).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })}`}
+          {view === 'monthly' && currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+          {view === 'yearly' && currentDate.getFullYear().toString()}
+        </span>
+        <button onClick={() => navigate(1)} className="p-1.5 rounded-md hover:bg-muted"><ChevronRight className="w-4 h-4" /></button>
+        <Button variant="ghost" size="sm" onClick={() => setCurrentDate(new Date())}>Hoje</Button>
+      </div>
 
-        {view === 'yearly' && <ScheduleYearlyView year={currentDate.getFullYear()} />}
-        {view === 'templates' && <TemplateEditor onApply={openApplyTemplate} />}
-      </ScheduleShell>
+      {view === 'weekly' && <WeeklyView currentDate={currentDate} onAdd={openAddFor} onNote={openNoteFor} onMove={openMoveFor} onChange={openChangeFor} onRemove={handleRemoveEntry} />}
+      {view === 'daily' && <DailyView date={fmt(currentDate)} onAdd={() => openAddFor(fmt(currentDate))} onNote={() => openNoteFor(fmt(currentDate))} onMove={openMoveFor} onChange={openChangeFor} onRemove={handleRemoveEntry} />}
+      {view === 'monthly' && <MonthlyView currentDate={currentDate} onDayClick={(d) => { setCurrentDate(new Date(d + 'T12:00:00')); setView('daily'); }} />}
+      {view === 'yearly' && <YearlyView year={currentDate.getFullYear()} />}
 
-      <DayDetailSheet
-        open={dayDetailOpen}
-        date={selectedDay}
-        onOpenChange={setDayDetailOpen}
-        onAdd={openAddFor}
-        onNote={openNoteFor}
-        onMove={openMoveFor}
-        onChange={openChangeFor}
-        onRemove={handleRemoveEntry}
-      />
-
-      <ResponsivePanel
-        open={addDialog}
-        onOpenChange={setAddDialog}
-        title="Adicionar matéria"
-        description={addDate && new Date(addDate + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
-        footer={
-          <Button onClick={handleAdd} className="w-full h-11 rounded-xl font-bold">Adicionar ao cronograma</Button>
-        }
-      >
-        <div className="space-y-6">
-          <div className="grid gap-2">
-            <Label>Matéria *</Label>
-            <SubjectFinder
-              value={addSubjectId}
-              onChange={setAddSubjectId}
-              subjects={data.subjects}
-              
-              
-              onCreateSubject={openQuickSubjectDialog}
-              placeholder="Selecione a matéria"
-            />
+      {/* Add dialog */}
+      <Dialog open={addDialog} onOpenChange={setAddDialog}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle className="font-display">Adicionar matéria</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">{addDate}</p>
+            <Select value={addSubjectId} onValueChange={setAddSubjectId}>
+              <SelectTrigger><SelectValue placeholder="Selecione a matéria" /></SelectTrigger>
+              <SelectContent>
+                {data.subjects.filter(s => s.active).map(s => (
+                  <SelectItem key={s.id} value={s.id}>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+                      {s.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={addOptional} onChange={e => setAddOptional(e.target.checked)} className="rounded" />
+              Matéria opcional
+            </label>
+            <Button onClick={handleAdd} className="w-full">Adicionar</Button>
           </div>
 
           <label className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/30 cursor-pointer transition-colors hover:bg-muted/50">

@@ -99,20 +99,14 @@ export default function SubjectsPage() {
   };
 
   return (
-    <div className="space-y-5">
-      <div className="workspace-panel p-4 sm:p-5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h1 className="text-2xl font-display font-bold text-foreground">Matérias</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Banco global + matérias personalizadas do usuário.
-            </p>
-          </div>
-          <Button onClick={openCreate} className="rounded-xl">
-            <Plus className="mr-1.5 h-4 w-4" />
-            Criar matéria
-          </Button>
+    <div className="space-y-5 sm:space-y-6 max-w-3xl">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-display font-bold text-foreground">Matérias</h1>
+          <p className="text-muted-foreground text-sm mt-1">{data.subjects.length} matérias cadastradas</p>
         </div>
+        <Button onClick={openNew} size="sm" className="w-full sm:w-auto"><Plus className="w-4 h-4 mr-1" /> Nova</Button>
+      </div>
 
         <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
           <div className="flex items-center gap-2 rounded-xl border border-border/70 px-3">
@@ -219,16 +213,41 @@ export default function SubjectsPage() {
           <DialogHeader>
             <DialogTitle className="font-display">{editingSubject ? 'Editar matéria' : 'Criar matéria'}</DialogTitle>
           </DialogHeader>
-          <SubjectForm
-            value={form}
-            areas={data.subjectAreas}
-            categories={data.subjectCategories}
-            subcategories={data.subjectSubcategories}
-            onChange={setForm}
-            onSubmit={handleSave}
-            onCancel={() => setDialogOpen(false)}
-            submitLabel={editingSubject ? 'Salvar alterações' : 'Criar matéria'}
-          />
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Nome</Label>
+              <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Ex: Matemática" />
+            </div>
+            <div className="space-y-2">
+              <Label>Cor</Label>
+              <div className="flex flex-wrap gap-2">
+                {SUBJECT_COLORS.map(c => (
+                  <button key={c} onClick={() => setForm({ ...form, color: c })}
+                    className={`w-7 h-7 rounded-full border-2 transition-all ${form.color === c ? 'border-foreground scale-110' : 'border-transparent'}`}
+                    style={{ backgroundColor: c }} />
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Categoria (opcional)</Label>
+              <Input value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} placeholder="Ex: Exatas" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Meta semanal (h)</Label>
+                <Input type="number" min={0} value={form.weeklyGoalHours} onChange={e => setForm({ ...form, weeklyGoalHours: +e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Meta mensal (h)</Label>
+                <Input type="number" min={0} value={form.monthlyGoalHours} onChange={e => setForm({ ...form, monthlyGoalHours: +e.target.value })} />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={form.optional} onCheckedChange={v => setForm({ ...form, optional: v })} />
+              <Label>Matéria opcional</Label>
+            </div>
+            <Button onClick={handleSave} className="w-full">{editing ? 'Salvar' : 'Adicionar'}</Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
@@ -247,14 +266,21 @@ function SubjectRow({
   onDelete?: () => void;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-card/70 px-3 py-2.5">
-      <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: subject.color }} />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-foreground">{subject.name}</p>
-        <p className="text-xs text-muted-foreground">
-          {subject.category || 'Sem categoria'} - {subject.weeklyGoalHours}h/sem
-          {subject.planId ? ' - Plano' : ''}
-        </p>
+    <div className="glass-card p-3 flex items-center gap-2 sm:gap-3">
+      <GripVertical className="w-4 h-4 text-muted-foreground/40 cursor-grab" />
+      <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: subject.color }} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-foreground truncate">{subject.name}</span>
+          {subject.optional && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">opcional</span>}
+          {subject.category && <span className="text-[10px] text-muted-foreground hidden sm:inline">{subject.category}</span>}
+        </div>
+        <p className="text-xs text-muted-foreground">{subject.weeklyGoalHours}h/sem · {subject.monthlyGoalHours}h/mês</p>
+      </div>
+      <div className="flex items-center gap-1">
+        <Switch checked={subject.active} onCheckedChange={onToggle} />
+        <button onClick={onEdit} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground"><Pencil className="w-3.5 h-3.5" /></button>
+        <button onClick={onDelete} className="p-1.5 rounded-md hover:bg-destructive/10 text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
       </div>
 
       {readonly ? (
