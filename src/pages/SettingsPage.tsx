@@ -48,21 +48,8 @@ export default function SettingsPage() {
     }
 
     setCreatingTemplate(true);
-
     try {
-      // template creation disabled
-        name: newTemplateName,
-        description: newTemplateDescription,
-        baseTemplateKey,
-      });
-
-      if (created) {
-        toast.success(`Template "${created.label}" criado e aplicado.`);
-        setNewTemplateName('');
-        setNewTemplateDescription('');
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Falha ao criar template.');
+      toast.info('A criação de template personalizado nesta tela está temporariamente desativada.');
     } finally {
       setCreatingTemplate(false);
     }
