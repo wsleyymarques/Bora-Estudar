@@ -18,8 +18,7 @@ const subjects: Subject[] = [
   { id: 's8', name: 'Atualidades', color: '#90A4AE', category: 'Geral', active: true, optional: true, weeklyGoalHours: 2, monthlyGoalHours: 8, order: 7 },
 ];
 
-// Build a week of schedule around today
-const dayOfWeek = today.getDay(); // 0=Sun
+const dayOfWeek = today.getDay();
 const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
 
 const schedule: ScheduleEntry[] = [
@@ -48,7 +47,6 @@ const sessions: StudySession[] = [
   { id: 'ss4', subjectId: 's5', date: getDate(mondayOffset + 1), startTime: '10:00', endTime: '11:00', durationMinutes: 60 },
   { id: 'ss5', subjectId: 's4', date: getDate(mondayOffset + 2), startTime: '09:00', endTime: '10:15', durationMinutes: 75 },
   { id: 'ss6', subjectId: 's6', date: getDate(mondayOffset + 2), startTime: '14:00', endTime: '15:00', durationMinutes: 60 },
-  // Previous weeks
   { id: 'ss7', subjectId: 's1', date: getDate(mondayOffset - 7), startTime: '08:00', endTime: '09:30', durationMinutes: 90 },
   { id: 'ss8', subjectId: 's2', date: getDate(mondayOffset - 7), startTime: '10:00', endTime: '12:00', durationMinutes: 120 },
   { id: 'ss9', subjectId: 's3', date: getDate(mondayOffset - 6), startTime: '08:00', endTime: '10:00', durationMinutes: 120 },
@@ -66,4 +64,9 @@ const notes: Note[] = [
   { id: 'n4', type: 'session', referenceDate: getDate(mondayOffset), content: 'Revisão de gramática completa, focar em interpretação próxima vez.', createdAt: getDate(mondayOffset) },
 ];
 
-export const mockUserData: UserData = { subjects, schedule, sessions, notes };
+const dayPlans = [
+  { id: 'dp1', date: getDate(mondayOffset), dayTargetMinutes: 300, dayNote: 'Blocos da manha', isOverride: false },
+  { id: 'dp2', date: getDate(mondayOffset + 2), dayTargetMinutes: 270, dayNote: 'Foco em exatas', isOverride: false },
+];
+
+export const mockUserData: UserData = { subjects, schedule, dayPlans, sessions, sessionPauses: [], notes };
