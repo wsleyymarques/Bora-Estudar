@@ -24,6 +24,7 @@ export interface WeeklyTimeGridEvent {
   id: string;
   dayKey: string;
   title: string;
+  order?: number;
   subtitle?: string;
   startTime?: string;
   startMinutes?: number;
@@ -45,6 +46,9 @@ interface WeeklyTimeGridProps {
   slotMinutes?: number;
   className?: string;
   emptyMessage?: string;
+  showDayCount?: boolean;
+  onEventDrop?: (eventId: string, dayKey: string, startTime?: string) => void;
+  onUntimedDrop?: (eventId: string, dayKey: string, beforeEventId?: string | null) => void;
 }
 
 interface NormalizedEvent extends WeeklyTimeGridEvent {
@@ -75,6 +79,9 @@ export function WeeklyTimeGrid({
   slotMinutes = 30,
   className,
   emptyMessage = 'Sem horario',
+  showDayCount = true,
+  onEventDrop,
+  onUntimedDrop,
 }: WeeklyTimeGridProps) {
   const slotHeight = 26;
   const hourColumnWidth = 60;
@@ -113,10 +120,18 @@ export function WeeklyTimeGrid({
         const startA = a.normalizedStartMinutes ?? 0;
         const startB = b.normalizedStartMinutes ?? 0;
         if (startA !== startB) return startA - startB;
+        const orderA = a.order ?? 0;
+        const orderB = b.order ?? 0;
+        if (orderA !== orderB) return orderA - orderB;
         return (a.title || '').localeCompare(b.title || '', 'pt-BR');
       });
 
-      bucket.untimed.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'pt-BR'));
+      bucket.untimed.sort((a, b) => {
+        const orderA = a.order ?? Number.MAX_SAFE_INTEGER;
+        const orderB = b.order ?? Number.MAX_SAFE_INTEGER;
+        if (orderA !== orderB) return orderA - orderB;
+        return (a.title || '').localeCompare(b.title || '', 'pt-BR');
+      });
     }
 
     return result;
@@ -128,18 +143,24 @@ export function WeeklyTimeGrid({
   );
 
   const rowStarts = useMemo(() => {
-    const rows = new Set<number>();
-    for (const bucket of eventsByDay.values()) {
-      for (const event of bucket.timed) {
-        if (event.rowStart) rows.add(event.rowStart);
-      }
+    const totalSlots = Math.floor(totalMinutes / slotMinutes);
+    const allRows = [];
+    for (let i = 1; i <= totalSlots; i++) {
+      allRows.push(i);
     }
-    return Array.from(rows).sort((a, b) => a - b);
-  }, [eventsByDay]);
+    return allRows;
+  }, [totalMinutes, slotMinutes]);
 
   const hasAnyUntimed = useMemo(() => {
     for (const bucket of eventsByDay.values()) {
       if (bucket.untimed.length > 0) return true;
+    }
+    return false;
+  }, [eventsByDay]);
+
+  const hasAnyTimed = useMemo(() => {
+    for (const bucket of eventsByDay.values()) {
+      if (bucket.timed.length > 0) return true;
     }
     return false;
   }, [eventsByDay]);
@@ -153,6 +174,17 @@ export function WeeklyTimeGrid({
     }
     return totals;
   }, [days, eventsByDay]);
+
+  const handleUntimedDrop = (eventId: string, dayKey: string, beforeEventId?: string | null) => {
+    if (onUntimedDrop) {
+      onUntimedDrop(eventId, dayKey, beforeEventId);
+      return;
+    }
+
+    if (onEventDrop) {
+      onEventDrop(eventId, dayKey, undefined);
+    }
+  };
 
   return (
     <div className={cn('workspace-panel p-2 md:p-3 w-full min-w-0 max-w-full overflow-hidden', className)}>
@@ -200,9 +232,11 @@ export function WeeklyTimeGrid({
                           {day.metaLabel}
                         </p>
                       )}
-                      <p className={cn('mt-0.5 text-[11px] font-medium', day.isToday ? 'text-background/80' : 'text-muted-foreground')}>
-                        {totalEvents > 0 ? `${totalEvents} ${totalEvents === 1 ? 'materia' : 'materias'}` : 'Sem materias'}
-                      </p>
+                      {showDayCount && (
+                        <p className={cn('mt-0.5 text-[11px] font-medium', day.isToday ? 'text-background/80' : 'text-muted-foreground')}>
+                          {totalEvents > 0 ? `${totalEvents} ${totalEvents === 1 ? 'materia' : 'materias'}` : 'Sem materias'}
+                        </p>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-1 md:gap-1.5 shrink-0" onClick={(event) => event.stopPropagation()}>
@@ -219,18 +253,132 @@ export function WeeklyTimeGrid({
             })}
           </div>
 
-          {rowStarts.length === 0 && !hasAnyUntimed ? (
+          {hasAnyUntimed && (
             <div className="grid w-full min-w-0 gap-2" style={gridColumnsStyle}>
-              <div className="rounded-xl border border-border/70 bg-card/75 px-2 py-2 text-[11px] text-muted-foreground/70">--:--</div>
-              {days.map((day) => (
-                <div key={`${day.key}-empty`} className="rounded-xl border border-border/70 bg-card/80 px-2 py-2 text-[11px] text-muted-foreground/70">
-                  {emptyMessage}
-                </div>
-              ))}
+              <div className="rounded-xl border border-border/70 bg-card/75 px-2 py-2 text-[11px] font-semibold text-muted-foreground/80">
+                Sem horário
+              </div>
+              {days.map((day) => {
+                const untimed = eventsByDay.get(day.key)?.untimed || [];
+                return (
+                  <div
+                    key={`${day.key}-untimed-top`}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const eventId = e.dataTransfer.getData('text/plain');
+                      if (eventId) {
+                        handleUntimedDrop(eventId, day.key, null);
+                      }
+                    }}
+                    className="rounded-xl border border-border/70 bg-card/80 px-1.5 py-1 min-w-0 transition-colors hover:bg-primary/5"
+                  >
+                    {untimed.length === 0 ? (
+                      <p className="text-[11px] text-muted-foreground/70 px-1 py-1">{emptyMessage}</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {untimed.map((event) => (
+                          <div
+                            key={event.id}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('text/plain', event.id);
+                            }}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const eventId = e.dataTransfer.getData('text/plain');
+                              if (eventId) {
+                                handleUntimedDrop(eventId, day.key, event.id);
+                              }
+                            }}
+                            onClick={event.onClick}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(keyEvent) => {
+                              if (keyEvent.key === 'Enter' || keyEvent.key === ' ') {
+                                keyEvent.preventDefault();
+                                event.onClick?.();
+                              }
+                            }}
+                            className={cn(
+                              'group relative rounded-2xl border bg-card px-3 py-2.5 text-left shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 cursor-grab active:cursor-grabbing min-w-0 flex flex-col justify-between h-full border-border/40',
+                              event.completed ? 'opacity-80 bg-muted/40' : '',
+                              event.optional ? 'border-dashed' : '',
+                            )}
+                            style={{
+                              borderLeftWidth: 6,
+                              borderLeftColor: event.color || 'hsl(var(--primary))',
+                            }}
+                          >
+                            <div className="flex items-start justify-between gap-2 min-w-0">
+                              <div className="min-w-0 flex-1">
+                                <p
+                                  className={cn(
+                                    'text-[13px] font-display font-bold leading-tight truncate transition-colors',
+                                    event.completed ? 'line-through text-muted-foreground' : 'text-foreground group-hover:text-primary',
+                                  )}
+                                >
+                                  {event.title}
+                                </p>
+
+                                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                  <div className="inline-flex items-center gap-1 rounded-full bg-black/5 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground/80">
+                                    Sem horario
+                                  </div>
+                                  {event.durationMinutes ? (
+                                    <div className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+                                      {formatMinutesCompact(event.durationMinutes)}
+                                    </div>
+                                  ) : null}
+                                  {event.badgeLabel ? (
+                                    <div className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-bold text-accent">
+                                      {event.badgeLabel}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+
+                            {(event.subtitle || event.actions || event.onToggleComplete) && (
+                              <div className="mt-2.5 pt-2 border-t border-border/20 flex items-center justify-between gap-2">
+                                <div className="min-w-0">
+                                  {event.subtitle && (
+                                    <p className="text-[10px] font-medium text-muted-foreground/60 truncate flex items-center gap-1">
+                                      {event.subtitle}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                  <button
+                                    type="button"
+                                    onClick={event.onToggleComplete}
+                                    className="h-7 w-7 flex items-center justify-center rounded-full border border-border/60 hover:bg-black/5 transition-colors"
+                                  >
+                                    {event.completed ? <CheckCircle2 className="w-4 h-4 text-success" /> : <Circle className="w-4 h-4 text-muted-foreground/30" />}
+                                  </button>
+                                  {event.actions}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {!hasAnyTimed && !hasAnyUntimed ? (
+            <div className="rounded-2xl border border-dashed border-border/70 bg-card/70 px-4 py-6 text-center text-sm text-muted-foreground">
+              {emptyMessage}
             </div>
           ) : (
             <div className="space-y-2">
-              {rowStarts.length > 0 && (
+              {hasAnyTimed && (
                 <div className="grid w-full min-w-0 gap-x-2" style={gridColumnsStyle}>
                   {rowStarts.map((rowStart, rowIndex) => (
                     <React.Fragment key={`row-${rowStart}`}>
@@ -253,8 +401,17 @@ export function WeeklyTimeGrid({
                         return (
                           <div
                             key={`${day.key}-row-${rowStart}`}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              const eventId = e.dataTransfer.getData('text/plain');
+                              if (eventId && onEventDrop) {
+                                const timeStr = formatTime(startMinutes + (rowStart - 1) * slotMinutes);
+                                onEventDrop(eventId, day.key, timeStr);
+                              }
+                            }}
                             className={cn(
-                              'border border-border/70 bg-card/80 px-2 py-1.5 min-w-0',
+                              'border border-border/70 bg-card/80 px-2 py-1.5 min-w-0 transition-colors hover:bg-primary/5',
                               rowIndex === 0 ? 'rounded-t-xl' : '',
                               rowIndex === rowStarts.length - 1 ? 'rounded-b-xl' : '',
                               rowIndex > 0 ? 'border-t-0' : '',
@@ -272,6 +429,10 @@ export function WeeklyTimeGrid({
                                 return (
                                   <div
                                     key={event.id}
+                                    draggable
+                                    onDragStart={(e) => {
+                                      e.dataTransfer.setData('text/plain', event.id);
+                                    }}
                                     onClick={event.onClick}
                                     role="button"
                                     tabIndex={0}
@@ -282,57 +443,66 @@ export function WeeklyTimeGrid({
                                       }
                                     }}
                                     className={cn(
-                                      'rounded-lg border bg-background/95 px-2.5 py-2 text-left shadow-sm transition-all hover:shadow-md cursor-pointer min-w-0',
-                                      event.completed ? 'opacity-70' : '',
+                                      'group relative rounded-2xl border bg-card px-3 py-2.5 text-left shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 cursor-grab active:cursor-grabbing min-w-0 flex flex-col justify-between h-full border-border/40',
+                                      event.completed ? 'opacity-80 bg-muted/40' : '',
                                       event.optional ? 'border-dashed' : '',
                                     )}
                                     style={{
-                                      borderLeftWidth: 3,
+                                      borderLeftWidth: 6,
                                       borderLeftColor: event.color || 'hsl(var(--primary))',
                                     }}
                                   >
                                     <div className="flex items-start justify-between gap-2 min-w-0">
-                                      <div className="min-w-0">
+                                      <div className="min-w-0 flex-1">
                                         <p
                                           className={cn(
-                                            'text-[11px] md:text-[12px] font-semibold leading-tight truncate',
-                                            event.completed ? 'line-through text-muted-foreground' : 'text-foreground',
+                                            'text-[13px] font-display font-bold leading-tight truncate transition-colors',
+                                            event.completed ? 'line-through text-muted-foreground' : 'text-foreground group-hover:text-primary',
                                           )}
                                         >
                                           {event.title}
                                         </p>
-                                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                                          <span className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                                            <Clock3 className="h-3 w-3" />
+                                        
+                                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                          <div className="inline-flex items-center gap-1 rounded-full bg-black/5 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground/80">
+                                            <Clock3 className="h-2.5 w-2.5" />
                                             {timeLabel}
-                                          </span>
+                                          </div>
                                           {event.durationMinutes ? (
-                                            <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                            <div className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
                                               {formatMinutesCompact(event.durationMinutes)}
-                                            </span>
+                                            </div>
                                           ) : null}
                                           {event.badgeLabel ? (
-                                            <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                            <div className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-bold text-accent">
                                               {event.badgeLabel}
-                                            </span>
+                                            </div>
                                           ) : null}
                                         </div>
-                                        {event.subtitle && (
-                                          <p className="mt-1 text-[10px] text-muted-foreground truncate">{event.subtitle}</p>
-                                        )}
-                                      </div>
-
-                                      <div className="flex items-center gap-1 shrink-0" onClick={(clickEvent) => clickEvent.stopPropagation()}>
-                                        {event.actions}
-                                        <button
-                                          type="button"
-                                          onClick={event.onToggleComplete}
-                                          className="text-muted-foreground hover:text-foreground"
-                                        >
-                                          {event.completed ? <CheckCircle2 className="w-3.5 h-3.5 text-success" /> : <Circle className="w-3.5 h-3.5" />}
-                                        </button>
                                       </div>
                                     </div>
+
+                                    {(event.subtitle || event.actions || event.onToggleComplete) && (
+                                      <div className="mt-2.5 pt-2 border-t border-border/20 flex items-center justify-between gap-2">
+                                        <div className="min-w-0">
+                                          {event.subtitle && (
+                                            <p className="text-[10px] font-medium text-muted-foreground/60 truncate flex items-center gap-1">
+                                              {event.subtitle}
+                                            </p>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                          <button
+                                            type="button"
+                                            onClick={event.onToggleComplete}
+                                            className="h-7 w-7 flex items-center justify-center rounded-full border border-border/60 hover:bg-black/5 transition-colors"
+                                          >
+                                            {event.completed ? <CheckCircle2 className="w-4 h-4 text-success" /> : <Circle className="w-4 h-4 text-muted-foreground/30" />}
+                                          </button>
+                                          {event.actions}
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
                                 );
                               })}
@@ -342,89 +512,6 @@ export function WeeklyTimeGrid({
                       })}
                     </React.Fragment>
                   ))}
-                </div>
-              )}
-
-              {hasAnyUntimed && (
-                <div className="grid w-full min-w-0 gap-2" style={gridColumnsStyle}>
-                  <div className="rounded-xl border border-border/70 bg-card/75 px-2 py-2 text-[11px] text-muted-foreground/70">--:--</div>
-                  {days.map((day) => {
-                    const untimed = eventsByDay.get(day.key)?.untimed || [];
-                    return (
-                      <div key={`${day.key}-untimed`} className="rounded-xl border border-border/70 bg-card/80 px-1.5 py-1 min-w-0">
-                        {untimed.length === 0 ? (
-                          <p className="text-[11px] text-muted-foreground/70 px-1 py-1">{emptyMessage}</p>
-                        ) : (
-                          <div className="space-y-1">
-                            {untimed.map((event) => (
-                              <div
-                                key={event.id}
-                                onClick={event.onClick}
-                                role="button"
-                                tabIndex={0}
-                                onKeyDown={(keyEvent) => {
-                                  if (keyEvent.key === 'Enter' || keyEvent.key === ' ') {
-                                    keyEvent.preventDefault();
-                                    event.onClick?.();
-                                  }
-                                }}
-                                className={cn(
-                                  'rounded-lg border bg-background/95 px-2.5 py-2 text-left shadow-sm transition-all hover:shadow-md cursor-pointer min-w-0',
-                                  event.completed ? 'opacity-70' : '',
-                                  event.optional ? 'border-dashed' : '',
-                                )}
-                                style={{
-                                  borderLeftWidth: 3,
-                                  borderLeftColor: event.color || 'hsl(var(--primary))',
-                                }}
-                              >
-                                <div className="flex items-start justify-between gap-2 min-w-0">
-                                  <div className="min-w-0">
-                                    <p
-                                      className={cn(
-                                        'text-[11px] md:text-[12px] font-semibold leading-tight truncate',
-                                        event.completed ? 'line-through text-muted-foreground' : 'text-foreground',
-                                      )}
-                                    >
-                                      {event.title}
-                                    </p>
-                                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                                      <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                                        Sem horario
-                                      </span>
-                                      {event.durationMinutes ? (
-                                        <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                                          {formatMinutesCompact(event.durationMinutes)}
-                                        </span>
-                                      ) : null}
-                                      {event.badgeLabel ? (
-                                        <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                                          {event.badgeLabel}
-                                        </span>
-                                      ) : null}
-                                    </div>
-                                    {event.subtitle && (
-                                      <p className="mt-1 text-[10px] text-muted-foreground truncate">{event.subtitle}</p>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-1 shrink-0" onClick={(clickEvent) => clickEvent.stopPropagation()}>
-                                    {event.actions}
-                                    <button
-                                      type="button"
-                                      onClick={event.onToggleComplete}
-                                      className="text-muted-foreground hover:text-foreground"
-                                    >
-                                      {event.completed ? <CheckCircle2 className="w-3.5 h-3.5 text-success" /> : <Circle className="w-3.5 h-3.5" />}
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
                 </div>
               )}
             </div>

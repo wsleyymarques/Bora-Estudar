@@ -22,6 +22,10 @@ import { Note, ScheduleEntry } from '@/types/study';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { RefreshCw } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,6 +49,7 @@ interface DaySidebarTimerPanelProps {
   onRemove: (id: string) => void;
   onToggleComplete: (id: string) => void;
   onUpdateEntry: (id: string, payload: Partial<ScheduleEntry>) => void;
+  onApplyRecurrence?: (entryId: string, repeatValue: number, repeatUnit: string, repeatFrequency: string) => void;
   dayNotes: Note[];
 }
 
@@ -60,11 +65,14 @@ export function DaySidebarTimerPanel({
   onRemove,
   onToggleComplete,
   onUpdateEntry,
+  onApplyRecurrence,
   dayNotes,
 }: DaySidebarTimerPanelProps) {
   const { getSubject, getSessionsForDate, data } = useStudy();
   const isMobile = useIsMobile();
   const [entryPendingRemoval, setEntryPendingRemoval] = useState<ScheduleEntry | null>(null);
+  const [recurrenceForms, setRecurrenceForms] = useState<Record<string, { value: number, unit: string, frequency: string }>>({});
+  const [expandedRecurrence, setExpandedRecurrence] = useState<string | null>(null);
 
   const focusSessions = useMemo(
     () => getSessionsForDate(date).filter((session) => session.isFocusSession !== false),
@@ -93,7 +101,7 @@ export function DaySidebarTimerPanel({
   }, [focusSessions]);
 
   return (
-    <div className={cn('space-y-3', isMobile ? 'p-0' : 'glass-card p-3 md:p-4')}>
+    <div className="space-y-6">
       <div className="flex items-center justify-between gap-2">
         <div>
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.11em]">Painel rapido do dia</h3>
@@ -211,6 +219,82 @@ export function DaySidebarTimerPanel({
                   />
                 </div>
               </div>
+
+              {onApplyRecurrence && (
+                <div className="mt-3 pt-3 border-t border-border/40">
+                  <button 
+                    type="button" 
+                    onClick={() => setExpandedRecurrence(expandedRecurrence === entry.id ? null : entry.id)}
+                    className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-primary hover:text-primary/80 transition-colors"
+                  >
+                    <RefreshCw className={cn("w-3 h-3", expandedRecurrence === entry.id ? "animate-spin-slow" : "")} />
+                    {expandedRecurrence === entry.id ? "Fechar recorrência" : "Configurar repetição"}
+                  </button>
+
+                  {expandedRecurrence === entry.id && (
+                    <div className="mt-3 p-4 rounded-[20px] bg-[#EBEBEB] border-none space-y-3 shadow-inner">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[14px] font-bold text-[#333]">Recorrência</span>
+                        <div className="bg-[#222] text-white text-[9px] font-black px-2 py-0.5 rounded-full tracking-tighter">ATIVO</div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Select 
+                          value={recurrenceForms[entry.id]?.frequency || 'daily'} 
+                          onValueChange={(val) => setRecurrenceForms(f => ({ ...f, [entry.id]: { ...(f[entry.id] || { value: 1, unit: 'days', frequency: 'daily' }), frequency: val } }))}
+                        >
+                          <SelectTrigger className="h-12 bg-white border-none rounded-[15px] text-[13px] font-medium shadow-sm px-4">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-[15px]">
+                            <SelectItem value="daily">Diariamente</SelectItem>
+                            <SelectItem value="weekly">Semanalmente</SelectItem>
+                          </SelectContent>
+                        </Select>
+
+                        <div className="flex items-center gap-2">
+                          <span className="text-[13px] text-[#666] font-medium ml-1">por</span>
+                          <Input 
+                            type="number" 
+                            min={1} 
+                            max={365} 
+                            value={recurrenceForms[entry.id]?.value || 1}
+                            onChange={(e) => setRecurrenceForms(f => ({ ...f, [entry.id]: { ...(f[entry.id] || { value: 1, unit: 'days', frequency: 'daily' }), value: Number(e.target.value) } }))}
+                            className="h-12 w-16 bg-white border-none rounded-[15px] text-[13px] font-medium shadow-sm text-center"
+                          />
+                          <Select 
+                            value={recurrenceForms[entry.id]?.unit || 'days'} 
+                            onValueChange={(val) => setRecurrenceForms(f => ({ ...f, [entry.id]: { ...(f[entry.id] || { value: 1, unit: 'days', frequency: 'daily' }), unit: val } }))}
+                          >
+                            <SelectTrigger className="h-12 flex-1 bg-white border-none rounded-[15px] text-[13px] font-medium shadow-sm px-4">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-[15px]">
+                              <SelectItem value="days">Dias</SelectItem>
+                              <SelectItem value="weeks">Semanas</SelectItem>
+                              <SelectItem value="months">Meses</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end pt-1">
+                        <Button 
+                          size="sm" 
+                          className="h-9 px-6 rounded-full bg-[#222] hover:bg-[#333] text-white font-bold text-[11px]" 
+                          onClick={() => {
+                            const form = recurrenceForms[entry.id] || { value: 1, unit: 'days', frequency: 'daily' };
+                            onApplyRecurrence(entry.id, form.value, form.unit, form.frequency);
+                            setExpandedRecurrence(null);
+                          }}
+                        >
+                          Aplicar Alteração
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}

@@ -11,13 +11,15 @@ import {
   StudySchedule,
   SubjectArea,
   SubjectCategory,
-  ScheduleStatus,
-  SubjectStatus,
+    ScheduleStatus,
+    SubjectStatus,
 } from '@/types/study';
 import { useAuth } from './AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { getSessionActualMinutes, getSessionPauseSeconds } from '@/features/tracker/session-metrics';
+import { parseDateKey } from '@/lib/date-utils';
+import { generateWeeklyOccurrences } from '@/features/schedule/recurrence';
 
 type SessionInput = Omit<StudySession, 'id'> & {
   pauses?: Array<Omit<StudySessionPause, 'id' | 'sessionId' | 'userId'>>;
@@ -32,6 +34,19 @@ export interface ScheduleCreateInput {
   endDate?: string;
   isActive?: boolean;
   viewSettings?: Record<string, unknown>;
+}
+
+export interface RecurringScheduleEntryInput {
+  subjectId: string;
+  startDate: string;
+  endDate: string;
+  weekdays: number[];
+  optional?: boolean;
+  startTime?: string;
+  plannedMinutes?: number;
+  itemNote?: string;
+  scheduleId?: string;
+  planId?: string;
 }
 
 export interface SubjectCreateInput {
@@ -75,6 +90,7 @@ interface StudyContextType {
   deleteSubject: (id: string) => Promise<void>;
   findSubjects: (filters?: SubjectFinderFilters) => Subject[];
   addScheduleEntry: (e: Omit<ScheduleEntry, 'id'>) => Promise<void>;
+  addRecurringScheduleEntries: (e: RecurringScheduleEntryInput) => Promise<string | null>;
   updateScheduleEntry: (id: string, e: Partial<ScheduleEntry>) => Promise<void>;
   deleteScheduleEntry: (id: string) => Promise<void>;
   toggleScheduleComplete: (id: string) => Promise<void>;
@@ -107,6 +123,11 @@ function slugify(value: string): string {
     .trim()
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-');
+}
+
+function notifySubjectsUpdated() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(STUDY_SUBJECTS_UPDATED_EVENT));
 }
 
 function includesScheduleColumnError(message?: string): boolean {
@@ -190,6 +211,8 @@ function mapScheduleEntry(row: any): ScheduleEntry {
   return {
     id: row.id,
     scheduleId: row.schedule_id || undefined,
+    planId: row.plan_id || undefined,
+    recurrenceRuleId: row.recurrence_rule_id || undefined,
     date: row.date,
     subjectId: row.subject_id,
     optional: Boolean(row.optional),
@@ -208,6 +231,7 @@ function mapScheduleDayPlan(row: any): ScheduleDayPlan {
   return {
     id: row.id,
     scheduleId: row.schedule_id || undefined,
+    planId: row.plan_id || undefined,
     date: row.date,
     dayNote: row.day_note || undefined,
     dayTargetMinutes: row.day_target_minutes ?? undefined,
@@ -219,6 +243,7 @@ function mapSession(row: any): StudySession {
   return {
     id: row.id,
     scheduleId: row.schedule_id || undefined,
+    planId: row.plan_id || undefined,
     subjectId: row.subject_id,
     date: row.date,
     startTime: row.start_time,
@@ -261,6 +286,7 @@ function mapNote(row: any): Note {
   return {
     id: row.id,
     scheduleId: row.schedule_id || undefined,
+    planId: row.plan_id || undefined,
     type: row.type,
     referenceDate: row.reference_date,
     content: row.content,
@@ -549,6 +575,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     }
 
     await fetchAll();
+    notifySubjectsUpdated();
   };
 
   const addSubject = async (s: Omit<Subject, 'id' | 'order'>) => {
@@ -605,6 +632,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     }
 
     await fetchAll();
+    notifySubjectsUpdated();
   };
 
   const deleteSubject = async (id: string) => {
@@ -623,6 +651,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       return;
     }
     await fetchAll();
+    notifySubjectsUpdated();
   };
 
   const findSubjects = useCallback(
@@ -692,6 +721,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     const { error } = await db.from('schedule_entries').insert({
       user_id: user.id,
       schedule_id: scheduleId,
+      plan_id: e.planId || null,
       subject_id: e.subjectId,
       date: e.date,
       optional: e.optional,
@@ -701,6 +731,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       planned_minutes: e.plannedMinutes ?? null,
       item_note: e.itemNote || null,
       template_id: e.templateId || null,
+      recurrence_rule_id: e.recurrenceRuleId || null,
       is_override: e.isOverride || false,
       day_note: e.dayNote || null,
     });
@@ -712,6 +743,104 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     }
 
     await fetchAll();
+  };
+
+  const addRecurringScheduleEntries = async (input: RecurringScheduleEntryInput) => {
+    if (!user) return null;
+
+    const scheduleId = input.scheduleId || activeScheduleId;
+    if (!scheduleId) {
+      toast.error('Selecione um cronograma ativo');
+      return null;
+    }
+
+    const validWeekdays = Array.from(new Set((input.weekdays || []).map(Number).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6))).sort((a, b) => a - b);
+    if (validWeekdays.length === 0) {
+      toast.error('Selecione ao menos um dia da semana');
+      return null;
+    }
+
+    const startDate = parseDateKey(input.startDate);
+    const endDate = parseDateKey(input.endDate);
+    const dates = generateWeeklyOccurrences({
+      startDate,
+      endDate,
+      weekdays: validWeekdays,
+    });
+
+    if (dates.length === 0) {
+      toast.error('Nenhuma data encontrada para a recorrencia');
+      return null;
+    }
+
+    const { data: rule, error: ruleError } = await db
+      .from('schedule_recurrence_rules')
+      .insert({
+        user_id: user.id,
+        schedule_id: scheduleId,
+        plan_id: input.planId || null,
+        subject_id: input.subjectId,
+        start_date: input.startDate,
+        end_date: input.endDate,
+        weekdays: validWeekdays,
+        optional: input.optional ?? false,
+        start_time: input.startTime || null,
+        planned_minutes: input.plannedMinutes ?? null,
+        item_note: input.itemNote || null,
+        active: true,
+      })
+      .select('id')
+      .single();
+
+    if (ruleError || !rule) {
+      toast.error('Erro ao criar recorrencia');
+      console.error(ruleError);
+      return null;
+    }
+
+    const existingCounts = new Map<string, number>();
+    for (const entry of data.schedule) {
+      const current = existingCounts.get(entry.date) ?? 0;
+      existingCounts.set(entry.date, current + 1);
+    }
+
+    const generatedCounts = new Map<string, number>();
+    const rows = dates.map((date) => {
+      const currentCount = existingCounts.get(date) ?? 0;
+      const generatedCount = generatedCounts.get(date) ?? 0;
+      generatedCounts.set(date, generatedCount + 1);
+
+      return {
+        user_id: user.id,
+        schedule_id: scheduleId,
+        plan_id: input.planId || null,
+        subject_id: input.subjectId,
+        date,
+        optional: input.optional ?? false,
+        completed: false,
+        sort_order: currentCount + generatedCount,
+        start_time: input.startTime || null,
+        planned_minutes: input.plannedMinutes ?? null,
+        item_note: input.itemNote || null,
+        template_id: null,
+        recurrence_rule_id: rule.id,
+        is_override: false,
+        day_note: null,
+      };
+    });
+
+    for (let i = 0; i < rows.length; i += 100) {
+      const batch = rows.slice(i, i + 100);
+      const { error } = await db.from('schedule_entries').insert(batch);
+      if (error) {
+        toast.error('Erro ao gerar recorrencia no cronograma');
+        console.error(error);
+        return null;
+      }
+    }
+
+    await fetchAll();
+    return rule.id as string;
   };
 
   const updateScheduleEntry = async (id: string, e: Partial<ScheduleEntry>) => {
@@ -768,6 +897,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       user_id: user.id,
       schedule_id: scheduleId,
       date,
+      plan_id: plan.planId || null,
     };
 
     if (plan.dayNote !== undefined) payload.day_note = plan.dayNote || null;
@@ -805,6 +935,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       .insert({
         user_id: user.id,
         schedule_id: scheduleId || null,
+        plan_id: s.planId || null,
         subject_id: s.subjectId,
         date: s.date,
         start_time: s.startTime,
@@ -899,6 +1030,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     const { error } = await db.from('notes').insert({
       user_id: user.id,
       schedule_id: scheduleId || null,
+      plan_id: n.planId || null,
       type: n.type,
       reference_date: n.referenceDate,
       content: n.content,
@@ -1006,6 +1138,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         deleteSubject,
         findSubjects,
         addScheduleEntry,
+        addRecurringScheduleEntries,
         updateScheduleEntry,
         deleteScheduleEntry,
         toggleScheduleComplete,

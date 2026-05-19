@@ -71,6 +71,7 @@ export interface ScheduleEntry {
   id: string;
   scheduleId?: string;
   planId?: string;
+  recurrenceRuleId?: string;
   date: string; // YYYY-MM-DD
   subjectId: string;
   optional: boolean;
@@ -82,6 +83,24 @@ export interface ScheduleEntry {
   templateId?: string;
   isOverride?: boolean;
   dayNote?: string;
+}
+
+export interface ScheduleRecurrenceRule {
+  id: string;
+  userId: string;
+  scheduleId: string;
+  planId?: string;
+  subjectId: string;
+  startDate: string;
+  endDate: string;
+  weekdays: number[];
+  optional: boolean;
+  startTime?: string;
+  plannedMinutes?: number;
+  itemNote?: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ScheduleDayPlan {
@@ -113,6 +132,7 @@ export interface StudySessionPause {
 export interface StudySession {
   id: string;
   scheduleId?: string;
+  planId?: string;
   subjectId: string;
   date: string;
   startTime: string;
@@ -140,6 +160,7 @@ export interface StudySession {
 export interface Note {
   id: string;
   scheduleId?: string;
+  planId?: string;
   type: 'day' | 'week' | 'session';
   referenceDate: string; // YYYY-MM-DD or YYYY-Www
   content: string;

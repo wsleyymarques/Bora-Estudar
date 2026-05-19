@@ -3,6 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
+const STUDY_SUBJECTS_UPDATED_EVENT = 'study-flow:subjects-updated';
+
 export interface SubjectRow {
   id: string;
   user_id: string;
@@ -49,15 +51,28 @@ function slugify(value: string): string {
     .replace(/-+/g, '-');
 }
 
+function sortSubjectsByName(subjects: SubjectRow[]) {
+  return [...subjects].sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
+}
+
+function sortLinksByOrder(links: PlanSubjectLinkRow[]) {
+  return [...links].sort((left, right) => left.sort_order - right.sort_order);
+}
+
+function notifyPlanSubjectsUpdated(planId?: string) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(STUDY_SUBJECTS_UPDATED_EVENT, { detail: { planId } }));
+}
+
 export function usePlanSubjects(planId?: string) {
   const { user } = useAuth();
   const [allSubjects, setAllSubjects] = useState<SubjectRow[]>([]);
   const [links, setLinks] = useState<PlanSubjectLinkRow[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const loadSubjects = useCallback(async () => {
+  const loadSubjects = useCallback(async (silent = false) => {
     if (!user || !planId) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
 
     const [subjectsRes, linksRes] = await Promise.all([
       supabase
@@ -94,6 +109,17 @@ export function usePlanSubjects(planId?: string) {
     void loadSubjects();
   }, [loadSubjects]);
 
+  useEffect(() => {
+    const handlePlanSubjectsUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<{ planId?: string }>;
+      if (customEvent.detail?.planId && customEvent.detail.planId !== planId) return;
+      void loadSubjects(true);
+    };
+
+    window.addEventListener(STUDY_SUBJECTS_UPDATED_EVENT, handlePlanSubjectsUpdated);
+    return () => window.removeEventListener(STUDY_SUBJECTS_UPDATED_EVENT, handlePlanSubjectsUpdated);
+  }, [loadSubjects, planId]);
+
   const linkedSubjectIds = useMemo(() => new Set(links.map((link) => link.subject_id)), [links]);
 
   const planSubjects = useMemo(() => {
@@ -119,14 +145,31 @@ export function usePlanSubjects(planId?: string) {
 
     if (error) {
       console.error(error);
-      toast.error('Erro ao vincular matéria ao plano.');
+      toast.error('Erro ao vincular mat?ria ao plano.');
       return false;
     }
 
-    toast.success('Matéria adicionada ao plano.');
-    await loadSubjects();
+    const subjectToLink = allSubjects.find((subject) => subject.id === subjectId);
+    if (subjectToLink) {
+      setLinks((current) =>
+        sortLinksByOrder([
+          ...current.filter((link) => link.subject_id !== subjectId),
+          {
+            id: `local-${planId}-${subjectId}`,
+            user_id: user.id,
+            plan_id: planId,
+            subject_id: subjectId,
+            sort_order: links.length,
+          },
+        ]),
+      );
+    }
+
+    toast.success('Mat?ria adicionada ao plano.');
+    notifyPlanSubjectsUpdated(planId);
+    await loadSubjects(true);
     return true;
-  }, [links.length, loadSubjects, planId, user]);
+  }, [allSubjects, links.length, loadSubjects, planId, user]);
 
   const createAndLinkSubject = useCallback(async (input: SubjectInput) => {
     if (!user || !planId || !input.name.trim()) return false;
@@ -153,7 +196,7 @@ export function usePlanSubjects(planId?: string) {
 
     if (subjectError || !subject) {
       console.error(subjectError);
-      toast.error('Erro ao criar matéria.');
+      toast.error('Erro ao criar mat?ria.');
       return false;
     }
 
@@ -166,12 +209,27 @@ export function usePlanSubjects(planId?: string) {
 
     if (linkError) {
       console.error(linkError);
-      toast.error('Matéria criada, mas não foi vinculada ao plano.');
+      toast.error('Mat?ria criada, mas n?o foi vinculada ao plano.');
       return false;
     }
 
-    toast.success('Matéria criada e adicionada ao plano.');
-    await loadSubjects();
+    setAllSubjects((current) => sortSubjectsByName([...current.filter((item) => item.id !== subject.id), subject]));
+    setLinks((current) =>
+      sortLinksByOrder([
+        ...current.filter((link) => link.subject_id !== subject.id),
+        {
+          id: `local-${planId}-${subject.id}`,
+          user_id: user.id,
+          plan_id: planId,
+          subject_id: subject.id,
+          sort_order: links.length,
+        },
+      ]),
+    );
+
+    toast.success('Mat?ria criada e adicionada ao plano.');
+    notifyPlanSubjectsUpdated(planId);
+    await loadSubjects(true);
     return true;
   }, [allSubjects.length, links.length, loadSubjects, planId, user]);
 
@@ -191,7 +249,8 @@ export function usePlanSubjects(planId?: string) {
     }
 
     toast.success('Matéria removida apenas deste plano.');
-    await loadSubjects();
+    notifyPlanSubjectsUpdated(planId);
+    await loadSubjects(true);
     return true;
   }, [loadSubjects, planId, user]);
 
@@ -218,7 +277,8 @@ export function usePlanSubjects(planId?: string) {
     }
 
     toast.success('Matéria atualizada.');
-    await loadSubjects();
+    notifyPlanSubjectsUpdated(planId);
+    await loadSubjects(true);
     return true;
   }, [loadSubjects, user]);
 

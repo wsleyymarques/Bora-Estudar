@@ -75,14 +75,14 @@ export function useTemplates(options: UseTemplatesOptions = {}) {
   const scopedPlanId = options.planId ?? null;
   const includeGlobal = options.includeGlobal ?? true;
 
-  const fetchTemplates = useCallback(async () => {
+  const fetchTemplates = useCallback(async (silent = false) => {
     if (!user) {
       setTemplates([]);
       setLoading(false);
       return;
     }
 
-    setLoading(true);
+    if (!silent) setLoading(true);
     let templatesQuery: any = db.from('weekly_templates').select('*').order('created_at');
 
     if (scopedPlanId) {
@@ -183,7 +183,7 @@ export function useTemplates(options: UseTemplatesOptions = {}) {
       return null;
     }
 
-    await fetchTemplates();
+    await fetchTemplates(true);
     return createRes.data.id;
   };
 
@@ -261,7 +261,7 @@ export function useTemplates(options: UseTemplatesOptions = {}) {
       }
     }
 
-    await fetchTemplates();
+    await fetchTemplates(true);
     return newTemplateId;
   };
 
@@ -377,7 +377,7 @@ export function useTemplates(options: UseTemplatesOptions = {}) {
       toast.error('Erro ao atualizar');
       return;
     }
-    await fetchTemplates();
+    await fetchTemplates(true);
   };
 
   const setDayNote = async (templateId: string, dayOfWeek: number, content: string, targetMinutes?: number) => {
