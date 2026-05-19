@@ -193,7 +193,6 @@ function mapScheduleEntry(row: any): ScheduleEntry {
     recurrenceRuleId: row.recurrence_rule_id || undefined,
     date: row.date,
     subjectId: row.subject_id,
-    planId: row.plan_id || undefined,
     optional: Boolean(row.optional),
     completed: Boolean(row.completed),
     order: row.sort_order,
@@ -212,7 +211,6 @@ function mapScheduleDayPlan(row: any): ScheduleDayPlan {
     scheduleId: row.schedule_id || undefined,
     planId: row.plan_id || undefined,
     date: row.date,
-    planId: row.plan_id || undefined,
     dayNote: row.day_note || undefined,
     dayTargetMinutes: row.day_target_minutes ?? undefined,
     templateId: row.template_id || undefined,
@@ -226,7 +224,6 @@ function mapSession(row: any): StudySession {
     scheduleId: row.schedule_id || undefined,
     planId: row.plan_id || undefined,
     subjectId: row.subject_id,
-    planId: row.plan_id || undefined,
     date: row.date,
     startTime: row.start_time,
     endTime: row.end_time || undefined,
@@ -646,7 +643,6 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       user_id: user.id,
       plan_id: plan.planId || null,
       date,
-      plan_id: plan.planId || null,
     };
 
     if (plan.dayNote !== undefined) payload.day_note = plan.dayNote || null;
