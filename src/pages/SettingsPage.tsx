@@ -56,8 +56,8 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="space-y-6 w-full max-w-none">
-      <h1 className="text-2xl font-display font-bold text-foreground">Configuracoes</h1>
+    <div className="space-y-5 sm:space-y-6 max-w-lg">
+      <h1 className="text-2xl font-display font-bold text-foreground">Configurações</h1>
 
       <div className="glass-card p-5 space-y-4">
         <div className="flex items-center gap-3">

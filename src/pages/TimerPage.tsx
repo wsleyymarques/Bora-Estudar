@@ -170,22 +170,19 @@ export default function TimerPage() {
   const runtimeIsStopwatch = runtime?.kind === 'stopwatch';
 
   return (
-    <div className="space-y-6 w-full max-w-none">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-display font-bold text-foreground">Tracker de Estudo</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Planejado e executado separados, mas sincronizados com o cronograma.
-          </p>
-        </div>
-        {runtime && (
-          <div className="rounded-lg border border-border/70 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-            Sessao ativa:{' '}
-            <strong className="text-foreground">
-              {runtimeModeLabel} ({phaseStateLabel})
-            </strong>
-          </div>
-        )}
+    <div className="space-y-5 sm:space-y-6 max-w-lg mx-auto">
+      <h1 className="text-2xl font-display font-bold text-foreground text-center">Timer de Estudo</h1>
+
+      {/* Mode toggle */}
+      <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5 mx-auto w-fit">
+        <button onClick={() => { if (!running) { setMode('stopwatch'); reset(); } }}
+          className={`px-4 py-1.5 rounded-md text-xs font-medium transition-colors ${mode === 'stopwatch' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}>
+          Cronômetro
+        </button>
+        <button onClick={() => { if (!running) { setMode('pomodoro'); reset(); } }}
+          className={`px-4 py-1.5 rounded-md text-xs font-medium transition-colors ${mode === 'pomodoro' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}>
+          Pomodoro
+        </button>
       </div>
 
       <div className="glass-card p-3 md:p-4 space-y-4">
@@ -264,13 +261,28 @@ export default function TimerPage() {
             )}
           </div>
 
-          <div className="glass-card p-5 md:p-6 text-center space-y-5">
-            {selectedSubject && (
-              <div className="flex items-center justify-center gap-2">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: selectedSubject.color }} />
-                <span className="text-sm font-medium text-foreground">{selectedSubject.name}</span>
-              </div>
-            )}
+        {/* Controls */}
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {!running ? (
+            <Button onClick={start} size="lg" className="rounded-full w-14 h-14">
+              <Play className="w-6 h-6" />
+            </Button>
+          ) : (
+            <Button onClick={pause} variant="outline" size="lg" className="rounded-full w-14 h-14">
+              <Pause className="w-6 h-6" />
+            </Button>
+          )}
+          {seconds > 0 && !running && (
+            <>
+              <Button onClick={finish} size="lg" variant="default" className="rounded-full w-14 h-14 bg-success hover:bg-success/90">
+                <Square className="w-5 h-5" />
+              </Button>
+              <Button onClick={reset} variant="ghost" size="lg" className="rounded-full w-14 h-14">
+                <RotateCcw className="w-5 h-5" />
+              </Button>
+            </>
+          )}
+        </div>
 
             {mode === 'stopwatch' ? (
               <>

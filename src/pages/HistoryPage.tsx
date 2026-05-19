@@ -66,10 +66,10 @@ export default function HistoryPage() {
   }, [filtered]);
 
   return (
-    <div className="space-y-6 w-full max-w-none">
-      <h1 className="text-2xl font-display font-bold text-foreground">Historico</h1>
+    <div className="space-y-5 sm:space-y-6 max-w-3xl">
+      <h1 className="text-2xl font-display font-bold text-foreground">Histórico</h1>
 
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
         <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
           {(['week', 'month', 'year', 'all'] as FilterPeriod[]).map((value) => (
             <button
@@ -85,9 +85,7 @@ export default function HistoryPage() {
         </div>
 
         <Select value={subjectFilter} onValueChange={setSubjectFilter}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue />
-          </SelectTrigger>
+          <SelectTrigger className="w-full sm:w-[220px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as materias</SelectItem>
             {data.subjects.map((subject) => (
@@ -102,7 +100,8 @@ export default function HistoryPage() {
         </Select>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Summary */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <div className="glass-card p-4 text-center">
           <p className="text-2xl font-display font-bold text-foreground">{formatMinutesCompact(summary.totalMinutes)}</p>
           <p className="text-xs text-muted-foreground">Total estudado</p>
