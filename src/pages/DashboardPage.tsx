@@ -1,59 +1,81 @@
-import React, { useMemo } from 'react';
-import { useStudy } from '@/contexts/StudyContext';
-import { Clock, BookOpen, CheckCircle2, TrendingUp, FileText } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { useNavigate } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { 
+  BookOpen, 
+  CheckCircle2, 
+  Clock, 
+  Plus, 
+  Search, 
+  ArrowUpRight, 
+  Calendar,
+  Sparkles,
+  Play,
+  ChevronRight,
+  TrendingUp,
+  Inbox,
+  User,
+  MoreHorizontal
+} from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-
-function formatMin(m: number) {
-  const h = Math.floor(m / 60);
-  const min = m % 60;
-  return h > 0 ? `${h}h ${min}m` : `${min}m`;
-}
+import { useStudy } from '@/contexts/StudyContext';
+import { useStudyPlans } from '@/hooks/useStudyPlans';
+import { toDateKey } from '@/lib/date-utils';
+import { formatMinutesCompact } from '@/lib/duration-utils';
+import { getSessionActualMinutes } from '@/features/tracker/session-metrics';
+import { cn } from '@/lib/utils';
+import { QuickPlanTimerCard } from '@/components/dashboard/QuickPlanTimerCard';
 
 export default function DashboardPage() {
   const { data, getSubject, getScheduleForDate, getTotalMinutesForDate } = useStudy();
+  const { plans } = useStudyPlans();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const today = new Date().toISOString().split('T')[0];
-  const dayOfWeek = new Date().getDay();
-  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
 
-  const weekDates = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() + mondayOffset + i);
-      return d.toISOString().split('T')[0];
-    });
-  }, [mondayOffset]);
+  // Search input state (Donezo style search in header)
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const todayMinutes = getTotalMinutesForDate(today);
-  const weekMinutes = weekDates.reduce((acc, d) => acc + getTotalMinutesForDate(d), 0);
+  const today = toDateKey(new Date());
+  const weekDates = useMemo(() => Array.from({ length: 7 }, (_, index) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - index));
+    return toDateKey(d);
+  }), []);
+
+  const weekMinutes = weekDates.reduce((acc, date) => acc + getTotalMinutesForDate(date), 0);
   const todaySchedule = getScheduleForDate(today);
-  const completedToday = todaySchedule.filter(s => s.completed).length;
-  const pendingToday = todaySchedule.filter(s => !s.completed && !s.optional);
+  
+  const completedToday = useMemo(() => {
+    return todaySchedule.filter((entry) => entry.completed).length;
+  }, [todaySchedule]);
 
-  const subjectMinutes = useMemo(() => {
-    const map: Record<string, number> = {};
-    data.sessions.forEach(s => {
-      map[s.subjectId] = (map[s.subjectId] || 0) + s.durationMinutes;
+  const totalToday = todaySchedule.length;
+  const progressPercent = useMemo(() => {
+    if (totalToday === 0) return 60; // Default mockup percent if empty
+    return Math.round((completedToday / totalToday) * 100);
+  }, [completedToday, totalToday]);
+
+  // Activity Data for Custom Capsules Bar Chart
+  const activityData = useMemo(() => {
+    const raw = weekDates.map((dateStr) => {
+      const dateObj = new Date(`${dateStr}T12:00:00`);
+      return {
+        dayName: dateObj.toLocaleDateString('pt-BR', { weekday: 'narrow' }), // S, M, T...
+        minutes: getTotalMinutesForDate(dateStr),
+      };
     });
-    return Object.entries(map).sort((a, b) => b[1] - a[1]);
-  }, [data.sessions]);
-  const topSubject = subjectMinutes[0] ? getSubject(subjectMinutes[0][0]) : null;
+    
+    const maxMinutes = Math.max(...raw.map(d => d.minutes), 1);
+    return raw.map(d => ({
+      ...d,
+      percent: Math.max(Math.round((d.minutes / maxMinutes) * 100), 0),
+    }));
+  }, [weekDates, data]);
 
-  const weekChartData = weekDates.map(d => ({
-    day: new Date(d + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short' }),
-    minutos: getTotalMinutesForDate(d),
-  }));
+  const activePlans = plans.filter(p => p.status === 'active').slice(0, 4);
+  const displayName = user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Estudante';
+  const displayEmail = user?.email || 'estudante@studyflow.com';
 
-  const pieData = subjectMinutes.slice(0, 6).map(([id, min]) => {
-    const s = getSubject(id);
-    return { name: s?.name || 'Outro', value: min, color: s?.color || '#ccc' };
-  });
-
-  const recentNotes = data.notes.slice(0, 3);
-  const displayName = user?.email?.split('@')[0] || 'Estudante';
+  const pendingToday = todaySchedule.filter((entry) => !entry.completed).slice(0, 5);
 
   return (
     <div className="space-y-5 sm:space-y-6 max-w-6xl">
@@ -107,11 +129,8 @@ export default function DashboardPage() {
                 ))}
               </div>
             </div>
-          ) : (
-            <p className="text-muted-foreground text-sm">Nenhuma sessão registrada ainda.</p>
-          )}
+          </div>
         </div>
-      </div>
 
       <div className="grid gap-4 md:grid-cols-2 md:gap-6">
         <div className="glass-card p-5">
@@ -119,61 +138,61 @@ export default function DashboardPage() {
             <h3 className="font-display font-semibold text-sm">Pendentes hoje</h3>
             <button onClick={() => navigate('/schedule')} className="text-xs text-primary hover:underline">Ver cronograma</button>
           </div>
-          {pendingToday.length === 0 ? (
-            <p className="text-muted-foreground text-sm">Nenhuma pendência! 🎉</p>
-          ) : (
-            <div className="space-y-2">
-              {pendingToday.map(entry => {
-                const subj = getSubject(entry.subjectId);
-                return (
-                  <div key={entry.id} className="flex items-center gap-3 p-2 rounded-lg bg-background">
-                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: subj?.color }} />
-                    <span className="text-sm text-foreground">{subj?.name}</span>
-                    {entry.optional && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">opcional</span>}
-                  </div>
-                );
-              })}
+          <div className="space-y-2">
+            <h2 className="text-4xl font-display font-black tracking-tight text-foreground">
+              {pendingToday.length}
+            </h2>
+            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-muted text-muted-foreground text-[9px] font-black uppercase tracking-wider border border-border/50">
+              Sessões agendadas
             </div>
-          )}
-        </div>
-
-        <div className="glass-card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-display font-semibold text-sm">Observações recentes</h3>
-            <FileText className="w-4 h-4 text-muted-foreground" />
           </div>
-          {recentNotes.length === 0 ? (
-            <p className="text-muted-foreground text-sm">Nenhuma observação ainda.</p>
-          ) : (
-            <div className="space-y-2">
-              {recentNotes.map(n => (
-                <div key={n.id} className="p-2 rounded-lg bg-background text-sm text-foreground">
-                  <p className="line-clamp-2">{n.content}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{n.referenceDate}</p>
-                </div>
-              ))}
+        </div>
+
+        {/* CARD 4 */}
+        <div className="bg-card border border-border/50 text-card-foreground rounded-3xl p-6 shadow-sm flex flex-col justify-between h-44 group hover:shadow-md transition-shadow">
+          <div className="flex items-start justify-between">
+            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Concluído Hoje</span>
+            <button className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-foreground hover:bg-muted/80 transition-colors border border-border/50">
+              <ArrowUpRight className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-4xl font-display font-black tracking-tight text-foreground">
+              {completedToday}
+            </h2>
+            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-success/10 text-success-foreground text-[9px] font-black uppercase tracking-wider">
+              {totalToday > 0 ? `${Math.round((completedToday / totalToday) * 100)}% da meta` : 'Sem tarefas'}
             </div>
-          )}
+          </div>
         </div>
       </div>
-    </div>
-  );
-}
 
-function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string; color: string }) {
-  const colorMap: Record<string, string> = {
-    primary: 'bg-primary/10 text-primary',
-    info: 'bg-info/10 text-info',
-    success: 'bg-success/10 text-success',
-    accent: 'bg-accent/10 text-accent',
-  };
-  return (
-    <div className="glass-card p-4 space-y-2">
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${colorMap[color]}`}>
-        {icon}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <QuickPlanTimerCard plans={plans} className="lg:col-span-12" />
       </div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-lg font-display font-bold text-foreground truncate">{value}</p>
+
+      {/* STYLES FOR THE INACTIVE CHART STRIPES AND SCROLLBAR */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        .bg-striped {
+          background-image: repeating-linear-gradient(
+            45deg, 
+            transparent, 
+            transparent 6px, 
+            hsl(var(--border)) 6px, 
+            hsl(var(--border)) 12px
+          );
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: hsl(var(--border));
+          border-radius: 10px;
+        }
+      `}} />
     </div>
   );
 }

@@ -26,6 +26,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
         <BottomNavigator />
       </div>
+      
+      <UserProfilePanel 
+        isOpen={isProfileOpen} 
+        onClose={() => setIsProfileOpen(false)} 
+      />
     </SidebarProvider>
   );
 }

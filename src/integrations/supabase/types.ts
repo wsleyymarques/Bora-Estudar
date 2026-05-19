@@ -65,15 +65,65 @@ export type Database = {
         }
         Relationships: []
       }
+      schedule_day_plans: {
+        Row: {
+          created_at: string
+          date: string
+          day_note: string | null
+          day_target_minutes: number | null
+          id: string
+          is_override: boolean
+          template_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          day_note?: string | null
+          day_target_minutes?: number | null
+          id?: string
+          is_override?: boolean
+          template_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          day_note?: string | null
+          day_target_minutes?: number | null
+          id?: string
+          is_override?: boolean
+          template_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedule_day_plans_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "weekly_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       schedule_entries: {
         Row: {
           completed: boolean
           created_at: string
           date: string
+          day_note: string | null
           id: string
+          is_override: boolean
+          item_note: string | null
           optional: boolean
+          planned_minutes: number | null
           sort_order: number
+          start_time: string | null
           subject_id: string
+          template_id: string | null
           updated_at: string
           user_id: string
         }
@@ -81,10 +131,16 @@ export type Database = {
           completed?: boolean
           created_at?: string
           date: string
+          day_note?: string | null
           id?: string
+          is_override?: boolean
+          item_note?: string | null
           optional?: boolean
+          planned_minutes?: number | null
           sort_order?: number
+          start_time?: string | null
           subject_id: string
+          template_id?: string | null
           updated_at?: string
           user_id: string
         }
@@ -92,10 +148,16 @@ export type Database = {
           completed?: boolean
           created_at?: string
           date?: string
+          day_note?: string | null
           id?: string
+          is_override?: boolean
+          item_note?: string | null
           optional?: boolean
+          planned_minutes?: number | null
           sort_order?: number
+          start_time?: string | null
           subject_id?: string
+          template_id?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -105,6 +167,13 @@ export type Database = {
             columns: ["subject_id"]
             isOneToOne: false
             referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_entries_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "weekly_templates"
             referencedColumns: ["id"]
           },
         ]
@@ -195,6 +264,116 @@ export type Database = {
           updated_at?: string
           user_id?: string
           weekly_goal_hours?: number
+        }
+        Relationships: []
+      }
+      weekly_template_day_notes: {
+        Row: {
+          content: string
+          day_of_week: number
+          id: string
+          target_minutes: number | null
+          template_id: string
+        }
+        Insert: {
+          content?: string
+          day_of_week: number
+          id?: string
+          target_minutes?: number | null
+          template_id: string
+        }
+        Update: {
+          content?: string
+          day_of_week?: number
+          id?: string
+          target_minutes?: number | null
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_template_day_notes_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "weekly_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      weekly_template_items: {
+        Row: {
+          created_at: string
+          day_of_week: number
+          id: string
+          item_note: string | null
+          optional: boolean
+          planned_minutes: number | null
+          sort_order: number
+          start_time: string | null
+          subject_id: string
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          day_of_week: number
+          id?: string
+          item_note?: string | null
+          optional?: boolean
+          planned_minutes?: number | null
+          sort_order?: number
+          start_time?: string | null
+          subject_id: string
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          day_of_week?: number
+          id?: string
+          item_note?: string | null
+          optional?: boolean
+          planned_minutes?: number | null
+          sort_order?: number
+          start_time?: string | null
+          subject_id?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_template_items_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weekly_template_items_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "weekly_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      weekly_templates: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

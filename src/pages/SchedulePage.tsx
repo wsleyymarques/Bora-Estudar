@@ -1,68 +1,123 @@
-import React, { useState, useMemo } from 'react';
-import { useStudy } from '@/contexts/StudyContext';
-import { ScheduleView, ScheduleEntry } from '@/types/study';
-import { CheckCircle2, Circle, Plus, ChevronLeft, ChevronRight, MessageSquare, ArrowRightLeft, Trash2, MoveRight } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { SubjectCreateInput, useStudy } from '@/contexts/StudyContext';
+import { ScheduleView, ScheduleEntry, DAY_NAMES_SHORT } from '@/types/study';
+import { ArrowRightLeft, MoveRight, LayoutTemplate, Loader2, CalendarDays, MoveRight as MoveIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import WeeklyPlannerView from '@/components/schedule/WeeklyPlannerView';
+import TemplateEditor from '@/components/schedule/TemplateEditor';
+import ApplyTemplateDialog from '@/components/schedule/ApplyTemplateDialog';
+import PropagationDialog, { PropagationScope } from '@/components/schedule/PropagationDialog';
+import DayDetailSheet from '@/components/schedule/DayDetailSheet';
+import { useTemplates } from '@/hooks/useTemplates';
+import { ResponsivePanel } from '@/components/generic/ResponsivePanel';
+import { getMonday, parseDateKey, toDateKey } from '@/lib/date-utils';
+import { ClockTimePickerField, DurationPickerField } from '@/components/generic/time-picker-fields';
+import { SubjectFinder } from '@/components/generic/subject-finder';
+import { SubjectForm } from '@/components/generic/subject-form';
+import { ScheduleShell } from '@/components/schedule/ScheduleShell';
+import { ScheduleMonthlyView } from '@/components/schedule/ScheduleMonthlyView';
+import { ScheduleYearlyView } from '@/components/schedule/ScheduleYearlyView';
 
-const VIEWS: { key: ScheduleView; label: string }[] = [
-  { key: 'daily', label: 'Diário' },
+const VIEWS: { key: ScheduleView; label: string; icon?: React.ReactNode }[] = [
   { key: 'weekly', label: 'Semanal' },
   { key: 'monthly', label: 'Mensal' },
   { key: 'yearly', label: 'Anual' },
+  { key: 'templates', label: 'Templates', icon: <LayoutTemplate className="w-3.5 h-3.5" /> },
 ];
 
-function getMonday(date: Date) {
-  const d = new Date(date);
-  const day = d.getDay();
-  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
-  return d;
+function formatWeekRangeLabel(date: Date) {
+  const monday = getMonday(date);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const start = monday.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  const end = sunday.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  return `Semana ${start} - ${end}`;
 }
-function fmt(d: Date) { return d.toISOString().split('T')[0]; }
-function formatMin(m: number) { const h = Math.floor(m / 60); return h > 0 ? `${h}h ${m % 60}m` : `${m}m`; }
 
 export default function SchedulePage() {
   const [view, setView] = useState<ScheduleView>('weekly');
   const [currentDate, setCurrentDate] = useState(new Date());
-  const { data, getSubject, getScheduleForDate, toggleScheduleComplete, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry, getTotalMinutesForDate, addNote } = useStudy();
+  const {
+    data,
+    
+    createSubject,
+    getSubject,
+    getScheduleForDate,
+    updateScheduleEntry,
+    deleteScheduleEntry,
+    addScheduleEntry,
+    addNote,
+  } = useStudy();
+  const { templates } = useTemplates();
+
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [dayDetailOpen, setDayDetailOpen] = useState(false);
 
   const [addDialog, setAddDialog] = useState(false);
   const [addDate, setAddDate] = useState('');
   const [addSubjectId, setAddSubjectId] = useState('');
   const [addOptional, setAddOptional] = useState(false);
+  const [addStartTime, setAddStartTime] = useState('');
+  const [addPlannedMinutes, setAddPlannedMinutes] = useState<number | undefined>(undefined);
 
   const [noteDialog, setNoteDialog] = useState(false);
   const [noteDate, setNoteDate] = useState('');
   const [noteContent, setNoteContent] = useState('');
 
-  // Move entry dialog
   const [moveDialog, setMoveDialog] = useState(false);
   const [moveEntry, setMoveEntry] = useState<ScheduleEntry | null>(null);
   const [moveTargetDate, setMoveTargetDate] = useState('');
 
-  // Change subject dialog
   const [changeDialog, setChangeDialog] = useState(false);
   const [changeEntry, setChangeEntry] = useState<ScheduleEntry | null>(null);
   const [changeSubjectId, setChangeSubjectId] = useState('');
 
+  const [propagationDialog, setPropagationDialog] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{ type: 'move' | 'change' | 'remove'; entry: ScheduleEntry; payload?: any } | null>(null);
+
+  const [applyDialog, setApplyDialog] = useState(false);
+  const [applyTemplateId, setApplyTemplateId] = useState('');
+  const [quickSubjectDialog, setQuickSubjectDialog] = useState(false);
+  const [quickSubjectForm, setQuickSubjectForm] = useState<SubjectCreateInput>({
+    name: '',
+    color: '#5B8C7E',
+    active: true,
+    optional: false,
+    weeklyGoalHours: 0,
+    monthlyGoalHours: 0,
+  });
+
   const navigate = (dir: number) => {
     const d = new Date(currentDate);
-    if (view === 'daily') d.setDate(d.getDate() + dir);
-    else if (view === 'weekly') d.setDate(d.getDate() + dir * 7);
+    if (view === 'weekly') d.setDate(d.getDate() + dir * 7);
     else if (view === 'monthly') d.setMonth(d.getMonth() + dir);
     else d.setFullYear(d.getFullYear() + dir);
     setCurrentDate(d);
   };
 
+  const openDayDetail = (date: string) => {
+    setSelectedDay(date);
+    setCurrentDate(parseDateKey(date));
+    setDayDetailOpen(true);
+  };
+
   const handleAdd = () => {
     if (!addSubjectId) { toast.error('Selecione uma matéria'); return; }
     const existing = getScheduleForDate(addDate);
-    addScheduleEntry({ date: addDate, subjectId: addSubjectId, optional: addOptional, completed: false, order: existing.length });
+    addScheduleEntry({
+      date: addDate,
+      subjectId: addSubjectId,
+      optional: addOptional,
+      completed: false,
+      order: existing.length,
+      startTime: addStartTime || undefined,
+      planned_minutes: addPlannedMinutes,
+    });
     toast.success('Adicionado ao cronograma');
     setAddDialog(false);
   };
@@ -75,37 +130,107 @@ export default function SchedulePage() {
     setNoteContent('');
   };
 
+  const executePropagatedAction = async (scope: PropagationScope) => {
+    if (!pendingAction) return;
+    const { type, entry, payload } = pendingAction;
+
+    if (scope === 'single') {
+      if (type === 'move') {
+        await updateScheduleEntry(entry.id, { date: payload.date, isOverride: true });
+        toast.success('Matéria movida');
+      } else if (type === 'change') {
+        await updateScheduleEntry(entry.id, { subjectId: payload.subjectId, isOverride: true });
+        toast.success('Matéria trocada');
+      } else if (type === 'remove') {
+        await deleteScheduleEntry(entry.id);
+        toast.success('Matéria removida');
+      }
+    } else if (scope === 'forward') {
+      const entryDate = new Date(entry.date + 'T12:00:00');
+      const futureEntries = data.schedule.filter(e =>
+        e.templateId === entry.templateId &&
+        e.date >= entry.date &&
+        !e.isOverride &&
+        new Date(e.date + 'T12:00:00').getDay() === entryDate.getDay()
+      );
+
+      for (const fe of futureEntries) {
+        if (type === 'change') {
+          await updateScheduleEntry(fe.id, { subjectId: payload.subjectId, isOverride: true });
+        } else if (type === 'remove') {
+          await deleteScheduleEntry(fe.id);
+        }
+      }
+      if (type === 'move') {
+        await updateScheduleEntry(entry.id, { date: payload.date, isOverride: true });
+      }
+      toast.success('Alteração propagada');
+    } else if (scope === 'template') {
+      if (type === 'move') {
+        await updateScheduleEntry(entry.id, { ...(payload || {}), isOverride: true });
+      } else if (type === 'change') {
+        await updateScheduleEntry(entry.id, { subjectId: payload.subjectId, isOverride: true });
+      } else if (type === 'remove') {
+        await deleteScheduleEntry(entry.id);
+      }
+      toast.success('Template atualizado');
+    }
+
+    setPendingAction(null);
+  };
+
   const handleMove = () => {
     if (!moveEntry || !moveTargetDate) { toast.error('Selecione uma data'); return; }
-    updateScheduleEntry(moveEntry.id, { date: moveTargetDate });
-    toast.success('Matéria movida!');
-    setMoveDialog(false);
+    if (moveEntry.templateId && !moveEntry.isOverride) {
+      setPendingAction({ type: 'move', entry: moveEntry, payload: { date: moveTargetDate } });
+      setMoveDialog(false);
+      setPropagationDialog(true);
+    } else {
+      updateScheduleEntry(moveEntry.id, { date: moveTargetDate });
+      toast.success('Matéria movida!');
+      setMoveDialog(false);
+    }
     setMoveEntry(null);
   };
 
   const handleChangeSubject = () => {
     if (!changeEntry || !changeSubjectId) { toast.error('Selecione uma matéria'); return; }
-    updateScheduleEntry(changeEntry.id, { subjectId: changeSubjectId });
-    toast.success('Matéria trocada!');
-    setChangeDialog(false);
+    if (changeEntry.templateId && !changeEntry.isOverride) {
+      setPendingAction({ type: 'change', entry: changeEntry, payload: { subjectId: changeSubjectId } });
+      setChangeDialog(false);
+      setPropagationDialog(true);
+    } else {
+      updateScheduleEntry(changeEntry.id, { subjectId: changeSubjectId });
+      toast.success('Matéria trocada!');
+      setChangeDialog(false);
+    }
     setChangeEntry(null);
   };
 
   const handleRemoveEntry = (id: string) => {
-    deleteScheduleEntry(id);
-    toast.success('Matéria removida do dia');
+    const entry = data.schedule.find(e => e.id === id);
+    if (entry?.templateId && !entry.isOverride) {
+      setPendingAction({ type: 'remove', entry });
+      setPropagationDialog(true);
+    } else {
+      deleteScheduleEntry(id);
+      toast.success('Matéria removida do dia');
+    }
   };
 
   const openAddFor = (date: string) => {
     setAddDate(date);
     setAddSubjectId('');
     setAddOptional(false);
+    setAddStartTime('');
+    setAddPlannedMinutes(undefined);
     setAddDialog(true);
   };
 
   const openNoteFor = (date: string) => {
     setNoteDate(date);
-    setNoteContent('');
+    const existing = data.notes.find(n => n.type === 'day' && n.referenceDate === date);
+    setNoteContent(existing?.content || '');
     setNoteDialog(true);
   };
 
@@ -120,6 +245,35 @@ export default function SchedulePage() {
     setChangeSubjectId('');
     setChangeDialog(true);
   };
+
+  const openApplyTemplate = (templateId: string) => {
+    setApplyTemplateId(templateId);
+    setApplyDialog(true);
+  };
+
+  const openQuickSubjectDialog = () => {
+    setQuickSubjectForm({
+      name: '',
+      color: '#5B8C7E',
+      active: true,
+      optional: false,
+      weeklyGoalHours: 0,
+      monthlyGoalHours: 0,
+    });
+    setQuickSubjectDialog(true);
+  };
+
+  const handleQuickSubjectSave = async () => {
+    if (!quickSubjectForm.name?.trim()) {
+      toast.error('Informe o nome da matéria');
+      return;
+    }
+    await createSubject(quickSubjectForm);
+    setQuickSubjectDialog(false);
+    toast.success('Matéria criada');
+  };
+
+  const applyTemplateName = templates.find(t => t.id === applyTemplateId)?.name || '';
 
   return (
     <div className="space-y-5 sm:space-y-6 max-w-6xl">
@@ -177,10 +331,33 @@ export default function SchedulePage() {
             </label>
             <Button onClick={handleAdd} className="w-full">Adicionar</Button>
           </div>
-        </DialogContent>
-      </Dialog>
 
-      {/* Note dialog */}
+          <label className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/30 cursor-pointer transition-colors hover:bg-muted/50">
+            <input 
+              type="checkbox" 
+              checked={addOptional} 
+              onChange={e => setAddOptional(e.target.checked)} 
+              className="h-5 w-5 rounded-md border-primary text-primary focus:ring-primary/30" 
+            />
+            <div className="flex-1">
+              <p className="text-sm font-semibold">Matéria opcional</p>
+              <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Tarefa secundária</p>
+            </div>
+          </label>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label>Horário</Label>
+              <ClockTimePickerField value={addStartTime || undefined} onChange={(v) => setAddStartTime(v || '')} placeholder="--:--" />
+            </div>
+            <div className="grid gap-2">
+              <Label>Meta de tempo</Label>
+              <DurationPickerField valueMinutes={addPlannedMinutes} onChangeMinutes={setAddPlannedMinutes} placeholder="Minutos" includeSeconds />
+            </div>
+          </div>
+        </div>
+      </ResponsivePanel>
+
       <Dialog open={noteDialog} onOpenChange={setNoteDialog}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle className="font-display">Observação</DialogTitle></DialogHeader>
@@ -189,16 +366,14 @@ export default function SchedulePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Move entry dialog */}
       <Dialog open={moveDialog} onOpenChange={setMoveDialog}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle className="font-display">Mover para outro dia</DialogTitle></DialogHeader>
           <div className="space-y-4">
             {moveEntry && (
-              <div className="flex items-center gap-2 p-2 rounded-lg bg-muted">
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-muted">
                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: getSubject(moveEntry.subjectId)?.color }} />
                 <span className="text-sm font-medium text-foreground">{getSubject(moveEntry.subjectId)?.name}</span>
-                <span className="text-xs text-muted-foreground ml-auto">{moveEntry.date}</span>
               </div>
             )}
             <div className="space-y-2">
@@ -206,327 +381,73 @@ export default function SchedulePage() {
               <Input type="date" value={moveTargetDate} onChange={e => setMoveTargetDate(e.target.value)} />
             </div>
             <Button onClick={handleMove} className="w-full">
-              <MoveRight className="w-4 h-4 mr-2" />Mover
+              <MoveIcon className="w-4 h-4 mr-2" />Mover
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Change subject dialog */}
       <Dialog open={changeDialog} onOpenChange={setChangeDialog}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle className="font-display">Trocar matéria</DialogTitle></DialogHeader>
           <div className="space-y-4">
             {changeEntry && (
               <p className="text-sm text-muted-foreground">
-                Trocar <strong>{getSubject(changeEntry.subjectId)?.name}</strong> em {changeEntry.date}
+                Trocar <strong>{getSubject(changeEntry.subjectId)?.name}</strong>
               </p>
             )}
-            <Select value={changeSubjectId} onValueChange={setChangeSubjectId}>
-              <SelectTrigger><SelectValue placeholder="Nova matéria" /></SelectTrigger>
-              <SelectContent>
-                {data.subjects.filter(s => s.active).map(s => (
-                  <SelectItem key={s.id} value={s.id}>
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
-                      {s.name}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SubjectFinder
+              value={changeSubjectId}
+              onChange={setChangeSubjectId}
+              subjects={data.subjects}
+              
+              
+              onCreateSubject={openQuickSubjectDialog}
+              placeholder="Nova matéria"
+            />
             <Button onClick={handleChangeSubject} className="w-full">
               <ArrowRightLeft className="w-4 h-4 mr-2" />Trocar
             </Button>
           </div>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
 
-interface EntryActionsProps {
-  onMove: (entry: ScheduleEntry) => void;
-  onChange: (entry: ScheduleEntry) => void;
-  onRemove: (id: string) => void;
-}
+      <PropagationDialog
+        open={propagationDialog}
+        onOpenChange={setPropagationDialog}
+        onSelect={executePropagatedAction}
+        actionDescription={
+          pendingAction?.type === 'move' ? 'Esta matéria veio de um template. Como deseja aplicar a mudança?' :
+          pendingAction?.type === 'change' ? 'Esta matéria veio de um template. Como deseja aplicar a troca?' :
+          'Esta matéria veio de um template. Como deseja aplicar a remoção?'
+        }
+      />
 
-function WeeklyView({ currentDate, onAdd, onNote, onMove, onChange, onRemove }: { currentDate: Date; onAdd: (d: string) => void; onNote: (d: string) => void } & EntryActionsProps) {
-  const { getScheduleForDate, getSubject, toggleScheduleComplete, getTotalMinutesForDate, data } = useStudy();
-  const monday = getMonday(currentDate);
-  const days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday);
-    d.setDate(d.getDate() + i);
-    return fmt(d);
-  });
-  const today = fmt(new Date());
-
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
-      {days.map(date => {
-        const entries = getScheduleForDate(date);
-        const main = entries.filter(e => !e.optional);
-        const optional = entries.filter(e => e.optional);
-        const isToday = date === today;
-        const mins = getTotalMinutesForDate(date);
-        const dayNotes = data.notes.filter(n => n.type === 'day' && n.referenceDate === date);
-
-        return (
-          <div key={date} className={`glass-card p-3 space-y-2 ${isToday ? 'ring-2 ring-primary/30' : ''}`}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className={`text-xs font-medium ${isToday ? 'text-primary' : 'text-muted-foreground'}`}>
-                  {new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short' })}
-                </p>
-                <p className="text-lg font-display font-bold text-foreground">{new Date(date + 'T12:00:00').getDate()}</p>
-              </div>
-              {mins > 0 && <span className="text-[10px] text-muted-foreground">{formatMin(mins)}</span>}
-            </div>
-            <div className="space-y-1">
-              {main.map(e => <EntryChip key={e.id} entry={e} onMove={onMove} onChange={onChange} onRemove={onRemove} />)}
-              {optional.length > 0 && (
-                <div className="border-t border-border/50 pt-1 mt-1">
-                  {optional.map(e => <EntryChip key={e.id} entry={e} onMove={onMove} onChange={onChange} onRemove={onRemove} />)}
-                </div>
-              )}
-            </div>
-            {dayNotes.length > 0 && (
-              <div className="text-[10px] text-muted-foreground bg-muted/50 rounded p-1.5 line-clamp-2">
-                {dayNotes[0].content}
-              </div>
-            )}
-            <div className="flex gap-1">
-              <button onClick={() => onAdd(date)} className="text-[10px] text-primary hover:underline flex items-center gap-0.5"><Plus className="w-3 h-3" />matéria</button>
-              <button onClick={() => onNote(date)} className="text-[10px] text-muted-foreground hover:text-foreground ml-auto"><MessageSquare className="w-3 h-3" /></button>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function EntryChip({ entry, onMove, onChange, onRemove }: { entry: ScheduleEntry } & EntryActionsProps) {
-  const { getSubject, toggleScheduleComplete } = useStudy();
-  const subj = getSubject(entry.subjectId);
-  return (
-    <div className={`flex items-center gap-1.5 group ${entry.optional ? 'opacity-70' : ''}`}>
-      <button onClick={() => toggleScheduleComplete(entry.id)} className="flex-shrink-0">
-        {entry.completed
-          ? <CheckCircle2 className="w-3.5 h-3.5 text-success" />
-          : <Circle className="w-3.5 h-3.5 text-muted-foreground" />}
-      </button>
-      <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: subj?.color }} />
-      <span className={`text-xs truncate flex-1 ${entry.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-        {subj?.name}
-      </span>
-      {entry.optional && <span className="text-[8px] text-muted-foreground">opc</span>}
-      {/* Action buttons on hover */}
-      <div className="hidden group-hover:flex items-center gap-0.5 flex-shrink-0">
-        <button onClick={() => onMove(entry)} title="Mover para outro dia" className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground">
-          <MoveRight className="w-3 h-3" />
-        </button>
-        <button onClick={() => onChange(entry)} title="Trocar matéria" className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground">
-          <ArrowRightLeft className="w-3 h-3" />
-        </button>
-        <button onClick={() => onRemove(entry.id)} title="Remover" className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
-          <Trash2 className="w-3 h-3" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function DailyView({ date, onAdd, onNote, onMove, onChange, onRemove }: { date: string; onAdd: () => void; onNote: () => void } & EntryActionsProps) {
-  const { getScheduleForDate, getSubject, toggleScheduleComplete, getTotalMinutesForDate, data } = useStudy();
-  const entries = getScheduleForDate(date);
-  const mins = getTotalMinutesForDate(date);
-  const dayNotes = data.notes.filter(n => n.type === 'day' && n.referenceDate === date);
-  const main = entries.filter(e => !e.optional);
-  const optional = entries.filter(e => e.optional);
-  const completed = entries.filter(e => e.completed).length;
-
-  return (
-    <div className="max-w-lg space-y-4">
-      <div className="glass-card p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Progresso do dia</span>
-          <span className="text-sm font-medium text-foreground">{completed}/{entries.length}</span>
-        </div>
-        <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-          <div className="h-full bg-primary rounded-full transition-all" style={{ width: entries.length ? `${(completed / entries.length) * 100}%` : '0%' }} />
-        </div>
-        {mins > 0 && <p className="text-xs text-muted-foreground">Tempo estudado: {formatMin(mins)}</p>}
-      </div>
-
-      {entries.length === 0 && (
-        <div className="glass-card p-8 text-center">
-          <p className="text-muted-foreground text-sm">Nenhuma matéria planejada para este dia.</p>
-          <Button variant="outline" size="sm" className="mt-3" onClick={onAdd}><Plus className="w-4 h-4 mr-1" />Adicionar matéria</Button>
-        </div>
+      {applyTemplateId && (
+        <ApplyTemplateDialog
+          open={applyDialog}
+          onOpenChange={setApplyDialog}
+          templateId={applyTemplateId}
+          templateName={applyTemplateName}
+        />
       )}
 
-      {main.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Principais</h3>
-          {main.map(e => {
-            const s = getSubject(e.subjectId);
-            return (
-              <div key={e.id} className="glass-card p-3 flex items-center gap-3 group">
-                <button onClick={() => toggleScheduleComplete(e.id)}>
-                  {e.completed ? <CheckCircle2 className="w-5 h-5 text-success" /> : <Circle className="w-5 h-5 text-muted-foreground" />}
-                </button>
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: s?.color }} />
-                <span className={`text-sm font-medium flex-1 ${e.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{s?.name}</span>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => onMove(e)} title="Mover para outro dia" className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
-                    <MoveRight className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => onChange(e)} title="Trocar matéria" className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
-                    <ArrowRightLeft className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => onRemove(e.id)} title="Remover do dia" className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {optional.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Opcionais</h3>
-          {optional.map(e => {
-            const s = getSubject(e.subjectId);
-            return (
-              <div key={e.id} className="glass-card p-3 flex items-center gap-3 opacity-75 group">
-                <button onClick={() => toggleScheduleComplete(e.id)}>
-                  {e.completed ? <CheckCircle2 className="w-5 h-5 text-success" /> : <Circle className="w-5 h-5 text-muted-foreground" />}
-                </button>
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: s?.color }} />
-                <span className={`text-sm flex-1 ${e.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{s?.name}</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">opcional</span>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => onMove(e)} title="Mover" className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
-                    <MoveRight className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => onChange(e)} title="Trocar" className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
-                    <ArrowRightLeft className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => onRemove(e.id)} title="Remover" className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {entries.length > 0 && (
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={onAdd}><Plus className="w-4 h-4 mr-1" />Matéria</Button>
-          <Button variant="outline" size="sm" onClick={onNote}><MessageSquare className="w-4 h-4 mr-1" />Nota</Button>
-        </div>
-      )}
-
-      {dayNotes.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Observações</h3>
-          {dayNotes.map(n => (
-            <div key={n.id} className="glass-card p-3 text-sm text-foreground">{n.content}</div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MonthlyView({ currentDate, onDayClick }: { currentDate: Date; onDayClick: (d: string) => void }) {
-  const { getScheduleForDate, getTotalMinutesForDate } = useStudy();
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
-  const firstDay = new Date(year, month, 1);
-  const lastDay = new Date(year, month + 1, 0);
-  const startOffset = (firstDay.getDay() + 6) % 7;
-  const today = fmt(new Date());
-
-  const days: (string | null)[] = Array(startOffset).fill(null);
-  for (let d = 1; d <= lastDay.getDate(); d++) {
-    days.push(fmt(new Date(year, month, d)));
-  }
-
-  return (
-    <div>
-      <div className="grid grid-cols-7 gap-1 mb-1">
-        {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map(d => (
-          <div key={d} className="text-[10px] text-muted-foreground text-center font-medium py-1">{d}</div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7 gap-1">
-        {days.map((date, i) => {
-          if (!date) return <div key={i} />;
-          const entries = getScheduleForDate(date);
-          const completed = entries.filter(e => e.completed).length;
-          const total = entries.length;
-          const mins = getTotalMinutesForDate(date);
-          const isToday = date === today;
-
-          return (
-            <button key={date} onClick={() => onDayClick(date)}
-              className={`glass-card p-2 text-left hover:ring-1 hover:ring-primary/30 transition-all min-h-[60px] ${isToday ? 'ring-2 ring-primary/40' : ''}`}>
-              <p className={`text-xs font-medium ${isToday ? 'text-primary' : 'text-foreground'}`}>{new Date(date + 'T12:00:00').getDate()}</p>
-              {total > 0 && (
-                <div className="mt-1">
-                  <div className="w-full h-1 bg-muted rounded-full">
-                    <div className="h-full bg-primary/60 rounded-full" style={{ width: `${(completed / total) * 100}%` }} />
-                  </div>
-                </div>
-              )}
-              {mins > 0 && <p className="text-[9px] text-muted-foreground mt-0.5">{formatMin(mins)}</p>}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function YearlyView({ year }: { year: number }) {
-  const { data, getTotalMinutesForDate } = useStudy();
-
-  const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-  const months = monthNames.map((name, m) => {
-    const daysInMonth = new Date(year, m + 1, 0).getDate();
-    let totalMin = 0;
-    let studiedDays = 0;
-    for (let d = 1; d <= daysInMonth; d++) {
-      const date = fmt(new Date(year, m, d));
-      const mins = getTotalMinutesForDate(date);
-      if (mins > 0) { totalMin += mins; studiedDays++; }
-    }
-    return { name, totalMin, studiedDays, daysInMonth };
-  });
-
-  const maxMin = Math.max(...months.map(m => m.totalMin), 1);
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-        {months.map(m => (
-          <div key={m.name} className="glass-card p-3 space-y-2">
-            <p className="text-sm font-display font-semibold text-foreground">{m.name}</p>
-            <div className="w-full h-2 bg-muted rounded-full">
-              <div className="h-full bg-primary rounded-full" style={{ width: `${(m.totalMin / maxMin) * 100}%` }} />
-            </div>
-            <div className="text-[10px] text-muted-foreground">
-              {m.studiedDays} dias · {formatMin(m.totalMin)}
-            </div>
-          </div>
-        ))}
-      </div>
+      <Dialog open={quickSubjectDialog} onOpenChange={setQuickSubjectDialog}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="font-display">Criar matéria</DialogTitle>
+          </DialogHeader>
+          <SubjectForm
+            value={quickSubjectForm}
+            
+            
+            onChange={setQuickSubjectForm}
+            onSubmit={handleQuickSubjectSave}
+            onCancel={() => setQuickSubjectDialog(false)}
+            submitLabel="Criar matéria"
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
