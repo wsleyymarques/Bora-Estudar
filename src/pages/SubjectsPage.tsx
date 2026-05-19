@@ -23,7 +23,7 @@ export default function SubjectsPage() {
   const [query, setQuery] = useState('');
   const [areaId, setAreaId] = useState('__all__');
   const [categoryId, setCategoryId] = useState('__all__');
-  const [originFilter, setOriginFilter] = useState<'all' | 'global' | 'user'>('all');
+  const [originFilter, setOriginFilter] = useState<'all' | 'global' | 'user' | 'plan'>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
   const [form, setForm] = useState<SubjectCreateInput>(EMPTY_SUBJECT);
@@ -68,6 +68,8 @@ export default function SubjectsPage() {
       areaId: subject.areaId,
       categoryId: subject.categoryId,
       subcategoryId: subject.subcategoryId,
+      planId: subject.planId,
+      origin: subject.origin,
       status: subject.status,
     });
     setDialogOpen(true);
@@ -75,7 +77,7 @@ export default function SubjectsPage() {
 
   const handleSave = async () => {
     if (!form.name?.trim()) {
-      toast.error('Informe o nome da materia');
+      toast.error('Informe o nome da matéria');
       return;
     }
 
@@ -87,10 +89,10 @@ export default function SubjectsPage() {
         weeklyGoalHours: form.weeklyGoalHours ?? 0,
         monthlyGoalHours: form.monthlyGoalHours ?? 0,
       });
-      toast.success('Materia atualizada');
+      toast.success('Matéria atualizada');
     } else {
       await createSubject(form);
-      toast.success('Materia criada');
+      toast.success('Matéria criada');
     }
 
     setDialogOpen(false);
@@ -101,14 +103,14 @@ export default function SubjectsPage() {
       <div className="workspace-panel p-4 sm:p-5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-2xl font-display font-bold text-foreground">Materias</h1>
+            <h1 className="text-2xl font-display font-bold text-foreground">Matérias</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Banco global + materias personalizadas do usuario.
+              Banco global + matérias personalizadas do usuário.
             </p>
           </div>
           <Button onClick={openCreate} className="rounded-xl">
             <Plus className="mr-1.5 h-4 w-4" />
-            Criar materia
+            Criar matéria
           </Button>
         </div>
 
@@ -118,19 +120,20 @@ export default function SubjectsPage() {
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Buscar materia"
+              placeholder="Buscar matéria"
               className="border-0 px-0 shadow-none focus-visible:ring-0"
             />
           </div>
 
-          <Select value={originFilter} onValueChange={(next) => setOriginFilter(next as 'all' | 'global' | 'user')}>
+          <Select value={originFilter} onValueChange={(next) => setOriginFilter(next as 'all' | 'global' | 'user' | 'plan')}>
             <SelectTrigger className="rounded-xl">
               <SelectValue placeholder="Origem" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas</SelectItem>
               <SelectItem value="global">Globais</SelectItem>
-              <SelectItem value="user">Minhas materias</SelectItem>
+              <SelectItem value="user">Minhas matérias</SelectItem>
+              <SelectItem value="plan">Matérias por plano</SelectItem>
             </SelectContent>
           </Select>
 
@@ -142,10 +145,10 @@ export default function SubjectsPage() {
             }}
           >
             <SelectTrigger className="rounded-xl">
-              <SelectValue placeholder="Area" />
+              <SelectValue placeholder="Área" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__all__">Todas areas</SelectItem>
+              <SelectItem value="__all__">Todas as áreas</SelectItem>
               {data.subjectAreas.map((area) => (
                 <SelectItem key={area.id} value={area.id}>
                   {area.name}
@@ -159,7 +162,7 @@ export default function SubjectsPage() {
               <SelectValue placeholder="Categoria" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__all__">Todas categorias</SelectItem>
+              <SelectItem value="__all__">Todas as categorias</SelectItem>
               {visibleCategories.map((category) => (
                 <SelectItem key={category.id} value={category.id}>
                   {category.name}
@@ -172,11 +175,11 @@ export default function SubjectsPage() {
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <section className="workspace-panel p-4">
-          <h2 className="text-sm font-semibold text-foreground">Minhas materias ({userSubjects.length})</h2>
+          <h2 className="text-sm font-semibold text-foreground">Minhas matérias ({userSubjects.length})</h2>
           <div className="mt-3 space-y-2">
             {userSubjects.length === 0 ? (
               <p className="rounded-xl border border-dashed border-border/70 px-3 py-6 text-center text-sm text-muted-foreground">
-                Nenhuma materia personalizada encontrada.
+                Nenhuma matéria personalizada encontrada.
               </p>
             ) : (
               userSubjects.map((subject) => (
@@ -185,7 +188,7 @@ export default function SubjectsPage() {
                   subject={subject}
                   onEdit={() => openEdit(subject)}
                   onDelete={() => {
-                    if (confirm('Deseja realmente excluir esta materia?')) {
+                    if (confirm('Deseja realmente excluir esta matéria?')) {
                       void deleteSubject(subject.id);
                     }
                   }}
@@ -196,11 +199,11 @@ export default function SubjectsPage() {
         </section>
 
         <section className="workspace-panel p-4">
-          <h2 className="text-sm font-semibold text-foreground">Materias globais ({globalSubjects.length})</h2>
+          <h2 className="text-sm font-semibold text-foreground">Matérias globais ({globalSubjects.length})</h2>
           <div className="mt-3 space-y-2">
             {globalSubjects.length === 0 ? (
               <p className="rounded-xl border border-dashed border-border/70 px-3 py-6 text-center text-sm text-muted-foreground">
-                Nenhuma materia global encontrada para os filtros.
+                Nenhuma matéria global encontrada para os filtros.
               </p>
             ) : (
               globalSubjects.map((subject) => (
@@ -214,16 +217,17 @@ export default function SubjectsPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle className="font-display">{editingSubject ? 'Editar materia' : 'Criar materia'}</DialogTitle>
+            <DialogTitle className="font-display">{editingSubject ? 'Editar matéria' : 'Criar matéria'}</DialogTitle>
           </DialogHeader>
           <SubjectForm
             value={form}
             areas={data.subjectAreas}
             categories={data.subjectCategories}
+            subcategories={data.subjectSubcategories}
             onChange={setForm}
             onSubmit={handleSave}
             onCancel={() => setDialogOpen(false)}
-            submitLabel={editingSubject ? 'Salvar alteracoes' : 'Criar materia'}
+            submitLabel={editingSubject ? 'Salvar alterações' : 'Criar matéria'}
           />
         </DialogContent>
       </Dialog>
@@ -249,6 +253,7 @@ function SubjectRow({
         <p className="truncate text-sm font-medium text-foreground">{subject.name}</p>
         <p className="text-xs text-muted-foreground">
           {subject.category || 'Sem categoria'} - {subject.weeklyGoalHours}h/sem
+          {subject.planId ? ' - Plano' : ''}
         </p>
       </div>
 

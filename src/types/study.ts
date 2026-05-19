@@ -1,26 +1,22 @@
-export interface Subject {
+export type SubjectOrigin = 'global' | 'user' | 'plan';
+export type SubjectStatus = 'active' | 'inactive' | 'archived';
+
+export interface StudyPlan {
   id: string;
   planId?: string;
   name: string;
   color: string;
   userId?: string;
-  slug?: string;
+  title: string;
+  name?: string;
+  examName?: string;
+  board?: string;
+  role?: string;
   description?: string;
-  icon?: string;
-  origin?: SubjectOrigin;
-  status?: SubjectStatus;
-  category?: string;
-  areaId?: string;
-  categoryId?: string;
-  subcategoryId?: string;
-  areaName?: string;
-  categoryName?: string;
-  subcategoryName?: string;
-  active: boolean;
-  optional: boolean;
-  weeklyGoalHours: number;
-  monthlyGoalHours: number;
-  order: number;
+  imageUrl?: string;
+  reviewIntervalDays?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export type SubjectOrigin = 'global' | 'user' | 'plan';
@@ -29,42 +25,46 @@ export type SubjectStatus = 'active' | 'archived' | 'draft';
 export interface SubjectArea {
   id: string;
   name: string;
-  slug?: string;
   description?: string;
-  isSystem: boolean;
-  createdBy?: string;
-  createdAt?: string;
-  updatedAt?: string;
+  icon?: string;
+  sortOrder?: number;
 }
 
 export interface SubjectCategory {
   id: string;
   areaId?: string;
-  parentId?: string;
   name: string;
-  slug?: string;
   description?: string;
-  isSystem: boolean;
-  createdBy?: string;
-  createdAt?: string;
-  updatedAt?: string;
+  sortOrder?: number;
 }
 
-export type ScheduleStatus = 'active' | 'archived' | 'draft';
-
-export interface StudySchedule {
+export interface SubjectSubcategory {
   id: string;
-  userId: string;
+  categoryId?: string;
   name: string;
   description?: string;
-  color?: string;
-  status: ScheduleStatus;
-  startDate: string;
-  endDate?: string;
-  isActive: boolean;
-  viewSettings?: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
+  sortOrder?: number;
+}
+
+export interface Subject {
+  id: string;
+  name: string;
+  color: string;
+  userId?: string;
+  planId?: string;
+  category?: string;
+  description?: string;
+  icon?: string;
+  areaId?: string;
+  categoryId?: string;
+  subcategoryId?: string;
+  origin?: SubjectOrigin;
+  status?: SubjectStatus;
+  active: boolean;
+  optional: boolean;
+  weeklyGoalHours: number;
+  monthlyGoalHours: number;
+  order: number;
 }
 
 export interface ScheduleEntry {
@@ -74,6 +74,7 @@ export interface ScheduleEntry {
   recurrenceRuleId?: string;
   date: string; // YYYY-MM-DD
   subjectId: string;
+  planId?: string;
   optional: boolean;
   completed: boolean;
   order: number;
@@ -108,6 +109,7 @@ export interface ScheduleDayPlan {
   scheduleId?: string;
   planId?: string;
   date: string; // YYYY-MM-DD
+  planId?: string;
   dayNote?: string;
   dayTargetMinutes?: number;
   templateId?: string;
@@ -134,6 +136,7 @@ export interface StudySession {
   scheduleId?: string;
   planId?: string;
   subjectId: string;
+  planId?: string;
   date: string;
   startTime: string;
   endTime?: string;
@@ -162,15 +165,17 @@ export interface Note {
   scheduleId?: string;
   planId?: string;
   type: 'day' | 'week' | 'session';
-  referenceDate: string; // YYYY-MM-DD or YYYY-Www
+  referenceDate: string;
   content: string;
   createdAt: string;
 }
 
 export interface UserData {
-  schedules: StudySchedule[];
+  studyPlans: StudyPlan[];
+  activeStudyPlanId?: string;
   subjectAreas: SubjectArea[];
   subjectCategories: SubjectCategory[];
+  subjectSubcategories: SubjectSubcategory[];
   subjects: Subject[];
   schedule: ScheduleEntry[];
   dayPlans: ScheduleDayPlan[];
@@ -188,8 +193,6 @@ export interface WeeklyTemplate {
   planId?: string;
   name: string;
   description?: string;
-  type?: 'weekly' | 'monthly' | 'custom';
-  status?: 'active' | 'archived' | 'draft';
   items: WeeklyTemplateItem[];
   dayNotes: WeeklyTemplateDayNote[];
 }
