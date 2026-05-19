@@ -1,12 +1,28 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Bar, BarChart, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useStudy } from '@/contexts/StudyContext';
 import { addDays, getMonday, toDateKey } from '@/lib/date-utils';
 import { formatMinutesCompact } from '@/lib/duration-utils';
-import { getSessionActualMinutes, getSessionPauseSeconds } from '@/features/tracker/session-metrics';
+import { getSessionActualMinutes, getSessionDateKey, getSessionPauseSeconds } from '@/features/tracker/session-metrics';
+import { DashboardInsightsCard } from '@/components/dashboard/DashboardInsightsCard';
+
+type SubjectPeriod = 'weekly' | 'monthly' | 'yearly';
+
+function getPeriodStart(period: SubjectPeriod, date = new Date()) {
+  if (period === 'weekly') return getMonday(date);
+  if (period === 'monthly') return new Date(date.getFullYear(), date.getMonth(), 1, 12, 0, 0, 0);
+  return new Date(date.getFullYear(), 0, 1, 12, 0, 0, 0);
+}
+
+function getPeriodLabel(period: SubjectPeriod) {
+  if (period === 'weekly') return 'Semanal';
+  if (period === 'monthly') return 'Mensal';
+  return 'Anual';
+}
 
 export default function StatsPage() {
   const { data, getSubject, getTotalMinutesForDate, getTotalPauseMinutesForDate } = useStudy();
+  const [subjectPeriod, setSubjectPeriod] = useState<SubjectPeriod>('weekly');
 
   const focusSessions = useMemo(
     () => data.sessions.filter((session) => session.isFocusSession !== false),
@@ -14,8 +30,15 @@ export default function StatsPage() {
   );
 
   const subjectHours = useMemo(() => {
+    const todayKey = toDateKey(new Date());
+    const periodStartKey = toDateKey(getPeriodStart(subjectPeriod));
+    const periodSessions = focusSessions.filter((session) => {
+      const dateKey = getSessionDateKey(session);
+      return dateKey >= periodStartKey && dateKey <= todayKey;
+    });
+
     const map: Record<string, number> = {};
-    for (const session of focusSessions) {
+    for (const session of periodSessions) {
       map[session.subjectId] = (map[session.subjectId] || 0) + getSessionActualMinutes(session);
     }
 
@@ -26,7 +49,19 @@ export default function StatsPage() {
         color: getSubject(subjectId)?.color || 'hsl(var(--muted-foreground))',
       }))
       .sort((a, b) => b.minutes - a.minutes);
-  }, [focusSessions, getSubject]);
+  }, [focusSessions, getSubject, subjectPeriod]);
+
+  const subjectPeriodSummary = useMemo(() => {
+    const totalMinutes = subjectHours.reduce((acc, subject) => acc + subject.minutes, 0);
+    const totalSubjects = subjectHours.length;
+    const topSubject = subjectHours[0];
+
+    return {
+      totalMinutes,
+      totalSubjects,
+      topSubject,
+    };
+  }, [subjectHours]);
 
   const weeklyTrend = useMemo(() => {
     const currentMonday = getMonday(new Date());
@@ -79,6 +114,8 @@ export default function StatsPage() {
     <div className="space-y-6 w-full max-w-none">
       <h1 className="text-2xl font-display font-bold text-foreground">Estatisticas</h1>
 
+      <DashboardInsightsCard />
+
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="glass-card p-4 text-center">
           <p className="text-2xl font-display font-bold text-foreground">{formatMinutesCompact(totalMinutes)}</p>
@@ -104,23 +141,69 @@ export default function StatsPage() {
 
       <div className="grid md:grid-cols-2 gap-6">
         <div className="glass-card p-5">
-          <h3 className="font-display font-semibold text-sm mb-4">Horas por materia</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={subjectHours} layout="vertical">
-              <XAxis type="number" hide />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={120} axisLine={false} tickLine={false} />
-              <Tooltip formatter={(value: number) => formatMinutesCompact(value)} />
-              <Bar dataKey="minutes" radius={[0, 6, 6, 0]}>
-                {subjectHours.map((entry, index) => (
-                  <Cell key={index} fill={entry.color} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Tempo por matéria</p>
+              <h3 className="mt-1 font-display text-sm font-semibold text-foreground">Total geral por período</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {getPeriodLabel(subjectPeriod)}: {subjectPeriodSummary.totalSubjects} matérias com estudo registrado.
+              </p>
+            </div>
+            <div className="inline-flex items-center gap-1 rounded-lg bg-muted p-0.5">
+              {(['weekly', 'monthly', 'yearly'] as SubjectPeriod[]).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setSubjectPeriod(value)}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                    subjectPeriod === value ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
+                  }`}
+                >
+                  {{ weekly: 'Semanal', monthly: 'Mensal', yearly: 'Anual' }[value]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3">
+            <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">Total no período</p>
+              <p className="mt-2 text-2xl font-display font-black text-foreground">{formatMinutesCompact(subjectPeriodSummary.totalMinutes)}</p>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">Matéria líder</p>
+              <p className="mt-2 truncate text-2xl font-display font-black text-foreground">{subjectPeriodSummary.topSubject?.name || 'Sem dados'}</p>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">Período</p>
+              <p className="mt-2 text-2xl font-display font-black text-foreground">{getPeriodLabel(subjectPeriod)}</p>
+            </div>
+          </div>
+
+          {subjectHours.length > 0 ? (
+            <div className="mt-5">
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={subjectHours} layout="vertical">
+                  <XAxis type="number" hide />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={120} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(value: number) => formatMinutesCompact(value)} />
+                  <Bar dataKey="minutes" radius={[0, 6, 6, 0]}>
+                    {subjectHours.map((entry, index) => (
+                      <Cell key={index} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="mt-5 rounded-2xl border border-dashed border-border/60 bg-muted/20 px-4 py-10 text-center text-sm text-muted-foreground">
+              Nenhuma sessão encontrada neste período.
+            </div>
+          )}
         </div>
 
         <div className="glass-card p-5">
-          <h3 className="font-display font-semibold text-sm mb-4">Distribuicao</h3>
+          <h3 className="font-display font-semibold text-sm mb-4">Distribuicao por materia</h3>
           <div className="flex items-center gap-4">
             <ResponsiveContainer width={160} height={160}>
               <PieChart>
@@ -132,13 +215,19 @@ export default function StatsPage() {
               </PieChart>
             </ResponsiveContainer>
             <div className="space-y-1.5 flex-1 min-w-0">
-              {subjectHours.map((subject) => (
-                <div key={subject.name} className="flex items-center gap-2 text-xs">
-                  <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: subject.color }} />
-                  <span className="truncate text-foreground">{subject.name}</span>
-                  <span className="text-muted-foreground ml-auto">{formatMinutesCompact(subject.minutes)}</span>
+              {subjectHours.length > 0 ? (
+                subjectHours.map((subject) => (
+                  <div key={subject.name} className="flex items-center gap-2 text-xs">
+                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: subject.color }} />
+                    <span className="truncate text-foreground">{subject.name}</span>
+                    <span className="text-muted-foreground ml-auto">{formatMinutesCompact(subject.minutes)}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-2xl border border-dashed border-border/60 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
+                  Sem dados para o período selecionado.
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </div>
