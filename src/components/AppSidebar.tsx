@@ -1,25 +1,13 @@
 import React from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import {
-  LayoutDashboard, 
-  Calendar, 
-  BookOpen, 
-  Settings, 
-  LogOut, 
-  Layers, 
-  BarChart3,
-  HelpCircle,
-  Sparkles
-} from 'lucide-react';
+import { BookOpen, LogOut } from 'lucide-react';
+import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
-import { useStudyPlans } from '@/hooks/useStudyPlans';
+import { navigationItems } from '@/config/navigation';
 import {
   Sidebar, 
   SidebarContent, 
   useSidebar,
 } from '@/components/ui/sidebar';
-import { cn } from '@/lib/utils';
-import { NavLink } from '@/components/NavLink';
 
 export function AppSidebar() {
   const { state, isMobile, toggleSidebar } = useSidebar();
@@ -55,75 +43,25 @@ export function AppSidebar() {
         <SidebarContent className="h-svh overflow-hidden bg-transparent p-4 flex flex-col justify-between">
 
 
-          {/* Navigation Items */}
-          <div className="flex-1 space-y-6 overflow-y-auto pr-1 py-4 custom-sidebar-scroll">
-            {/* MENU SECTION */}
-            <div className="space-y-2">
-              {!collapsed && (
-                <p className="px-3 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Menu</p>
-              )}
-              <nav className="space-y-1">
-                {menuItems.map((item) => {
-                  const isActive = location.pathname === item.url;
-                  return (
-                    <div key={item.title} className="relative">
-                      {isActive && (
-                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-primary rounded-r-full" />
-                      )}
-                      <NavLink
-                        to={item.url}
-                        end={item.url === '/'}
-                        className={cn(
-                          'flex items-center gap-3 h-11 transition-all rounded-2xl px-4 relative',
-                          isActive 
-                            ? 'text-foreground font-extrabold bg-primary/10' 
-                            : 'text-muted-foreground font-bold hover:text-foreground hover:bg-muted/50'
-                        )}
-                        activeClassName="text-foreground font-extrabold bg-primary/10"
-                      >
-                        <item.icon className={cn('h-5 w-5 shrink-0 transition-colors', isActive ? 'text-primary' : 'text-muted-foreground/80')} />
-                        {!collapsed && (
-                          <span className="text-sm tracking-tight flex-1 truncate">{item.title}</span>
-                        )}
-                        {!collapsed && item.badge && (
-                          <span className="px-2 py-0.5 rounded-lg bg-primary text-primary-foreground text-[9px] font-black tracking-wider shadow-sm">
-                            {item.badge}
-                          </span>
-                        )}
-                      </NavLink>
-                    </div>
-                  );
-                })}
-              </nav>
+  return (
+    <Sidebar collapsible="icon" className="hidden md:flex">
+      <SidebarContent className="flex flex-col justify-between h-full">
+        <div>
+          <div className="p-4 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <BookOpen className="w-4 h-4 text-primary" />
             </div>
-
-            {/* GENERAL SECTION */}
-            <div className="space-y-2">
-              {!collapsed && (
-                <p className="px-3 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">General</p>
-              )}
-              <nav className="space-y-1">
-                {generalItems.map((item) => {
-                  const isActive = location.pathname === item.url;
-                  return (
-                    <div key={item.title} className="relative">
-                      {isActive && (
-                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-primary rounded-r-full" />
-                      )}
-                      <NavLink
-                        to={item.url}
-                        className={cn(
-                          'flex items-center gap-3 h-11 transition-all rounded-2xl px-4 relative',
-                          isActive 
-                            ? 'text-foreground font-extrabold bg-primary/10' 
-                            : 'text-muted-foreground font-bold hover:text-foreground hover:bg-muted/50'
-                        )}
-                        activeClassName="text-foreground font-extrabold bg-primary/10"
-                      >
-                        <item.icon className={cn('h-5 w-5 shrink-0 transition-colors', isActive ? 'text-primary' : 'text-muted-foreground/80')} />
-                        {!collapsed && (
-                          <span className="text-sm tracking-tight flex-1 truncate">{item.title}</span>
-                        )}
+            {!collapsed && <span className="font-display font-bold text-foreground">StudyTrack</span>}
+          </div>
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {navigationItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink to={item.url} end={item.url === '/'} className="hover:bg-sidebar-accent/50" activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium">
+                        <item.icon className="mr-2 h-4 w-4" />
+                        {!collapsed && <span>{item.title}</span>}
                       </NavLink>
                     </div>
                   );
