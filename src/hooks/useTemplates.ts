@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useStudy } from '@/contexts/StudyContext';
@@ -17,12 +17,25 @@ export interface CreateTemplateInput {
   type?: TemplateType;
   status?: TemplateStatus;
   scheduleId?: string;
+  planId?: string;
+}
+
+export interface UseTemplatesOptions {
+  scheduleId?: string | null;
+  planId?: string | null;
+  includeGlobal?: boolean;
+}
+
+function isMissingColumn(error: any, column: string) {
+  const message = String(error?.message || error?.details || '').toLowerCase();
+  return message.includes(column.toLowerCase()) && (message.includes('does not exist') || message.includes('schema cache'));
 }
 
 function mapTemplate(row: any, items: any[], notes: any[]): WeeklyTemplate {
   return {
     id: row.id,
-    
+    scheduleId: row.schedule_id || undefined,
+    planId: row.plan_id || undefined,
     name: row.name,
     description: row.description || undefined,
     
@@ -52,32 +65,51 @@ function mapTemplate(row: any, items: any[], notes: any[]): WeeklyTemplate {
   };
 }
 
-export function useTemplates() {
+export function useTemplates(options: UseTemplatesOptions = {}) {
   const { user } = useAuth();
   
   const [templates, setTemplates] = useState<WeeklyTemplate[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchTemplates = useCallback(async () => {
+  const scopedScheduleId = options.scheduleId === undefined ? activeScheduleId : options.scheduleId;
+  const scopedPlanId = options.planId ?? null;
+  const includeGlobal = options.includeGlobal ?? true;
+
+  const fetchTemplates = useCallback(async (silent = false) => {
     if (!user) {
       setTemplates([]);
       setLoading(false);
       return;
     }
 
-    setLoading(true);
+    if (!silent) setLoading(true);
     let templatesQuery: any = db.from('weekly_templates').select('*').order('created_at');
-    if (undefined) {
-      templatesQuery = templatesQuery.eq('schedule_id', undefined);
+
+    if (scopedPlanId) {
+      templatesQuery = includeGlobal
+        ? templatesQuery.or(`plan_id.eq.${scopedPlanId},schedule_id.eq.${scopedScheduleId || ''},and(plan_id.is.null,schedule_id.is.null)`)
+        : templatesQuery.eq('plan_id', scopedPlanId);
+    } else if (scopedScheduleId) {
+      templatesQuery = templatesQuery.eq('schedule_id', scopedScheduleId);
     }
 
     let templatesRes = await templatesQuery;
-    if (
-      templatesRes.error &&
-      String(templatesRes.error.message || '').toLowerCase().includes('schedule_id') &&
-      String(templatesRes.error.message || '').toLowerCase().includes('does not exist')
-    ) {
+
+    if (templatesRes.error && isMissingColumn(templatesRes.error, 'plan_id')) {
+      let fallbackQuery: any = db.from('weekly_templates').select('*').order('created_at');
+      if (scopedScheduleId) fallbackQuery = fallbackQuery.eq('schedule_id', scopedScheduleId);
+      templatesRes = await fallbackQuery;
+    }
+
+    if (templatesRes.error && isMissingColumn(templatesRes.error, 'schedule_id')) {
       templatesRes = await db.from('weekly_templates').select('*').order('created_at');
+    }
+
+    if (templatesRes.error) {
+      toast.error('Erro ao carregar templates');
+      setTemplates([]);
+      setLoading(false);
+      return;
     }
 
     const templateRows = templatesRes.data || [];
@@ -103,7 +135,7 @@ export function useTemplates() {
     const mapped = templateRows.map((row: any) => mapTemplate(row, itemsRes.data || [], notesRes.data || []));
     setTemplates(mapped);
     setLoading(false);
-  }, [user, undefined]);
+  }, [user, scopedScheduleId, scopedPlanId, includeGlobal]);
 
   useEffect(() => {
     void fetchTemplates();
@@ -122,40 +154,58 @@ export function useTemplates() {
       return null;
     }
 
-    const { data, error } = await db
+    const payload: any = {
+      user_id: user.id,
+      schedule_id: parsedInput.scheduleId ?? scopedScheduleId ?? null,
+      name: parsedInput.name.trim(),
+      description: parsedInput.description || null,
+      type: parsedInput.type || 'weekly',
+      status: parsedInput.status || 'active',
+    };
+
+    if (parsedInput.planId || scopedPlanId) {
+      payload.plan_id = parsedInput.planId || scopedPlanId;
+    }
+
+    let createRes = await db
       .from('weekly_templates')
-      .insert({
-        user_id: user.id,
-        schedule_id: parsedInput.scheduleId || undefined || null,
-        name: parsedInput.name.trim(),
-        description: parsedInput.description || null,
-        type: parsedInput.type || 'weekly',
-        status: parsedInput.status || 'active',
-      })
+      .insert(payload)
       .select('id')
       .single();
 
-    if (error) {
+    if (createRes.error && isMissingColumn(createRes.error, 'plan_id')) {
+      delete payload.plan_id;
+      createRes = await db.from('weekly_templates').insert(payload).select('id').single();
+    }
+
+    if (createRes.error) {
       toast.error('Erro ao criar template');
       return null;
     }
 
-    await fetchTemplates();
-    return data.id;
+    await fetchTemplates(true);
+    return createRes.data.id;
   };
 
   const updateTemplate = async (
     id: string,
-    updates: Partial<Pick<CreateTemplateInput, 'name' | 'description' | 'type' | 'status'>>,
+    updates: Partial<Pick<CreateTemplateInput, 'name' | 'description' | 'type' | 'status' | 'scheduleId' | 'planId'>>,
   ) => {
     const payload: any = {};
     if (updates.name !== undefined) payload.name = updates.name;
     if (updates.description !== undefined) payload.description = updates.description || null;
     if (updates.type !== undefined) payload.type = updates.type;
     if (updates.status !== undefined) payload.status = updates.status;
+    if (updates.scheduleId !== undefined) payload.schedule_id = updates.scheduleId || null;
+    if (updates.planId !== undefined) payload.plan_id = updates.planId || null;
 
-    const { error } = await db.from('weekly_templates').update(payload).eq('id', id);
-    if (error) {
+    let updateRes = await db.from('weekly_templates').update(payload).eq('id', id);
+    if (updateRes.error && isMissingColumn(updateRes.error, 'plan_id')) {
+      delete payload.plan_id;
+      updateRes = await db.from('weekly_templates').update(payload).eq('id', id);
+    }
+
+    if (updateRes.error) {
       toast.error('Erro ao atualizar template');
       return;
     }
@@ -175,7 +225,8 @@ export function useTemplates() {
       description: template.description,
       type: undefined,
       status: 'draft',
-      scheduleId: undefined || undefined,
+      scheduleId: template.scheduleId || scopedScheduleId || undefined,
+      planId: template.planId || scopedPlanId || undefined,
     });
 
     if (!newTemplateId) return null;
@@ -210,7 +261,7 @@ export function useTemplates() {
       }
     }
 
-    await fetchTemplates();
+    await fetchTemplates(true);
     return newTemplateId;
   };
 
@@ -326,7 +377,7 @@ export function useTemplates() {
       toast.error('Erro ao atualizar');
       return;
     }
-    await fetchTemplates();
+    await fetchTemplates(true);
   };
 
   const setDayNote = async (templateId: string, dayOfWeek: number, content: string, targetMinutes?: number) => {
@@ -374,7 +425,8 @@ export function useTemplates() {
 
     const { entries, dayPlans } = buildTemplateEntries({
       userId: user.id,
-      scheduleId: undefined || undefined,
+      scheduleId: template.scheduleId || scopedScheduleId || undefined,
+      planId: template.planId || scopedPlanId || undefined,
       template,
       templateId,
       startDate,
@@ -388,8 +440,11 @@ export function useTemplates() {
 
     for (let i = 0; i < entries.length; i += 100) {
       const batch = entries.slice(i, i + 100);
-      const { error } = await db.from('schedule_entries').insert(batch);
-      if (error) {
+      let insertRes = await db.from('schedule_entries').insert(batch);
+      if (insertRes.error && isMissingColumn(insertRes.error, 'plan_id')) {
+        insertRes = await db.from('schedule_entries').insert(batch.map(({ plan_id, ...row }: any) => row));
+      }
+      if (insertRes.error) {
         toast.error('Erro ao gerar cronograma');
         return;
       }
@@ -400,6 +455,12 @@ export function useTemplates() {
       let upsertResult = await db.from('schedule_day_plans').upsert(batch, {
         onConflict: 'user_id,schedule_id,date',
       });
+
+      if (upsertResult.error && isMissingColumn(upsertResult.error, 'plan_id')) {
+        upsertResult = await db.from('schedule_day_plans').upsert(batch.map(({ plan_id, ...row }: any) => row), {
+          onConflict: 'user_id,schedule_id,date',
+        });
+      }
 
       if (upsertResult.error && String(upsertResult.error.message || '').toLowerCase().includes('on conflict')) {
         upsertResult = await db.from('schedule_day_plans').upsert(batch, { onConflict: 'user_id,date' });
@@ -438,5 +499,4 @@ export function useTemplates() {
     applyTemplate,
   };
 }
-
 

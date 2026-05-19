@@ -3,6 +3,9 @@ export type SubjectStatus = 'active' | 'inactive' | 'archived';
 
 export interface StudyPlan {
   id: string;
+  planId?: string;
+  name: string;
+  color: string;
   userId?: string;
   title: string;
   name?: string;
@@ -15,6 +18,9 @@ export interface StudyPlan {
   createdAt?: string;
   updatedAt?: string;
 }
+
+export type SubjectOrigin = 'global' | 'user' | 'plan';
+export type SubjectStatus = 'active' | 'archived' | 'draft';
 
 export interface SubjectArea {
   id: string;
@@ -63,6 +69,9 @@ export interface Subject {
 
 export interface ScheduleEntry {
   id: string;
+  scheduleId?: string;
+  planId?: string;
+  recurrenceRuleId?: string;
   date: string; // YYYY-MM-DD
   subjectId: string;
   planId?: string;
@@ -77,8 +86,28 @@ export interface ScheduleEntry {
   dayNote?: string;
 }
 
+export interface ScheduleRecurrenceRule {
+  id: string;
+  userId: string;
+  scheduleId: string;
+  planId?: string;
+  subjectId: string;
+  startDate: string;
+  endDate: string;
+  weekdays: number[];
+  optional: boolean;
+  startTime?: string;
+  plannedMinutes?: number;
+  itemNote?: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ScheduleDayPlan {
   id: string;
+  scheduleId?: string;
+  planId?: string;
   date: string; // YYYY-MM-DD
   planId?: string;
   dayNote?: string;
@@ -104,6 +133,8 @@ export interface StudySessionPause {
 
 export interface StudySession {
   id: string;
+  scheduleId?: string;
+  planId?: string;
   subjectId: string;
   planId?: string;
   date: string;
@@ -131,6 +162,8 @@ export interface StudySession {
 
 export interface Note {
   id: string;
+  scheduleId?: string;
+  planId?: string;
   type: 'day' | 'week' | 'session';
   referenceDate: string;
   content: string;
@@ -156,6 +189,8 @@ export type ScheduleView = 'weekly' | 'monthly' | 'yearly' | 'templates';
 // Template types
 export interface WeeklyTemplate {
   id: string;
+  scheduleId?: string;
+  planId?: string;
   name: string;
   description?: string;
   items: WeeklyTemplateItem[];
