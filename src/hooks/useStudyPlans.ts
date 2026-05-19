@@ -20,12 +20,14 @@ export interface StudyPlan {
   start_date?: string;
   target_date?: string;
   review_interval_days?: number;
+  plan_type?: 'concurso' | 'faculdade' | 'outro';
   created_at?: string;
   updated_at?: string;
 }
 
 export interface StudyPlanInput {
   name: string;
+  plan_type?: 'concurso' | 'faculdade' | 'outro';
   exam_name?: string;
   board_name?: string;
   role_name?: string;
@@ -49,8 +51,9 @@ function normalizePlan(plan: StudyPlan): StudyPlan {
 }
 
 function cleanPayload(input: Partial<StudyPlanInput>) {
+  const { plan_type, ...rest } = input;
   return Object.fromEntries(
-    Object.entries(input).filter(([, value]) => value !== undefined && value !== ''),
+    Object.entries(rest).filter(([, value]) => value !== undefined && value !== ''),
   );
 }
 

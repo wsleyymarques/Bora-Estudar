@@ -73,9 +73,17 @@ export function WeeklyMobileAgenda({
         const startA = a.normalizedStartMinutes ?? 0;
         const startB = b.normalizedStartMinutes ?? 0;
         if (startA !== startB) return startA - startB;
+        const orderA = a.order ?? 0;
+        const orderB = b.order ?? 0;
+        if (orderA !== orderB) return orderA - orderB;
         return a.title.localeCompare(b.title, 'pt-BR');
       });
-      bucket.untimed.sort((a, b) => a.title.localeCompare(b.title, 'pt-BR'));
+      bucket.untimed.sort((a, b) => {
+        const orderA = a.order ?? Number.MAX_SAFE_INTEGER;
+        const orderB = b.order ?? Number.MAX_SAFE_INTEGER;
+        if (orderA !== orderB) return orderA - orderB;
+        return a.title.localeCompare(b.title, 'pt-BR');
+      });
     }
 
     return result;
