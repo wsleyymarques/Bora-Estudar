@@ -114,9 +114,8 @@ export default function StatsPage() {
     <div className="space-y-6 w-full max-w-none">
       <h1 className="text-2xl font-display font-bold text-foreground">Estatisticas</h1>
 
-      <DashboardInsightsCard />
-
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      {/* Top stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="glass-card p-4 text-center">
           <p className="text-2xl font-display font-bold text-foreground">{formatMinutesCompact(totalMinutes)}</p>
           <p className="text-xs text-muted-foreground">Total acumulado</p>
@@ -139,7 +138,8 @@ export default function StatsPage() {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid gap-4 md:grid-cols-2 md:gap-6">
+        {/* Hours per subject */}
         <div className="glass-card p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -203,8 +203,8 @@ export default function StatsPage() {
         </div>
 
         <div className="glass-card p-5">
-          <h3 className="font-display font-semibold text-sm mb-4">Distribuicao por materia</h3>
-          <div className="flex items-center gap-4">
+          <h3 className="font-display font-semibold text-sm mb-4">Distribuição</h3>
+          <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
             <ResponsiveContainer width={160} height={160}>
               <PieChart>
                 <Pie data={subjectHours} dataKey="minutes" cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={2}>
