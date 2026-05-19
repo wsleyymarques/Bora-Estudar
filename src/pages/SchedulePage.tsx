@@ -44,7 +44,7 @@ export default function SchedulePage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const {
     data,
-    activeSchedule,
+    
     createSubject,
     getSubject,
     getScheduleForDate,
@@ -343,8 +343,8 @@ export default function SchedulePage() {
               value={addSubjectId}
               onChange={setAddSubjectId}
               subjects={data.subjects}
-              areas={data.subjectAreas}
-              categories={data.subjectCategories}
+              
+              
               onCreateSubject={openQuickSubjectDialog}
               placeholder="Selecione a matéria"
             />
@@ -418,8 +418,8 @@ export default function SchedulePage() {
               value={changeSubjectId}
               onChange={setChangeSubjectId}
               subjects={data.subjects}
-              areas={data.subjectAreas}
-              categories={data.subjectCategories}
+              
+              
               onCreateSubject={openQuickSubjectDialog}
               placeholder="Nova matéria"
             />
@@ -457,8 +457,8 @@ export default function SchedulePage() {
           </DialogHeader>
           <SubjectForm
             value={quickSubjectForm}
-            areas={data.subjectAreas}
-            categories={data.subjectCategories}
+            
+            
             onChange={setQuickSubjectForm}
             onSubmit={handleQuickSubjectSave}
             onCancel={() => setQuickSubjectDialog(false)}

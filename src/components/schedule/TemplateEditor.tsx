@@ -541,8 +541,8 @@ export default function TemplateEditor({
           </DialogHeader>
           <SubjectForm
             value={quickSubjectForm}
-            areas={data.subjectAreas}
-            categories={data.subjectCategories}
+            
+            
             onChange={setQuickSubjectForm}
             onSubmit={handleQuickSubjectSave}
             onCancel={() => setQuickSubjectDialog(false)}

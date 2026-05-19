@@ -38,8 +38,8 @@ function mapTemplate(row: any, items: any[], notes: any[]): WeeklyTemplate {
     planId: row.plan_id || undefined,
     name: row.name,
     description: row.description || undefined,
-    type: row.type || 'weekly',
-    status: row.status || 'active',
+    
+    
     items: items
       .filter((item) => item.template_id === row.id)
       .map((item) => ({
@@ -67,7 +67,7 @@ function mapTemplate(row: any, items: any[], notes: any[]): WeeklyTemplate {
 
 export function useTemplates(options: UseTemplatesOptions = {}) {
   const { user } = useAuth();
-  const { activeScheduleId } = useStudy();
+  
   const [templates, setTemplates] = useState<WeeklyTemplate[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -223,7 +223,7 @@ export function useTemplates(options: UseTemplatesOptions = {}) {
     const newTemplateId = await createTemplate({
       name: duplicateName || `${template.name} (copia)`,
       description: template.description,
-      type: template.type,
+      type: undefined,
       status: 'draft',
       scheduleId: template.scheduleId || scopedScheduleId || undefined,
       planId: template.planId || scopedPlanId || undefined,
