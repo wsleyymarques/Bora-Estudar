@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { ThemeProvider as NextThemeProvider } from "next-themes";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -18,6 +18,9 @@ import TimerPage from "@/pages/TimerPage";
 import HistoryPage from "@/pages/HistoryPage";
 import StatsPage from "@/pages/StatsPage";
 import SettingsPage from "@/pages/SettingsPage";
+import PlansPage from "@/pages/PlansPage";
+import PlanDetailsPage from "@/pages/PlanDetailsPage";
+import PlanWizardPage from "@/pages/PlanWizardPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +42,9 @@ function AppRoutes() {
         <AppLayout>
           <Routes>
             <Route path="/" element={<DashboardPage />} />
+            <Route path="/plans" element={<PlansPage />} />
+            <Route path="/plans/new" element={<PlanWizardPage />} />
+            <Route path="/plans/:planId" element={<PlanDetailsPage />} />
             <Route path="/subjects" element={<SubjectsPage />} />
             <Route path="/schedule" element={<SchedulePage />} />
             <Route path="/schedules" element={<SchedulesPage />} />

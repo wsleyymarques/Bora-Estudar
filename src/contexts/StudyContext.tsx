@@ -8,17 +8,43 @@ import {
   Subject,
   SubjectArea,
   SubjectCategory,
-  SubjectSubcategory,
-  UserData,
+    ScheduleStatus,
+    SubjectStatus,
 } from '@/types/study';
 import { useAuth } from './AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { getSessionActualMinutes } from '@/features/tracker/session-metrics';
+import { getSessionActualMinutes, getSessionPauseSeconds } from '@/features/tracker/session-metrics';
+import { parseDateKey } from '@/lib/date-utils';
+import { generateWeeklyOccurrences } from '@/features/schedule/recurrence';
 
 type SessionInput = Omit<StudySession, 'id'> & {
   pauses?: Array<{ pauseStartedAt: string; pauseEndedAt?: string; durationSeconds?: number }>;
 };
+
+export interface ScheduleCreateInput {
+  name: string;
+  description?: string;
+  color?: string;
+  status?: ScheduleStatus;
+  startDate?: string;
+  endDate?: string;
+  isActive?: boolean;
+  viewSettings?: Record<string, unknown>;
+}
+
+export interface RecurringScheduleEntryInput {
+  subjectId: string;
+  startDate: string;
+  endDate: string;
+  weekdays: number[];
+  optional?: boolean;
+  startTime?: string;
+  plannedMinutes?: number;
+  itemNote?: string;
+  scheduleId?: string;
+  planId?: string;
+}
 
 export interface SubjectCreateInput {
   name: string;
@@ -58,6 +84,7 @@ interface StudyContextType {
   deleteSubject: (id: string) => Promise<void>;
   findSubjects: (filters?: FindSubjectsFilters) => Subject[];
   addScheduleEntry: (e: Omit<ScheduleEntry, 'id'>) => Promise<void>;
+  addRecurringScheduleEntries: (e: RecurringScheduleEntryInput) => Promise<string | null>;
   updateScheduleEntry: (id: string, e: Partial<ScheduleEntry>) => Promise<void>;
   deleteScheduleEntry: (id: string) => Promise<void>;
   toggleScheduleComplete: (id: string) => Promise<void>;
@@ -95,7 +122,18 @@ const db = supabase as any;
 
 const hasMissingColumnError = (error: any) => String(error?.message || '').toLowerCase().includes('column');
 
-function mapStudyPlan(row: any): StudyPlan {
+function notifySubjectsUpdated() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(STUDY_SUBJECTS_UPDATED_EVENT));
+}
+
+function includesScheduleColumnError(message?: string): boolean {
+  if (!message) return false;
+  const normalized = message.toLowerCase();
+  return normalized.includes('schedule_id') && normalized.includes('does not exist');
+}
+
+function mapSchedule(row: any): StudySchedule {
   return {
     id: row.id,
     userId: row.user_id || undefined,
@@ -150,6 +188,9 @@ function mapSubject(row: any): Subject {
 function mapScheduleEntry(row: any): ScheduleEntry {
   return {
     id: row.id,
+    scheduleId: row.schedule_id || undefined,
+    planId: row.plan_id || undefined,
+    recurrenceRuleId: row.recurrence_rule_id || undefined,
     date: row.date,
     subjectId: row.subject_id,
     planId: row.plan_id || undefined,
@@ -168,6 +209,8 @@ function mapScheduleEntry(row: any): ScheduleEntry {
 function mapScheduleDayPlan(row: any): ScheduleDayPlan {
   return {
     id: row.id,
+    scheduleId: row.schedule_id || undefined,
+    planId: row.plan_id || undefined,
     date: row.date,
     planId: row.plan_id || undefined,
     dayNote: row.day_note || undefined,
@@ -180,6 +223,8 @@ function mapScheduleDayPlan(row: any): ScheduleDayPlan {
 function mapSession(row: any): StudySession {
   return {
     id: row.id,
+    scheduleId: row.schedule_id || undefined,
+    planId: row.plan_id || undefined,
     subjectId: row.subject_id,
     planId: row.plan_id || undefined,
     date: row.date,
@@ -193,6 +238,8 @@ function mapSession(row: any): StudySession {
 function mapNote(row: any): Note {
   return {
     id: row.id,
+    scheduleId: row.schedule_id || undefined,
+    planId: row.plan_id || undefined,
     type: row.type,
     referenceDate: row.reference_date,
     content: row.content,
@@ -337,6 +384,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     }
 
     await fetchAll();
+    notifySubjectsUpdated();
   };
 
   const addSubject = async (s: Omit<Subject, 'id' | 'order'>) => {
@@ -395,6 +443,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     }
 
     await fetchAll();
+    notifySubjectsUpdated();
   };
 
   const deleteSubject = async (id: string) => {
@@ -405,6 +454,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       return;
     }
     await fetchAll();
+    notifySubjectsUpdated();
   };
 
   const addScheduleEntry = async (e: Omit<ScheduleEntry, 'id'>) => {
@@ -412,6 +462,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
     const payload: any = {
       user_id: user.id,
+      schedule_id: scheduleId,
       plan_id: e.planId || null,
       subject_id: e.subjectId,
       date: e.date,
@@ -422,6 +473,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       planned_minutes: e.plannedMinutes ?? null,
       item_note: e.itemNote || null,
       template_id: e.templateId || null,
+      recurrence_rule_id: e.recurrenceRuleId || null,
       is_override: e.isOverride || false,
       day_note: e.dayNote || null,
     };
@@ -439,6 +491,104 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     }
 
     await fetchAll();
+  };
+
+  const addRecurringScheduleEntries = async (input: RecurringScheduleEntryInput) => {
+    if (!user) return null;
+
+    const scheduleId = input.scheduleId || activeScheduleId;
+    if (!scheduleId) {
+      toast.error('Selecione um cronograma ativo');
+      return null;
+    }
+
+    const validWeekdays = Array.from(new Set((input.weekdays || []).map(Number).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6))).sort((a, b) => a - b);
+    if (validWeekdays.length === 0) {
+      toast.error('Selecione ao menos um dia da semana');
+      return null;
+    }
+
+    const startDate = parseDateKey(input.startDate);
+    const endDate = parseDateKey(input.endDate);
+    const dates = generateWeeklyOccurrences({
+      startDate,
+      endDate,
+      weekdays: validWeekdays,
+    });
+
+    if (dates.length === 0) {
+      toast.error('Nenhuma data encontrada para a recorrencia');
+      return null;
+    }
+
+    const { data: rule, error: ruleError } = await db
+      .from('schedule_recurrence_rules')
+      .insert({
+        user_id: user.id,
+        schedule_id: scheduleId,
+        plan_id: input.planId || null,
+        subject_id: input.subjectId,
+        start_date: input.startDate,
+        end_date: input.endDate,
+        weekdays: validWeekdays,
+        optional: input.optional ?? false,
+        start_time: input.startTime || null,
+        planned_minutes: input.plannedMinutes ?? null,
+        item_note: input.itemNote || null,
+        active: true,
+      })
+      .select('id')
+      .single();
+
+    if (ruleError || !rule) {
+      toast.error('Erro ao criar recorrencia');
+      console.error(ruleError);
+      return null;
+    }
+
+    const existingCounts = new Map<string, number>();
+    for (const entry of data.schedule) {
+      const current = existingCounts.get(entry.date) ?? 0;
+      existingCounts.set(entry.date, current + 1);
+    }
+
+    const generatedCounts = new Map<string, number>();
+    const rows = dates.map((date) => {
+      const currentCount = existingCounts.get(date) ?? 0;
+      const generatedCount = generatedCounts.get(date) ?? 0;
+      generatedCounts.set(date, generatedCount + 1);
+
+      return {
+        user_id: user.id,
+        schedule_id: scheduleId,
+        plan_id: input.planId || null,
+        subject_id: input.subjectId,
+        date,
+        optional: input.optional ?? false,
+        completed: false,
+        sort_order: currentCount + generatedCount,
+        start_time: input.startTime || null,
+        planned_minutes: input.plannedMinutes ?? null,
+        item_note: input.itemNote || null,
+        template_id: null,
+        recurrence_rule_id: rule.id,
+        is_override: false,
+        day_note: null,
+      };
+    });
+
+    for (let i = 0; i < rows.length; i += 100) {
+      const batch = rows.slice(i, i + 100);
+      const { error } = await db.from('schedule_entries').insert(batch);
+      if (error) {
+        toast.error('Erro ao gerar recorrencia no cronograma');
+        console.error(error);
+        return null;
+      }
+    }
+
+    await fetchAll();
+    return rule.id as string;
   };
 
   const updateScheduleEntry = async (id: string, e: Partial<ScheduleEntry>) => {
@@ -496,6 +646,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       user_id: user.id,
       plan_id: plan.planId || null,
       date,
+      plan_id: plan.planId || null,
     };
 
     if (plan.dayNote !== undefined) payload.day_note = plan.dayNote || null;
@@ -537,10 +688,42 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       note: s.note || null,
     };
 
-    let response = await db.from('study_sessions').insert(payload).select('id').single();
-    if (response.error && hasMissingColumnError(response.error)) {
-      delete payload.plan_id;
-      response = await db.from('study_sessions').insert(payload).select('id').single();
+    const { data: inserted, error } = await db
+      .from('study_sessions')
+      .insert({
+        user_id: user.id,
+        schedule_id: scheduleId || null,
+        plan_id: s.planId || null,
+        subject_id: s.subjectId,
+        date: s.date,
+        start_time: s.startTime,
+        end_time: s.endTime || null,
+        duration_minutes: durationMinutes,
+        note: s.note || null,
+        session_mode: s.sessionMode || 'manual',
+        status: s.status || 'completed',
+        source: s.source || 'tracker',
+        pomodoro_phase: s.pomodoroPhase || null,
+        pomodoro_cycle: s.pomodoroCycle ?? null,
+        is_focus_session: s.isFocusSession ?? true,
+        started_at: s.startedAt || null,
+        ended_at: s.endedAt || null,
+        actual_duration_seconds: actualDurationSeconds,
+        total_pause_seconds: totalPauseSeconds,
+        clock_duration_seconds: clockDurationSeconds,
+        planned_start_time: s.plannedStartTime || null,
+        planned_minutes: s.plannedMinutes ?? null,
+        schedule_date: s.scheduleDate || null,
+        schedule_entry_id: s.scheduleEntryId || null,
+        metadata: s.metadata || {},
+      })
+      .select('id')
+      .single();
+
+    if (error || !inserted) {
+      toast.error('Erro ao registrar sessao');
+      console.error(error);
+      return;
     }
 
     if (response.error) {
@@ -582,6 +765,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
     const { error } = await db.from('notes').insert({
       user_id: user.id,
+      schedule_id: scheduleId || null,
+      plan_id: n.planId || null,
       type: n.type,
       reference_date: n.referenceDate,
       content: n.content,
@@ -657,6 +842,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         deleteSubject,
         findSubjects,
         addScheduleEntry,
+        addRecurringScheduleEntries,
         updateScheduleEntry,
         deleteScheduleEntry,
         toggleScheduleComplete,

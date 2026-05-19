@@ -5,66 +5,66 @@
 
 @layer base {
   :root {
-    --background: 40 20% 98%;
-    --foreground: 220 15% 15%;
+    --background: 204 33% 97%;
+    --foreground: 220 15% 10%;
 
-    --card: 40 15% 97%;
-    --card-foreground: 220 15% 15%;
+    --card: 216 28% 93%;
+    --card-foreground: 220 15% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 15% 15%;
+    --popover-foreground: 220 15% 10%;
 
-    --primary: 158 28% 42%;
+    --primary: 220 15% 10%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 40 12% 93%;
-    --secondary-foreground: 220 15% 20%;
+    --secondary: 216 28% 93%;
+    --secondary-foreground: 220 15% 10%;
 
-    --muted: 40 10% 94%;
-    --muted-foreground: 220 8% 50%;
+    --muted: 210 20% 90%;
+    --muted-foreground: 220 8% 45%;
 
-    --accent: 35 85% 55%;
+    --accent: 220 15% 10%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 65% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 40 10% 90%;
-    --input: 40 10% 90%;
-    --ring: 158 28% 42%;
+    --border: 210 20% 88%;
+    --input: 210 20% 88%;
+    --ring: 220 15% 10%;
 
-    --radius: 0.75rem;
+    --radius: 1rem;
 
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 220 10% 35%;
-    --sidebar-primary: 158 28% 42%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 158 20% 95%;
-    --sidebar-accent-foreground: 158 28% 35%;
-    --sidebar-border: 40 10% 92%;
-    --sidebar-ring: 158 28% 42%;
+    --sidebar-background: 220 15% 7%;
+    --sidebar-foreground: 210 10% 80%;
+    --sidebar-primary: 0 0% 100%;
+    --sidebar-primary-foreground: 220 15% 7%;
+    --sidebar-accent: 220 12% 16%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 220 15% 7%;
+    --sidebar-ring: 0 0% 100%;
 
     /* Custom tokens */
-    --success: 145 55% 45%;
-    --success-foreground: 0 0% 100%;
+    --success: 140 70% 45%;
+    --success-foreground: 140 80% 20%;
     --warning: 35 85% 55%;
-    --warning-foreground: 0 0% 100%;
+    --warning-foreground: 35 90% 20%;
     --info: 205 60% 52%;
     --info-foreground: 0 0% 100%;
 
-    --chart-1: 158 28% 42%;
+    --chart-1: 220 15% 10%;
     --chart-2: 205 60% 52%;
-    --chart-3: 35 85% 55%;
+    --chart-3: 140 70% 45%;
     --chart-4: 280 40% 55%;
     --chart-5: 0 65% 55%;
     --chart-6: 175 45% 48%;
 
-    --workspace-bg-a: 42 26% 96%;
-    --workspace-bg-b: 40 18% 92%;
-    --workspace-panel: 0 0% 100%;
-    --workspace-panel-foreground: 220 15% 15%;
-    --workspace-sidebar: 226 22% 10%;
-    --workspace-sidebar-foreground: 210 18% 88%;
+    --workspace-bg-a: 204 33% 97%;
+    --workspace-bg-b: 204 33% 97%;
+    --workspace-panel: 216 28% 93%;
+    --workspace-panel-foreground: 220 15% 10%;
+    --workspace-sidebar: 220 15% 7%;
+    --workspace-sidebar-foreground: 210 10% 80%;
   }
 
   .dark {
@@ -285,22 +285,23 @@
   }
 
   body {
-    @apply text-foreground font-sans antialiased;
-    background:
-      radial-gradient(circle at 10% 10%, hsl(var(--workspace-bg-a)) 0%, transparent 38%),
-      radial-gradient(circle at 90% 15%, hsl(var(--workspace-bg-b)) 0%, transparent 40%),
-      linear-gradient(140deg, hsl(var(--background)) 0%, hsl(var(--muted)) 100%);
+    @apply text-foreground font-sans antialiased bg-background;
     font-family: 'DM Sans', sans-serif;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: 'Space Grotesk', sans-serif;
   }
 }
 
 @layer utilities {
   .glass-card {
-    @apply bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl shadow-sm;
+    @apply bg-card rounded-3xl shadow-sm transition-all;
   }
 
   .workspace-shell {
@@ -308,23 +309,17 @@
   }
 
   .workspace-canvas {
-    background:
-      radial-gradient(circle at 10% 10%, hsl(var(--workspace-bg-a)) 0%, transparent 38%),
-      radial-gradient(circle at 90% 15%, hsl(var(--workspace-bg-b)) 0%, transparent 40%),
-      linear-gradient(140deg, hsl(var(--background)) 0%, hsl(var(--muted)) 100%);
+    @apply bg-background;
   }
 
   .workspace-frame {
-    @apply min-h-[calc(100vh-1rem)] md:min-h-[calc(100vh-1.5rem)] rounded-[1.25rem] md:rounded-[1.75rem] border border-border/60 overflow-hidden;
-    background: linear-gradient(170deg, hsl(var(--workspace-bg-a) / 0.35), hsl(var(--workspace-bg-b) / 0.4));
-    box-shadow: 0 24px 70px -38px rgba(0, 0, 0, 0.55);
+    @apply min-h-[calc(100vh-1rem)] md:min-h-[calc(100vh-1.5rem)] rounded-[1.25rem] md:rounded-[1.75rem] border border-border/60 overflow-hidden bg-background;
   }
 
   .workspace-panel {
-    @apply border border-border/60 rounded-2xl;
-    background: hsl(var(--workspace-panel) / 0.86);
+    @apply rounded-3xl;
+    background: hsl(var(--workspace-panel));
     color: hsl(var(--workspace-panel-foreground));
-    backdrop-filter: blur(8px);
   }
 
   .workspace-sidebar {
@@ -343,8 +338,46 @@
   .calendar-chip-active {
     @apply bg-foreground text-background shadow-sm;
   }
-  
+
   .study-gradient {
     background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--info)) 100%);
+  }
+
+  .plan-dashboard-stats,
+  main .space-y-6>.grid.gap-3.md\:grid-cols-4 {
+    display: none !important;
+  }
+
+  @media (min-width: 1024px) {
+    main .space-y-6:has(> .grid.gap-4.xl\:grid-cols-\[420px_1fr\]) {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+      gap: 1rem;
+      align-items: start;
+    }
+
+    main .space-y-6:has(> .grid.gap-4.xl\:grid-cols-\[420px_1fr\])>.workspace-panel:first-child {
+      grid-column: 1;
+      grid-row: 1;
+      min-height: 0;
+      padding: 1.25rem !important;
+    }
+
+    main .space-y-6:has(> .grid.gap-4.xl\:grid-cols-\[420px_1fr\])>.grid.gap-4.xl\:grid-cols-\[420px_1fr\] {
+      display: contents;
+    }
+
+    main .space-y-6:has(> .grid.gap-4.xl\:grid-cols-\[420px_1fr\])>.grid.gap-4.xl\:grid-cols-\[420px_1fr\]>.workspace-panel:first-child {
+      grid-column: 2;
+      grid-row: 1;
+      max-height: 260px;
+      overflow: auto;
+    }
+
+    main .space-y-6:has(> .grid.gap-4.xl\:grid-cols-\[420px_1fr\])>.grid.gap-4.xl\:grid-cols-\[420px_1fr\]>.workspace-panel:nth-child(2) {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      min-height: 520px;
+    }
   }
 }
