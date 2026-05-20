@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { SubjectCreateInput, useStudy } from '@/contexts/StudyContext';
 import { ScheduleView, ScheduleEntry, DAY_NAMES_SHORT } from '@/types/study';
 import { ChevronLeft, ChevronRight, ArrowRightLeft, MoveRight, LayoutTemplate } from 'lucide-react';
@@ -136,7 +136,7 @@ export default function SchedulePage() {
 
     if (scope === 'single') {
       if (type === 'move') {
-        await updateScheduleEntry(entry.id, { date: payload.date, isOverride: true });
+        await updateScheduleEntry(entry.id, { date: payload.date, startTime: payload.startTime, isOverride: true });
         toast.success('Materia movida');
       } else if (type === 'change') {
         await updateScheduleEntry(entry.id, { subjectId: payload.subjectId, isOverride: true });
@@ -162,7 +162,7 @@ export default function SchedulePage() {
         }
       }
       if (type === 'move') {
-        await updateScheduleEntry(entry.id, { date: payload.date, isOverride: true });
+        await updateScheduleEntry(entry.id, { date: payload.date, startTime: payload.startTime, isOverride: true });
       }
       toast.success('Alteracao propagada');
     } else if (scope === 'template') {
@@ -273,6 +273,40 @@ export default function SchedulePage() {
     toast.success('Materia criada');
   };
 
+  const handleMoveEntry = async (entryId: string, newDate: string, newStartTime?: string) => {
+    const entry = data.schedule.find(e => e.id === entryId);
+    if (!entry) return;
+
+    if (entry.templateId && !entry.isOverride) {
+      setPendingAction({
+        type: 'move',
+        entry,
+        payload: { date: newDate, startTime: newStartTime }
+      });
+      setPropagationDialog(true);
+    } else {
+      await updateScheduleEntry(entryId, { date: newDate, startTime: newStartTime });
+      toast.success('Materia movida!');
+    }
+  };
+
+  const handleUntimedDrop = async (entryId: string, dayKey: string, beforeEventId?: string | null) => {
+    const entry = data.schedule.find(e => e.id === entryId);
+    if (!entry) return;
+
+    if (entry.templateId && !entry.isOverride) {
+      setPendingAction({
+        type: 'move',
+        entry,
+        payload: { date: dayKey, startTime: undefined }
+      });
+      setPropagationDialog(true);
+    } else {
+      await updateScheduleEntry(entryId, { date: dayKey, startTime: undefined });
+      toast.success('Materia movida para sem horario!');
+    }
+  };
+
   const applyTemplateName = templates.find(t => t.id === applyTemplateId)?.name || '';
 
   return (
@@ -299,16 +333,26 @@ export default function SchedulePage() {
       </div>
 
       {view !== 'templates' && (
-        <div className="workspace-panel p-2 md:p-2.5 flex items-center justify-between gap-2">
-          <button onClick={() => navigate(-1)} className="h-10 w-10 flex items-center justify-center rounded-full border border-border/60 hover:bg-muted transition-colors"><ChevronLeft className="w-5 h-5" /></button>
-          <span className="text-sm md:text-base font-semibold text-foreground min-w-[150px] text-center capitalize">
+        <div className="mx-auto w-full max-w-xl workspace-panel p-4 flex items-center justify-between gap-4 shadow-md bg-card/60 backdrop-blur-md border border-border/80 rounded-3xl">
+          <button 
+            onClick={() => navigate(-1)} 
+            className="h-12 w-12 flex items-center justify-center rounded-2xl border border-border/60 bg-background/50 hover:bg-accent hover:text-accent-foreground hover:scale-105 active:scale-95 transition-all shadow-sm"
+            title="Anterior"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+          <span className="text-lg md:text-xl font-display font-extrabold text-foreground text-center capitalize tracking-tight flex-1 px-4">
             {view === 'weekly' && formatWeekRangeLabel(currentDate)}
             {view === 'monthly' && currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
             {view === 'yearly' && currentDate.getFullYear().toString()}
           </span>
-          <div className="flex items-center gap-2">
-            <button onClick={() => navigate(1)} className="h-10 w-10 flex items-center justify-center rounded-full border border-border/60 hover:bg-muted transition-colors"><ChevronRight className="w-5 h-5" /></button>
-          </div>
+          <button 
+            onClick={() => navigate(1)} 
+            className="h-12 w-12 flex items-center justify-center rounded-2xl border border-border/60 bg-background/50 hover:bg-accent hover:text-accent-foreground hover:scale-105 active:scale-95 transition-all shadow-sm"
+            title="Proximo"
+          >
+            <ChevronRight className="w-6 h-6" />
+          </button>
         </div>
       )}
 
@@ -322,6 +366,8 @@ export default function SchedulePage() {
             onChange={openChangeFor}
             onRemove={handleRemoveEntry}
             onOpenDay={openDayDetail}
+            onMoveEntry={handleMoveEntry}
+            onUntimedDrop={handleUntimedDrop}
           />
         </div>
       )}

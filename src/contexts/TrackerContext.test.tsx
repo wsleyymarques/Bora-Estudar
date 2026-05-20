@@ -4,10 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TrackerProvider, useTracker } from '@/contexts/TrackerContext';
 
 const addSession = vi.fn().mockResolvedValue(undefined);
+const getSubject = vi.fn().mockReturnValue({ name: 'Matéria Teste' });
 
 vi.mock('@/contexts/StudyContext', () => ({
   useStudy: () => ({
     addSession,
+    getSubject,
   }),
 }));
 

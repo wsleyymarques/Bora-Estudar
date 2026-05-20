@@ -86,7 +86,7 @@ export default function PlanDetailsPage() {
       completed: entry.completed || false,
       optional: entry.optional || false,
       itemNote: entry.item_note || undefined,
-      sortOrder: entry.sort_order || 0,
+      order: entry.sort_order || 0,
     }));
   }, [entries]);
   const planTemplates = useMemo(() => templates.filter((template) => !template.planId || template.planId === planId || template.scheduleId === plan?.schedule_id), [templates, planId, plan?.schedule_id]);
@@ -95,7 +95,7 @@ export default function PlanDetailsPage() {
   const loadFlow = async () => {
     if (!planId) return;
     setLoadingFlow(true);
-    const { data, error } = await supabase.from('schedule_entries').select('*').eq('plan_id', planId).order('date', { ascending: true }).order('sort_order', { ascending: true });
+    const { data, error } = await (supabase.from('schedule_entries') as any).select('*').eq('plan_id', planId).order('date', { ascending: true }).order('sort_order', { ascending: true });
     if (error) { console.error(error); toast.error('Erro ao carregar cronograma do plano.'); } else { setEntries((data || []) as ScheduleEntryRow[]); }
     setLoadingFlow(false);
   };
@@ -609,9 +609,12 @@ export default function PlanDetailsPage() {
 
   if (!plan) return <div className="space-y-4"><p className="text-muted-foreground">Plano de Estudos não encontrado ou ainda carregando.</p><Button asChild variant="outline"><Link to="/plans">Voltar para planos</Link></Button></div>;
 
-  return <div className="flex flex-col h-[calc(100vh-6rem)] w-full max-w-full mx-auto gap-3">
+  return <div className="flex flex-col h-auto w-full max-w-full mx-auto gap-4 pb-12">
     {/* HEADER ROW */}
-    <div className="flex flex-col lg:flex-row gap-4 shrink-0 h-auto relative group/header">
+    <div className={cn(
+      "flex flex-col lg:flex-row gap-4 shrink-0 transition-all duration-500 ease-in-out relative group/header overflow-hidden",
+      isHeaderMinimized ? "max-h-[90px] md:max-h-[100px] lg:max-h-[120px] opacity-95 shadow-sm" : "max-h-[600px] h-auto"
+    )}>
       <Button 
         variant="ghost" 
         size="icon" 
@@ -752,7 +755,7 @@ export default function PlanDetailsPage() {
     </div>
 
     {/* CRONOGRAMA ROW */}
-    <div className="glass-card flex-1 flex flex-col p-5 overflow-hidden min-h-[450px]">
+    <div className="glass-card flex flex-col p-5">
       {/* 2. Seletor de Período (Semanal, Mensal, Anual) e 1. Navegador de Data Centralizado e Maior */}
       <div className="flex flex-col gap-4 mb-6 shrink-0 border-b border-black/5 pb-5">
         {/* Top Header Row: Title & Matérias Button */}
@@ -847,7 +850,9 @@ export default function PlanDetailsPage() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 relative -mx-2 px-2 overflow-y-auto overflow-x-hidden custom-scrollbar pb-4">
+      <div 
+        className="relative -mx-2 px-2 overflow-x-auto custom-scrollbar pb-4"
+      >
         {loadingFlow ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Carregando cronograma...</p> : (
            viewMode === 'weekly' ? (
              <WeeklyPlannerView
@@ -1072,7 +1077,7 @@ export default function PlanDetailsPage() {
           void supabase.from('notes').insert({
             user_id: user?.id,
             type: 'day',
-            referenceDate: date,
+            reference_date: date,
             content: content.trim()
           }).then(() => loadFlow());
         }

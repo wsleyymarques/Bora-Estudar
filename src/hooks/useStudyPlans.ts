@@ -67,7 +67,7 @@ export function useStudyPlans() {
     async (planName: string, startDate?: string) => {
       if (!user) return null;
 
-      const { data, error: scheduleError } = await supabase
+      const { data, error: scheduleError } = await (supabase as any)
         .from('study_schedules')
         .insert({
           user_id: user.id,
@@ -101,7 +101,7 @@ export function useStudyPlans() {
     setLoading(true);
     setError(null);
 
-    const { data, error: fetchError } = await supabase
+    const { data, error: fetchError } = await (supabase as any)
       .from('study_plans')
       .select('*')
       .eq('user_id', user.id)
@@ -128,7 +128,7 @@ export function useStudyPlans() {
     async (id: string) => {
       if (!user) return null;
 
-      const { data, error: fetchError } = await supabase
+      const { data, error: fetchError } = await (supabase as any)
         .from('study_plans')
         .select('*')
         .eq('user_id', user.id)
@@ -153,7 +153,7 @@ export function useStudyPlans() {
       const scheduleId = await createLinkedSchedule(plan.name, plan.start_date);
       if (!scheduleId) return null;
 
-      const { data, error: updateError } = await supabase
+      const { data, error: updateError } = await (supabase as any)
         .from('study_plans')
         .update({ schedule_id: scheduleId, updated_at: new Date().toISOString() })
         .eq('id', plan.id)
@@ -188,7 +188,7 @@ export function useStudyPlans() {
       review_interval_days: input.review_interval_days ?? 7,
     });
 
-    const { data, error: insertError } = await supabase
+    const { data, error: insertError } = await (supabase as any)
       .from('study_plans')
       .insert({
         ...payload,
@@ -224,7 +224,7 @@ export function useStudyPlans() {
       image_url: input.cover_image_url,
     } as Partial<StudyPlanInput> & Record<string, unknown>);
 
-    const { data, error: updateError } = await supabase
+    const { data, error: updateError } = await (supabase as any)
       .from('study_plans')
       .update({
         ...payload,
@@ -249,7 +249,7 @@ export function useStudyPlans() {
     if (!user) return;
 
     setError(null);
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await (supabase as any)
       .from('study_plans')
       .delete()
       .eq('id', id)

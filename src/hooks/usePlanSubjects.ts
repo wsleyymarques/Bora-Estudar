@@ -80,7 +80,7 @@ export function usePlanSubjects(planId?: string) {
         .select('*')
         .eq('user_id', user.id)
         .order('name', { ascending: true }),
-      supabase
+      (supabase as any)
         .from('study_plan_subjects')
         .select('*')
         .eq('user_id', user.id)
@@ -136,7 +136,7 @@ export function usePlanSubjects(planId?: string) {
 
   const addExistingSubjectToPlan = useCallback(async (subjectId: string) => {
     if (!user || !planId) return false;
-    const { error } = await supabase.from('study_plan_subjects').insert({
+    const { error } = await (supabase as any).from('study_plan_subjects').insert({
       user_id: user.id,
       plan_id: planId,
       subject_id: subjectId,
@@ -200,7 +200,7 @@ export function usePlanSubjects(planId?: string) {
       return false;
     }
 
-    const { error: linkError } = await supabase.from('study_plan_subjects').insert({
+    const { error: linkError } = await (supabase as any).from('study_plan_subjects').insert({
       user_id: user.id,
       plan_id: planId,
       subject_id: subject.id,
@@ -235,7 +235,7 @@ export function usePlanSubjects(planId?: string) {
 
   const removeSubjectFromPlan = useCallback(async (subjectId: string) => {
     if (!user || !planId) return false;
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('study_plan_subjects')
       .delete()
       .eq('user_id', user.id)
