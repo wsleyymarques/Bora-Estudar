@@ -54,8 +54,6 @@ export function ScheduleEntryForm({
           value={value.subjectId}
           onChange={(subjectId) => update({ subjectId })}
           subjects={subjects}
-          areas={areas}
-          categories={categories}
           onCreateSubject={onCreateSubject}
           placeholder={subjectPlaceholder}
         />

@@ -69,4 +69,15 @@ const dayPlans = [
   { id: 'dp2', date: getDate(mondayOffset + 2), dayTargetMinutes: 270, dayNote: 'Foco em exatas', isOverride: false },
 ];
 
-export const mockUserData: UserData = { subjects, schedule, dayPlans, sessions, sessionPauses: [], notes };
+export const mockUserData: UserData = {
+  studyPlans: [],
+  subjectAreas: [],
+  subjectCategories: [],
+  subjectSubcategories: [],
+  subjects,
+  schedule,
+  dayPlans,
+  sessions,
+  sessionPauses: [],
+  notes,
+};

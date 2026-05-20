@@ -32,6 +32,8 @@ import {
 } from '@/features/tracker/storage';
 import { formatSecondsAsClock } from '@/features/tracker/session-metrics';
 import { toDateKey } from '@/lib/date-utils';
+import { sendNotification, requestNotificationPermission } from '@/lib/notifications';
+import { useNotifications } from '@/contexts/NotificationContext';
 
 export type TrackerMode = 'stopwatch' | 'pomodoro';
 export type TrackerBindingState = 'running' | 'paused' | null;
@@ -142,12 +144,20 @@ function summaryToSessionPayload(
     Math.max(0, Math.floor((new Date(summary.endedAt).getTime() - new Date(effectiveStartedAt).getTime()) / 1000)),
   );
 
+  const finalActualDurationSeconds = runtime.actualStartedAtOverride
+    ? Math.max(
+        0,
+        Math.floor((new Date(summary.endedAt).getTime() - new Date(runtime.actualStartedAtOverride).getTime()) / 1000) -
+          summary.totalPauseSeconds,
+      )
+    : summary.actualDurationSeconds;
+
   return {
     subjectId: runtime.subjectId,
     date,
     startTime: runtime.actualStartTimeOverride || clockFromIso(effectiveStartedAt),
     endTime: clockFromIso(summary.endedAt),
-    durationMinutes: Math.round(summary.actualDurationSeconds / 60),
+    durationMinutes: Math.round(finalActualDurationSeconds / 60),
     note: runtime.note,
     sessionMode: (runtime.kind === 'pomodoro' ? 'pomodoro' : 'stopwatch') as SessionMode,
     status,
@@ -157,7 +167,7 @@ function summaryToSessionPayload(
     isFocusSession: runtime.kind === 'pomodoro' ? phase === 'focus' : true,
     startedAt: effectiveStartedAt,
     endedAt: summary.endedAt,
-    actualDurationSeconds: summary.actualDurationSeconds,
+    actualDurationSeconds: finalActualDurationSeconds,
     totalPauseSeconds: summary.totalPauseSeconds,
     clockDurationSeconds: adjustedClockDuration,
     plannedStartTime: runtime.plannedStartTime,
@@ -174,7 +184,8 @@ function summaryToSessionPayload(
 }
 
 export function TrackerProvider({ children }: { children: ReactNode }) {
-  const { addSession } = useStudy();
+  const { addSession, getSubject } = useStudy();
+  const { addNotification } = useNotifications();
 
   const [runtime, setRuntime] = useState<TrackerRuntimeState | null>(() => loadTrackerRuntime());
   const [mode, setMode] = useState<TrackerMode>(() => (runtime?.kind === 'pomodoro' ? 'pomodoro' : 'stopwatch'));
@@ -219,6 +230,7 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
     return () => window.clearInterval(timer);
   }, [runtime]);
 
+
   const persistPomodoroPhase = useCallback(
     async (runtimeState: PomodoroRuntimeState, completed: CompletedPomodoroPhase, status: 'completed' | 'abandoned' = 'completed') => {
       await addSession(
@@ -246,29 +258,59 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
       const completed = completePomodoroPhase(runtime, nowMs);
       await persistPomodoroPhase(runtime, completed, 'completed');
       setRuntime(completed.next);
-      toast.success(
-        completed.phase === 'focus' ? 'Foco concluido. Hora da pausa.' : 'Pausa concluida. Hora de focar.',
-      );
+      const subject = getSubject(runtime.subjectId);
+      const subjectName = subject?.name || 'Matéria';
+      const msg = completed.phase === 'focus' 
+        ? `Foco em ${subjectName} concluído. Hora da pausa.` 
+        : `Pausa concluída. Hora de focar em ${subjectName}.`;
+      addNotification('BoraEstudar', msg, 'success');
     })().finally(() => {
       transitionRef.current = false;
       setIsTransitioning(false);
     });
-  }, [runtime, nowMs, persistPomodoroPhase]);
+  }, [runtime, nowMs, persistPomodoroPhase, getSubject, addNotification]);
 
   const finishCurrentRuntime = useCallback(
     async (current: TrackerRuntimeState, status: 'completed' | 'abandoned') => {
       if (current.kind === 'stopwatch') {
         const summary = finishStopwatch(current, Date.now());
-        if (status === 'completed' && summary.actualDurationSeconds < 10) return false;
+        if (status === 'completed' && summary.actualDurationSeconds < 1) return false;
         await addSession(summaryToSessionPayload(current, summary, { status, source: 'tracker' }));
+        if (status === 'completed') {
+          const subject = getSubject(current.subjectId);
+          const subjectName = subject?.name || 'Matéria';
+          const finalActualDurationSeconds = current.actualStartedAtOverride
+            ? Math.max(
+                0,
+                Math.floor((Date.now() - new Date(current.actualStartedAtOverride).getTime()) / 1000) -
+                  summary.totalPauseSeconds,
+              )
+            : summary.actualDurationSeconds;
+          const minutes = Math.round(finalActualDurationSeconds / 60);
+          addNotification(
+            'Sessão Concluída',
+            `Você estudou ${subjectName} por ${minutes} minutos. Bom trabalho!`,
+            'success'
+          );
+        }
         return true;
       }
 
       const completed = completePomodoroPhase(current, Date.now());
       await persistPomodoroPhase(current, completed, status);
+      if (status === 'completed') {
+        const subject = getSubject(current.subjectId);
+        const subjectName = subject?.name || 'Matéria';
+        const minutes = Math.round(completed.summary.actualDurationSeconds / 60);
+        addNotification(
+          'Pomodoro Concluído',
+          `Sessão de foco em ${subjectName} encerrada. Você focou por ${minutes} minutos.`,
+          'success'
+        );
+      }
       return true;
     },
-    [addSession, persistPomodoroPhase],
+    [addSession, persistPomodoroPhase, getSubject, addNotification],
   );
 
   const startWithBinding = useCallback(
@@ -276,6 +318,9 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
       const targetMode = options?.mode || mode;
       const forceSwitch = Boolean(options?.forceSwitch);
       const now = Date.now();
+
+      // Pedir permissão de notificações em gesto do usuário
+      requestNotificationPermission().catch(console.error);
 
       if (runtime) {
         const same = isSameBinding(runtime, binding);
@@ -440,6 +485,18 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
     if (!runtime || runtime.kind !== 'stopwatch') return undefined;
     return runtime.actualStartTimeOverride || clockFromIso(runtime.startedAt);
   }, [runtime]);
+
+  useEffect(() => {
+    if (runtime) {
+      const subj = getSubject ? getSubject(runtime.subjectId) : undefined;
+      const subjectName = subj?.name || 'Matéria';
+      const label = runtime.kind === 'pomodoro' && runtime.phase !== 'focus' ? 'Pausa' : subjectName;
+      const statusText = isRuntimeRunning(runtime) ? '(Timer)' : '(Pausado)';
+      document.title = `${statusText} ${displayTimeLabel} | ${label}`;
+    } else {
+      document.title = 'BoraEstudar';
+    }
+  }, [runtime, displayTimeLabel, getSubject]);
 
   const value = useMemo<TrackerContextValue>(
     () => ({
