@@ -126,7 +126,8 @@ export default function TemplateEditor({
 
   const handleCreate = async () => {
     if (!newName.trim()) { toast.error('Digite um nome'); return; }
-    const id = await createTemplate(newName.trim(), {
+    const id = await createTemplate({
+      name: newName.trim(),
       planId: planId || undefined,
       scheduleId: scheduleId || undefined,
     });
@@ -502,8 +503,6 @@ export default function TemplateEditor({
               value={addSubjectId}
               onChange={setAddSubjectId}
               subjects={activeSubjects as never}
-              areas={data.subjectAreas}
-              categories={data.subjectCategories}
               onCreateSubject={openQuickSubjectDialog}
               placeholder={planId ? 'Selecione uma matéria do plano' : 'Selecione a matéria'}
             />

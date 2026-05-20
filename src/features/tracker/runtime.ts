@@ -105,10 +105,18 @@ function toPauseSummaries(pauses: RuntimePauseSegment[]) {
 }
 
 export function getStopwatchElapsedSeconds(state: StopwatchRuntimeState, nowMs: number = Date.now()): number {
-  if (state.status === 'running' && state.currentRunStartedAt) {
-    return clampPositive(state.elapsedCompletedSeconds + diffSeconds(state.currentRunStartedAt, nowMs));
+  const startedAt = state.actualStartedAtOverride || state.startedAt;
+  
+  if (state.status === 'running') {
+    const totalSeconds = diffSeconds(startedAt, nowMs);
+    const pauseSeconds = getStopwatchPauseSeconds(state, nowMs);
+    return clampPositive(totalSeconds - pauseSeconds);
+  } else {
+    const pauseStart = state.currentPauseStartedAt ? new Date(state.currentPauseStartedAt).getTime() : nowMs;
+    const totalSeconds = diffSeconds(startedAt, pauseStart);
+    const pauseSeconds = getStopwatchPauseSeconds(state, pauseStart);
+    return clampPositive(totalSeconds - pauseSeconds);
   }
-  return clampPositive(state.elapsedCompletedSeconds);
 }
 
 export function getStopwatchPauseSeconds(state: StopwatchRuntimeState, nowMs: number = Date.now()): number {

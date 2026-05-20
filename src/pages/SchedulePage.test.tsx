@@ -144,6 +144,6 @@ describe('SchedulePage sync behavior', () => {
     expect(dayButton).toBeTruthy();
     fireEvent.click(dayButton!);
 
-    expect(screen.getByText('Painel rapido do seu cronograma.')).toBeInTheDocument();
+    expect(screen.getByText(/Painel rapido do dia/i)).toBeInTheDocument();
   });
 });

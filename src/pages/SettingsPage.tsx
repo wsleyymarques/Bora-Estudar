@@ -1,14 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { LogOut, Palette, User } from 'lucide-react';
+import { LogOut, User } from 'lucide-react';
 import { useAppTheme } from '@/contexts/AppThemeContext';
-import { DEFAULT_THEME_TEMPLATE_KEY, THEME_MODE_LABELS, ThemeMode, ThemeTemplateKey } from '@/theme/presets';
+import { THEME_MODE_LABELS, ThemeMode } from '@/theme/presets';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from 'sonner';
 
 export default function SettingsPage() {
   const { user, logout } = useAuth();
@@ -20,40 +17,9 @@ export default function SettingsPage() {
     templatesLoading,
     setTemplateKey,
     setMode,
-    
   } = useAppTheme();
 
-  const [newTemplateName, setNewTemplateName] = useState('');
-  const [newTemplateDescription, setNewTemplateDescription] = useState('');
-  const [baseTemplateKey, setBaseTemplateKey] = useState<ThemeTemplateKey>(DEFAULT_THEME_TEMPLATE_KEY);
-  const [creatingTemplate, setCreatingTemplate] = useState(false);
-
   const hasTemplates = templates.length > 0;
-
-  const baseTemplateOptions = useMemo(
-    () => templates.map((template) => ({ value: template.key, label: template.label })),
-    [templates],
-  );
-
-  useEffect(() => {
-    if (!hasTemplates) return;
-    if (templates.some((template) => template.key === baseTemplateKey)) return;
-    setBaseTemplateKey(templates[0].key);
-  }, [hasTemplates, templates, baseTemplateKey]);
-
-  const handleCreateTemplate = async () => {
-    if (!newTemplateName.trim()) {
-      toast.error('Informe um nome para o template.');
-      return;
-    }
-
-    setCreatingTemplate(true);
-    try {
-      toast.info('A criação de template personalizado nesta tela está temporariamente desativada.');
-    } finally {
-      setCreatingTemplate(false);
-    }
-  };
 
   return (
     <div className="space-y-5 sm:space-y-6 max-w-lg">
@@ -131,55 +97,13 @@ export default function SettingsPage() {
             ))}
           </div>
         </div>
-
-        <div className="pt-2 border-t border-border/60 space-y-3">
-          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <Palette className="w-4 h-4" />
-            Criar template personalizado
-          </div>
-          <p className="text-xs text-muted-foreground">
-            O novo template nasce como copia de um template base e pode evoluir depois sem impactar os templates padrao.
-          </p>
-
-          <div className="grid gap-2">
-            <Input
-              value={newTemplateName}
-              onChange={(event) => setNewTemplateName(event.target.value)}
-              placeholder="Nome do template"
-              maxLength={60}
-            />
-            <Textarea
-              value={newTemplateDescription}
-              onChange={(event) => setNewTemplateDescription(event.target.value)}
-              placeholder="Descricao opcional"
-              rows={2}
-              maxLength={180}
-            />
-            <Select value={baseTemplateKey} onValueChange={(value) => setBaseTemplateKey(value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Template base" />
-              </SelectTrigger>
-              <SelectContent>
-                {baseTemplateOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <Button onClick={handleCreateTemplate} disabled={creatingTemplate || templatesLoading} className="w-full">
-            {creatingTemplate ? 'Criando template...' : 'Criar template'}
-          </Button>
-        </div>
       </div>
 
       <div className="glass-card p-5 space-y-4">
         <h3 className="font-display font-semibold text-sm">Sobre</h3>
         <p className="text-sm text-muted-foreground">
-          StudyFlow e um sistema de planejamento e acompanhamento de estudos.
-          Organize materias, acompanhe progresso e alcance objetivos.
+          BoraEstudar é um sistema de planejamento e acompanhamento de estudos.
+          Organize matérias, acompanhe progresso e alcance objetivos.
         </p>
         <p className="text-xs text-muted-foreground">Versao 1.0.0</p>
       </div>

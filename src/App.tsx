@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { StudyProvider } from "@/contexts/StudyContext";
 import { AppThemeProvider } from "@/contexts/AppThemeContext";
 import { TrackerProvider } from "@/contexts/TrackerContext";
+import { NotificationProvider } from "@/contexts/NotificationContext";
 import AppLayout from "@/layouts/AppLayout";
 import AuthPage from "@/pages/AuthPage";
 import DashboardPage from "@/pages/DashboardPage";
@@ -38,25 +39,27 @@ function AppRoutes() {
 
   return (
     <StudyProvider>
-      <TrackerProvider>
-        <AppLayout>
-          <Routes>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/plans" element={<PlansPage />} />
-            <Route path="/plans/new" element={<PlanWizardPage />} />
-            <Route path="/plans/:planId" element={<PlanDetailsPage />} />
-            <Route path="/subjects" element={<SubjectsPage />} />
-            <Route path="/schedule" element={<SchedulePage />} />
-            <Route path="/schedules" element={<SchedulesPage />} />
-            <Route path="/templates" element={<TemplatesPage />} />
-            <Route path="/timer" element={<TimerPage />} />
-            <Route path="/history" element={<HistoryPage />} />
-            <Route path="/stats" element={<StatsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </AppLayout>
-      </TrackerProvider>
+      <NotificationProvider>
+        <TrackerProvider>
+          <AppLayout>
+            <Routes>
+              <Route path="/" element={<DashboardPage />} />
+              <Route path="/plans" element={<PlansPage />} />
+              <Route path="/plans/new" element={<PlanWizardPage />} />
+              <Route path="/plans/:planId" element={<PlanDetailsPage />} />
+              <Route path="/subjects" element={<SubjectsPage />} />
+              <Route path="/schedule" element={<SchedulePage />} />
+              <Route path="/schedules" element={<SchedulesPage />} />
+              <Route path="/templates" element={<TemplatesPage />} />
+              <Route path="/timer" element={<TimerPage />} />
+              <Route path="/history" element={<HistoryPage />} />
+              <Route path="/stats" element={<StatsPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </AppLayout>
+        </TrackerProvider>
+      </NotificationProvider>
     </StudyProvider>
   );
 }

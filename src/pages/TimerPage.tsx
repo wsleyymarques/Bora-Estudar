@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Brain, Coffee, Pause, Play, RotateCcw, SkipForward, Square } from 'lucide-react';
@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { PomodoroQuickSettings } from '@/components/generic/pomodoro-quick-settings';
+import { ClockTimePickerField } from '@/components/generic/time-picker-fields';
 import { useStudy } from '@/contexts/StudyContext';
 import { useTracker } from '@/contexts/TrackerContext';
 import {
@@ -46,6 +47,8 @@ export default function TimerPage() {
     finishActive,
     skipCurrentBreak,
     clearRuntime,
+    activeStartTime,
+    setActiveStartTime,
   } = useTracker();
 
   const [searchParams] = useSearchParams();
@@ -255,6 +258,21 @@ export default function TimerPage() {
                 </p>
               )}
             </div>
+
+            {runtime?.kind === 'stopwatch' && (
+              <div className="space-y-2">
+                <Label>Inicio da sessao (retroativo)</Label>
+                <ClockTimePickerField
+                  value={activeStartTime}
+                  onChange={setActiveStartTime}
+                  placeholder="--:--"
+                  className="h-9 px-2.5 text-xs w-full bg-background"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Ajuste o horario se voce iniciou a sessao antes de acionar o cronometro.
+                </p>
+              </div>
+            )}
 
             {mode === 'pomodoro' && !runtime && (
               <PomodoroQuickSettings

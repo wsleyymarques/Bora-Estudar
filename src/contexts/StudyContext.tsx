@@ -8,13 +8,15 @@ import {
   Subject,
   SubjectArea,
   SubjectCategory,
-    ScheduleStatus,
-    SubjectStatus,
+  SubjectSubcategory,
+  UserData,
+  ScheduleStatus,
+  SubjectStatus,
 } from '@/types/study';
 import { useAuth } from './AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { getSessionActualMinutes, getSessionPauseSeconds } from '@/features/tracker/session-metrics';
+import { getSessionActualMinutes, getSessionPauseSeconds, getSessionActualSeconds } from '@/features/tracker/session-metrics';
 import { parseDateKey } from '@/lib/date-utils';
 import { generateWeeklyOccurrences } from '@/features/schedule/recurrence';
 
@@ -61,7 +63,7 @@ export interface SubjectCreateInput {
   categoryId?: string;
   subcategoryId?: string;
   origin?: 'global' | 'user' | 'plan';
-  status?: 'active' | 'inactive' | 'archived';
+  status?: SubjectStatus;
 }
 
 type FindSubjectsFilters = {
@@ -122,6 +124,8 @@ const db = supabase as any;
 
 const hasMissingColumnError = (error: any) => String(error?.message || '').toLowerCase().includes('column');
 
+const STUDY_SUBJECTS_UPDATED_EVENT = 'study-flow:subjects-updated';
+
 function notifySubjectsUpdated() {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new Event(STUDY_SUBJECTS_UPDATED_EVENT));
@@ -133,9 +137,11 @@ function includesScheduleColumnError(message?: string): boolean {
   return normalized.includes('schedule_id') && normalized.includes('does not exist');
 }
 
-function mapSchedule(row: any): StudySchedule {
+function mapStudyPlan(row: any): StudyPlan {
   return {
     id: row.id,
+    scheduleId: row.schedule_id || undefined,
+    color: row.color || '#5B8C7E',
     userId: row.user_id || undefined,
     title: row.title || row.name || row.exam_name || 'Plano de Estudos',
     name: row.name || row.title || undefined,
@@ -258,17 +264,18 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
     setLoading(true);
 
-    const [plansRes, areasRes, categoriesRes, subcategoriesRes, subjectsRes, scheduleRes, dayPlanRes, sessionRes, noteRes] = await Promise.all([
+    const [plansRes, areasRes, categoriesRes, subjectsRes, scheduleRes, dayPlanRes, sessionRes, noteRes] = await Promise.all([
       db.from('study_plans').select('*').order('created_at', { ascending: false }),
-      db.from('subject_areas').select('*').order('sort_order').order('name'),
-      db.from('subject_categories').select('*').order('sort_order').order('name'),
-      db.from('subject_subcategories').select('*').order('sort_order').order('name'),
+      db.from('subject_areas').select('*').order('name'),
+      db.from('subject_categories').select('*').order('name'),
       db.from('subjects').select('*').order('sort_order').order('name'),
       db.from('schedule_entries').select('*').order('sort_order'),
       db.from('schedule_day_plans').select('*'),
       db.from('study_sessions').select('*').order('created_at', { ascending: false }),
       db.from('notes').select('*').order('created_at', { ascending: false }),
     ]);
+
+    const subcategoriesRes = { data: [], error: null };
 
     if (subjectsRes.error) {
       toast.error('Erro ao carregar matérias');
@@ -459,7 +466,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
     const payload: any = {
       user_id: user.id,
-      schedule_id: scheduleId,
+      schedule_id: e.scheduleId || activeStudyPlan?.scheduleId || null,
       plan_id: e.planId || null,
       subject_id: e.subjectId,
       date: e.date,
@@ -493,7 +500,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   const addRecurringScheduleEntries = async (input: RecurringScheduleEntryInput) => {
     if (!user) return null;
 
-    const scheduleId = input.scheduleId || activeScheduleId;
+    const scheduleId = input.scheduleId || activeStudyPlan?.scheduleId;
     if (!scheduleId) {
       toast.error('Selecione um cronograma ativo');
       return null;
@@ -673,28 +680,17 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   const addSession = async (s: SessionInput) => {
     if (!user) return;
 
-    const payload: any = {
-      user_id: user.id,
-      plan_id: s.planId || null,
-      subject_id: s.subjectId,
-      date: s.date,
-      start_time: s.startTime,
-      end_time: s.endTime || null,
-      duration_minutes: s.durationMinutes ?? 0,
-      note: s.note || null,
-    };
-
     const { data: inserted, error } = await db
       .from('study_sessions')
       .insert({
         user_id: user.id,
-        schedule_id: scheduleId || null,
+        schedule_id: s.scheduleId || activeStudyPlan?.scheduleId || null,
         plan_id: s.planId || null,
         subject_id: s.subjectId,
         date: s.date,
         start_time: s.startTime,
         end_time: s.endTime || null,
-        duration_minutes: durationMinutes,
+        duration_minutes: s.durationMinutes ?? 0,
         note: s.note || null,
         session_mode: s.sessionMode || 'manual',
         status: s.status || 'completed',
@@ -704,9 +700,9 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         is_focus_session: s.isFocusSession ?? true,
         started_at: s.startedAt || null,
         ended_at: s.endedAt || null,
-        actual_duration_seconds: actualDurationSeconds,
-        total_pause_seconds: totalPauseSeconds,
-        clock_duration_seconds: clockDurationSeconds,
+        actual_duration_seconds: s.actualDurationSeconds ?? 0,
+        total_pause_seconds: s.totalPauseSeconds ?? 0,
+        clock_duration_seconds: s.clockDurationSeconds ?? 0,
         planned_start_time: s.plannedStartTime || null,
         planned_minutes: s.plannedMinutes ?? null,
         schedule_date: s.scheduleDate || null,
@@ -717,14 +713,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       .single();
 
     if (error || !inserted) {
-      toast.error('Erro ao registrar sessao');
-      console.error(error);
-      return;
-    }
-
-    if (response.error) {
       toast.error('Erro ao registrar sessão');
-      console.error(response.error);
+      console.error(error);
       return;
     }
 
@@ -761,7 +751,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
     const { error } = await db.from('notes').insert({
       user_id: user.id,
-      schedule_id: scheduleId || null,
+      schedule_id: n.scheduleId || activeStudyPlan?.scheduleId || null,
       plan_id: n.planId || null,
       type: n.type,
       reference_date: n.referenceDate,
@@ -816,15 +806,19 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
   const getDayPlanForDate = (date: string) => data.dayPlans.find((plan) => plan.date === date);
 
-  const getTotalMinutesForDate = (date: string) =>
-    data.sessions
+  const getTotalMinutesForDate = (date: string) => {
+    const totalSeconds = data.sessions
       .filter((session) => session.date === date)
-      .reduce((acc, session) => acc + getSessionActualMinutes(session), 0);
+      .reduce((acc, session) => acc + getSessionActualSeconds(session), 0);
+    return Math.round(totalSeconds / 60);
+  };
 
-  const getTotalMinutesForSubject = (subjectId: string, from?: string, to?: string) =>
-    data.sessions
+  const getTotalMinutesForSubject = (subjectId: string, from?: string, to?: string) => {
+    const totalSeconds = data.sessions
       .filter((session) => session.subjectId === subjectId && (!from || session.date >= from) && (!to || session.date <= to))
-      .reduce((acc, session) => acc + getSessionActualMinutes(session), 0);
+      .reduce((acc, session) => acc + getSessionActualSeconds(session), 0);
+    return Math.round(totalSeconds / 60);
+  };
 
   return (
     <StudyContext.Provider
