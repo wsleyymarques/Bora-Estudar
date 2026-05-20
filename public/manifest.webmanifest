@@ -1,6 +1,6 @@
 {
-  "name": "Study Flow",
-  "short_name": "StudyFlow",
+  "name": "BoraEstudar",
+  "short_name": "BoraEstudar",
   "description": "Organize seus estudos com cronograma, foco e histórico.",
   "start_url": "/",
   "display": "standalone",
@@ -9,9 +9,9 @@
   "lang": "pt-BR",
   "icons": [
     {
-      "src": "/pwa-icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ]

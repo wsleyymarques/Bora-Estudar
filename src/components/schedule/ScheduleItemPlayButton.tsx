@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { Brain, Pause, Play, Timer } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { ScheduleEntry } from '@/types/study';
 import { useTracker } from '@/contexts/TrackerContext';
 import { useStudy } from '@/contexts/StudyContext';
@@ -29,9 +35,7 @@ export function ScheduleItemPlayButton({
   className,
   size = 'icon',
 }: ScheduleItemPlayButtonProps) {
-  const [selectorOpen, setSelectorOpen] = useState(false);
   const [pomodoroDialogOpen, setPomodoroDialogOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const { getSubject } = useStudy();
   const {
     setMode,
@@ -57,7 +61,6 @@ export function ScheduleItemPlayButton({
   const subject = getSubject(entry.subjectId);
 
   const handleStart = async (selectedMode: 'stopwatch' | 'pomodoro'): Promise<boolean> => {
-    setSelectorOpen(false);
     setMode(selectedMode);
     const result = await startWithBinding(binding, { mode: selectedMode });
     if (result.ok) return true;
@@ -78,30 +81,7 @@ export function ScheduleItemPlayButton({
     return false;
   };
 
-  useEffect(() => {
-    if (!selectorOpen) return;
 
-    const handlePointerDown = (event: MouseEvent) => {
-      if (!containerRef.current) return;
-      const target = event.target as Node;
-      if (!containerRef.current.contains(target)) {
-        setSelectorOpen(false);
-      }
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setSelectorOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [selectorOpen]);
 
   if (isActive) {
     return (
@@ -127,32 +107,25 @@ export function ScheduleItemPlayButton({
   }
 
   return (
-    <div ref={containerRef} className="relative" onClick={(event) => event.stopPropagation()}>
-      <Button
-        variant="outline"
-        size={size}
-        className={cn('h-7 w-7 rounded-md', className)}
-        onClick={(event) => {
-          event.stopPropagation();
-          setSelectorOpen((previous) => !previous);
-        }}
-        disabled={isTransitioning}
-        title="Escolher modo de inicio"
-        aria-label="Escolher modo de inicio"
-      >
-        <Play className="w-3.5 h-3.5" />
-      </Button>
-
-      {selectorOpen && (
-        <div
-          role="menu"
-          aria-label="Selecionar modo de estudo"
-          className="absolute right-0 top-full z-40 mt-1 min-w-[170px] rounded-lg border border-border bg-popover text-popover-foreground shadow-md p-1"
-        >
-          <button
-            type="button"
+    <div onClick={(event) => event.stopPropagation()}>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            size={size}
+            className={cn('h-7 w-7 rounded-md', className)}
+            disabled={isTransitioning}
+            title="Escolher modo de inicio"
+            aria-label="Escolher modo de inicio"
+          >
+            <Play className="w-3.5 h-3.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-[185px]">
+          <DropdownMenuItem
             role="menuitem"
-            className="w-full rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted flex items-center gap-2"
+            aria-label="Iniciar cronometro"
+            className="flex items-center gap-2 text-xs cursor-pointer"
             onClick={(event) => {
               event.stopPropagation();
               void handleStart('stopwatch');
@@ -160,23 +133,22 @@ export function ScheduleItemPlayButton({
           >
             <Timer className="w-4 h-4" />
             Iniciar cronometro
-          </button>
-          <button
-            type="button"
+          </DropdownMenuItem>
+          <DropdownMenuItem
             role="menuitem"
-            className="w-full rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted flex items-center gap-2"
+            aria-label="Pomodoro (editar e iniciar)"
+            className="flex items-center gap-2 text-xs cursor-pointer"
             onClick={(event) => {
               event.stopPropagation();
-              setSelectorOpen(false);
               setMode('pomodoro');
               setPomodoroDialogOpen(true);
             }}
           >
             <Brain className="w-4 h-4" />
             Pomodoro (editar e iniciar)
-          </button>
-        </div>
-      )}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <Dialog
         open={pomodoroDialogOpen}

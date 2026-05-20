@@ -36,6 +36,17 @@ vi.mock('@/contexts/StudyContext', () => ({
   }),
 }));
 
+vi.mock('@/components/ui/dropdown-menu', () => ({
+  DropdownMenu: ({ children }: any) => <div>{children}</div>,
+  DropdownMenuTrigger: ({ children }: any) => children,
+  DropdownMenuContent: ({ children }: any) => <div role="menu">{children}</div>,
+  DropdownMenuItem: ({ children, onClick, ...props }: any) => (
+    <div role="menuitem" onClick={onClick} {...props}>
+      {children}
+    </div>
+  ),
+}));
+
 const baseEntry: ScheduleEntry = {
   id: 'entry-1',
   date: '2026-04-03',

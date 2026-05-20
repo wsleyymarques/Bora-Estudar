@@ -71,7 +71,7 @@ export function useTemplates(options: UseTemplatesOptions = {}) {
   const [templates, setTemplates] = useState<WeeklyTemplate[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const scopedScheduleId = options.scheduleId === undefined ? activeScheduleId : options.scheduleId;
+  const scopedScheduleId = options.scheduleId === undefined ? null : options.scheduleId;
   const scopedPlanId = options.planId ?? null;
   const includeGlobal = options.includeGlobal ?? true;
 
@@ -86,8 +86,9 @@ export function useTemplates(options: UseTemplatesOptions = {}) {
     let templatesQuery: any = db.from('weekly_templates').select('*').order('created_at');
 
     if (scopedPlanId) {
+      const schedulePart = scopedScheduleId ? `,schedule_id.eq.${scopedScheduleId}` : '';
       templatesQuery = includeGlobal
-        ? templatesQuery.or(`plan_id.eq.${scopedPlanId},schedule_id.eq.${scopedScheduleId || ''},and(plan_id.is.null,schedule_id.is.null)`)
+        ? templatesQuery.or(`plan_id.eq.${scopedPlanId}${schedulePart},and(plan_id.is.null,schedule_id.is.null)`)
         : templatesQuery.eq('plan_id', scopedPlanId);
     } else if (scopedScheduleId) {
       templatesQuery = templatesQuery.eq('schedule_id', scopedScheduleId);

@@ -1,14 +1,15 @@
 export type SubjectOrigin = 'global' | 'user' | 'plan';
-export type SubjectStatus = 'active' | 'inactive' | 'archived';
+export type SubjectStatus = 'active' | 'inactive' | 'archived' | 'draft';
+export type ScheduleStatus = 'active' | 'inactive' | 'archived';
 
 export interface StudyPlan {
   id: string;
   planId?: string;
+  scheduleId?: string;
   name: string;
   color: string;
   userId?: string;
   title: string;
-  name?: string;
   examName?: string;
   board?: string;
   role?: string;
@@ -18,9 +19,6 @@ export interface StudyPlan {
   createdAt?: string;
   updatedAt?: string;
 }
-
-export type SubjectOrigin = 'global' | 'user' | 'plan';
-export type SubjectStatus = 'active' | 'archived' | 'draft';
 
 export interface SubjectArea {
   id: string;
@@ -74,7 +72,6 @@ export interface ScheduleEntry {
   recurrenceRuleId?: string;
   date: string; // YYYY-MM-DD
   subjectId: string;
-  planId?: string;
   optional: boolean;
   completed: boolean;
   order: number;
@@ -109,7 +106,6 @@ export interface ScheduleDayPlan {
   scheduleId?: string;
   planId?: string;
   date: string; // YYYY-MM-DD
-  planId?: string;
   dayNote?: string;
   dayTargetMinutes?: number;
   templateId?: string;
@@ -136,7 +132,6 @@ export interface StudySession {
   scheduleId?: string;
   planId?: string;
   subjectId: string;
-  planId?: string;
   date: string;
   startTime: string;
   endTime?: string;
@@ -193,6 +188,7 @@ export interface WeeklyTemplate {
   planId?: string;
   name: string;
   description?: string;
+  status?: 'active' | 'archived' | 'draft';
   items: WeeklyTemplateItem[];
   dayNotes: WeeklyTemplateDayNote[];
 }

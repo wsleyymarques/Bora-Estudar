@@ -1,22 +1,33 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Bell, 
   User, 
-  Settings, 
   LogOut, 
-  Shield, 
-  Moon, 
-  ChevronRight,
-  Clock,
   Sparkles,
   Zap,
-  CreditCard
+  ChevronRight,
+  ArrowLeft,
+  Palette,
+  Laptop,
+  Sun,
+  Moon,
+  X
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useStudy } from '@/contexts/StudyContext';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { ResponsivePanel } from '@/components/generic/ResponsivePanel';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+import { useNotifications } from '@/contexts/NotificationContext';
+import { useAppTheme } from '@/contexts/AppThemeContext';
+import { THEME_MODE_LABELS, ThemeMode } from '@/theme/presets';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
+import { supabase } from '@/integrations/supabase/client';
+import { ImageUpload } from '@/components/generic/image-upload';
 
 interface UserProfilePanelProps {
   isOpen: boolean;
@@ -24,108 +35,448 @@ interface UserProfilePanelProps {
 }
 
 export function UserProfilePanel({ isOpen, onClose }: UserProfilePanelProps) {
-  const { user, signOut } = useAuth();
-  
-  const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário';
+  const { user, logout } = useAuth();
+  const { data: studyData } = useStudy();
+  const identities = user?.identities || [];
+  const isGoogleLinked = identities.some(identity => identity.provider === 'google');
+  const { 
+    notificationPermission: systemPermission,
+    requestPermission: systemRequestPermission
+  } = useNotifications();
+
+  const {
+    templateKey,
+    mode,
+    templates,
+    templatesLoading,
+    setTemplateKey,
+    setMode,
+  } = useAppTheme();
+
+  const [view, setView] = useState<'main' | 'account' | 'theme' | 'permissions'>('main');
+
+  const [userName, setUserName] = useState('');
+  const [avatarUrlInput, setAvatarUrlInput] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
   const userEmail = user?.email || '';
 
-  const notifications = [
-    { id: 1, title: 'Meta Diária!', description: 'Você atingiu 100% do planejado.', time: '2h atrás', color: 'text-green-500', bg: 'bg-green-500/10' },
-    { id: 2, title: 'Próxima Aula', description: 'Cálculo I começa em 15 minutos.', time: '30min atrás', color: 'text-blue-500', bg: 'bg-blue-500/10' },
-    { id: 3, title: 'Novo Badge', description: 'Você ganhou o badge "Foco de Elite".', time: 'Ontem', color: 'text-purple-500', bg: 'bg-purple-500/10' },
-  ];
+  // Calculate stats
+  const sessionsCount = studyData?.sessions?.length || 0;
+  const subjectsCount = studyData?.subjects?.length || 0;
+  const totalSeconds = studyData?.sessions?.reduce((acc, s) => acc + s.actualDurationSeconds, 0) || 0;
+  const totalHours = Math.round(totalSeconds / 3600);
+
+  useEffect(() => {
+    if (user) {
+      setUserName(user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário');
+      setAvatarUrlInput(user?.user_metadata?.avatar_url || '');
+    }
+  }, [user]);
+
+  // Reset view when panel closes
+  useEffect(() => {
+    if (!isOpen) {
+      setView('main');
+    }
+  }, [isOpen]);
+
+  const handleRequestNotifications = async (checked: boolean) => {
+    if (!checked) {
+      toast.info('As notificações só podem ser desativadas nas configurações do seu navegador.');
+      return;
+    }
+    const granted = await systemRequestPermission();
+    if (granted) {
+      toast.success('Notificações ativadas com sucesso!');
+    } else {
+      toast.error('Permissão para notificações não concedida ou bloqueada.');
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!userName.trim()) {
+      toast.error('O nome não pode ficar vazio.');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: { 
+          full_name: userName.trim(),
+          avatar_url: avatarUrlInput.trim()
+        }
+      });
+      if (error) throw error;
+      toast.success('Perfil atualizado com sucesso!');
+      setView('main');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao atualizar perfil.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const hasTemplates = templates.length > 0;
 
   return (
     <ResponsivePanel 
       open={isOpen} 
       onOpenChange={(open) => !open && onClose()}
       size="md"
+      title={view === 'main' ? 'Perfil' : view === 'account' ? 'Configurações de Perfil' : view === 'theme' ? 'Tema & Visual' : 'Permissões'}
+      unstyled
     >
-      <div className="flex flex-col h-full bg-[#F8FAFC] relative overflow-hidden">
-        {/* DECORATIVE BACKGROUND AURA */}
-        <div className="absolute top-0 left-0 right-0 h-64 bg-gradient-to-br from-primary/20 via-blue-500/10 to-transparent pointer-events-none" />
-        <div className="absolute -top-20 -right-20 w-64 h-64 bg-purple-500/10 rounded-full blur-[100px] pointer-events-none" />
-
-        {/* PROFILE HEADER - ULTRA STYLIZED */}
-        <div className="relative p-8 pt-12 flex flex-col items-center text-center">
-          <div className="relative mb-6">
-            <div className="absolute inset-0 bg-gradient-to-tr from-primary to-blue-400 rounded-[2rem] blur-2xl opacity-20 scale-125 animate-pulse" />
-            <Avatar className="h-24 w-24 border-4 border-white shadow-2xl rounded-[2rem]">
-              <AvatarImage src={user?.user_metadata?.avatar_url} />
-              <AvatarFallback className="bg-gradient-to-br from-slate-800 to-black text-white text-2xl font-black">
-                {userName.slice(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-white rounded-2xl shadow-xl flex items-center justify-center border border-slate-100">
-               <Zap className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+      <div className="flex flex-col h-full bg-background relative overflow-hidden">
+        
+        {view === 'main' ? (
+          <>
+            {/* BANNER WITH BACKDROP & AVATAR */}
+            <div className="relative">
+              <div className="h-32 bg-gradient-to-r from-primary via-primary/90 to-primary/80 rounded-b-[2rem] relative flex items-start justify-between px-6 pt-6">
+                <div className="flex items-center gap-3 z-10">
+                  <button
+                    onClick={onClose}
+                    className="p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition-all active:scale-90 focus:outline-none border border-white/10"
+                    aria-label="Fechar"
+                  >
+                    <X className="w-4 h-4 stroke-[2.5]" />
+                  </button>
+                  <span className="text-primary-foreground font-black text-xs uppercase tracking-[0.25em]">BoraEstudar</span>
+                </div>
+                <Sparkles className="w-4 h-4 text-primary-foreground/60 animate-pulse" />
+              </div>
+              
+              {/* Avatar Container */}
+              <div className="absolute top-16 left-1/2 -translate-x-1/2 flex flex-col items-center">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-to-tr from-primary to-primary/60 rounded-full blur-xl opacity-30 scale-110" />
+                  <Avatar className="h-20 w-20 border-4 border-card shadow-2xl rounded-full">
+                    <AvatarImage src={user?.user_metadata?.avatar_url} />
+                    <AvatarFallback className="bg-gradient-to-br from-slate-800 to-black text-white text-xl font-black">
+                      {userName.slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+              </div>
             </div>
-          </div>
-          
-          <div className="space-y-1">
-            <h2 className="text-2xl font-display font-black text-slate-900 tracking-tight">{userName}</h2>
-            <p className="text-sm text-slate-400 font-medium">{userEmail}</p>
-          </div>
 
-          <div className="mt-6 flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-md rounded-2xl border border-white shadow-sm">
-             <Sparkles className="w-3.5 h-3.5 text-primary" />
-             <span className="text-[10px] font-black uppercase tracking-widest text-slate-700">Membro Premium</span>
-          </div>
-        </div>
-
-        {/* CONTENT SECTION */}
-        <div className="flex-1 overflow-y-auto px-6 space-y-8 pb-8 custom-scrollbar">
-          {/* NOTIFICATIONS - GLASS STYLE */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between px-2">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Notificações</h3>
-              <div className="h-5 px-2 rounded-full bg-primary/10 text-primary text-[9px] font-black flex items-center justify-center uppercase">3 Novas</div>
+            {/* PROFILE INFO */}
+            <div className="text-center px-6 mt-10 pb-6 border-b border-border/80">
+              <h2 className="text-lg font-display font-black text-foreground tracking-tight">
+                {userName}
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5 truncate">{userEmail}</p>
             </div>
-            
-            <div className="space-y-3">
-              {notifications.map((n) => (
-                <div key={n.id} className="relative group overflow-hidden p-4 rounded-[1.5rem] bg-white border border-white shadow-sm hover:shadow-md transition-all">
-                  <div className={cn("absolute left-0 top-0 bottom-0 w-1.5", n.bg.replace('/10', ''))} />
-                  <div className="flex gap-4">
-                    <div className={cn("w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-inner", n.bg)}>
-                      <Bell className={cn("w-5 h-5", n.color)} />
+
+            {/* MENU LIST */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2.5 custom-scrollbar">
+              <button 
+                onClick={() => setView('account')}
+                className="w-full flex items-center justify-between p-4 rounded-[1.5rem] bg-card border border-border/50 shadow-sm hover:shadow-md transition-all group active:scale-[0.99]"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center">
+                    <User className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="text-left">
+                    <h4 className="text-xs font-black text-foreground">Configurações de Perfil</h4>
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-tighter mt-0.5">Nome e Foto de Perfil</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+              </button>
+
+              <button 
+                onClick={() => setView('theme')}
+                className="w-full flex items-center justify-between p-4 rounded-[1.5rem] bg-card border border-border/50 shadow-sm hover:shadow-md transition-all group active:scale-[0.99]"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center">
+                    <Palette className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="text-left">
+                    <h4 className="text-xs font-black text-foreground">Tema & Visual</h4>
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-tighter mt-0.5">Cores e Modo Claro/Escuro</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+              </button>
+
+              <button 
+                onClick={() => setView('permissions')}
+                className="w-full flex items-center justify-between p-4 rounded-[1.5rem] bg-card border border-border/50 shadow-sm hover:shadow-md transition-all group active:scale-[0.99]"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center">
+                    <Bell className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="text-left">
+                    <h4 className="text-xs font-black text-foreground">Permissões & Alertas</h4>
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-tighter mt-0.5">Notificações Desktop</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+              </button>
+            </div>
+
+            {/* LOGOUT FOOTER */}
+            <div className="p-6 bg-card border-t border-border mt-auto">
+              <Button 
+                variant="ghost" 
+                className="w-full h-12 rounded-2xl text-red-500 hover:text-red-650 hover:bg-red-50 dark:hover:bg-red-950/20 font-black text-xs uppercase tracking-widest gap-2.5 transition-all active:scale-95 border border-transparent hover:border-red-200 dark:hover:border-red-900/35"
+                onClick={() => logout()}
+              >
+                <LogOut className="w-4 h-4" />
+                Encerrar Sessão
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-col h-full bg-background">
+            {/* SUB-VIEW HEADER */}
+            <div className="flex items-center gap-3 p-5 border-b border-border/80 bg-card">
+              <button 
+                onClick={() => setView('main')} 
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                aria-label="Voltar"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+              <div>
+                <h3 className="font-display font-black text-xs text-foreground uppercase tracking-widest">
+                  {view === 'account' ? 'Configurações de Perfil' : view === 'theme' ? 'Tema & Visual' : 'Permissões'}
+                </h3>
+              </div>
+            </div>
+
+            {/* SUB-VIEW CONTENT */}
+            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+              {view === 'account' && (
+                <div className="space-y-4">
+                  {/* Photo Preview & Edit */}
+                  <div className="flex flex-col items-center space-y-3">
+                    <Avatar className="h-24 w-24 border-4 border-card shadow-xl rounded-full">
+                      <AvatarImage src={avatarUrlInput} />
+                      <AvatarFallback className="bg-gradient-to-br from-slate-800 to-black text-white text-2xl font-black">
+                        {userName.slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                      Prévia da foto de perfil
+                    </p>
+                  </div>
+
+                  <div className="space-y-4 p-4 rounded-[1.5rem] bg-card border border-border shadow-sm">
+                    {/* Name Input */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Nome Completo</label>
+                      <Input
+                        value={userName}
+                        onChange={(e) => setUserName(e.target.value)}
+                        placeholder="Nome do perfil"
+                        className="bg-muted/40 border-border"
+                        maxLength={50}
+                        disabled={isSaving}
+                      />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-start">
-                        <h4 className="text-sm font-black text-slate-800 leading-none">{n.title}</h4>
-                        <span className="text-[9px] font-bold text-slate-400 uppercase">{n.time}</span>
+
+                    {/* Avatar Image Upload */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Foto de Perfil</label>
+                      <ImageUpload
+                        value={avatarUrlInput}
+                        onChange={(url) => setAvatarUrlInput(url)}
+                        bucket="study-plan-images"
+                        folder="avatars"
+                        label=""
+                        helperText="Selecione um arquivo ou cole uma URL externa."
+                        variant="compact"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Account Information (Display-Only) */}
+                  <div className="space-y-3">
+                    <h4 className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground px-1">Informações de Login</h4>
+                    <div className="p-4 rounded-[1.5rem] bg-card border border-border shadow-sm text-xs space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-muted-foreground">E-mail:</span>
+                        <span className="font-semibold text-foreground/90">{userEmail}</span>
                       </div>
-                      <p className="text-xs text-slate-500 mt-1.5 leading-snug line-clamp-2">{n.description}</p>
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-muted-foreground">Conta Criada em:</span>
+                        <span className="font-semibold text-foreground/90">
+                          {user?.created_at ? new Date(user.created_at).toLocaleDateString('pt-BR') : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="border-t border-border/80 pt-3 flex justify-between items-center">
+                        <span className="font-bold text-muted-foreground">Vínculo Google:</span>
+                        {isGoogleLinked ? (
+                          <div className="flex items-center gap-1.5 text-green-500 font-bold bg-green-500/10 px-2.5 py-1 rounded-full text-[10px] uppercase tracking-wider">
+                            <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                            </svg>
+                            Vinculado
+                          </div>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-[10px] font-black uppercase tracking-wider px-3 border-border hover:bg-muted/50 flex items-center gap-1.5"
+                            onClick={async () => {
+                              try {
+                                const { error } = await supabase.auth.linkIdentity({
+                                  provider: 'google',
+                                  options: {
+                                    redirectTo: window.location.origin,
+                                  }
+                                });
+                                if (error) throw error;
+                                toast.success('Redirecionando para vincular com o Google...');
+                              } catch (err: any) {
+                                const errMsg = err.message || '';
+                                if (errMsg.includes('manual_linking_disabled') || err.status === 404 || errMsg.includes('Not Found')) {
+                                  toast.error(
+                                    'Vínculo manual desativado no Supabase. Ative a opção "Manual Linking" em Authentication > Providers do seu painel do Supabase.',
+                                    { duration: 8000 }
+                                  );
+                                } else {
+                                  toast.error(`Erro ao vincular: ${err.message || err}`);
+                                }
+                              }
+                            }}
+                          >
+                            <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" />
+                              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" />
+                            </svg>
+                            Vincular
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button 
+                    onClick={handleSaveProfile} 
+                    disabled={isSaving} 
+                    className="w-full h-11 rounded-2xl font-bold mt-2"
+                  >
+                    {isSaving ? 'Salvando...' : 'Salvar Alterações'}
+                  </Button>
+                </div>
+              )}
+
+              {view === 'theme' && (
+                <div className="space-y-4">
+                  <div className="space-y-4 p-5 rounded-[1.5rem] bg-card border border-border shadow-sm">
+                    {/* Core Template */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Template de Cores</label>
+                      <Select
+                        value={templateKey}
+                        onValueChange={(value) => void setTemplateKey(value)}
+                        disabled={!hasTemplates || templatesLoading}
+                      >
+                        <SelectTrigger className="h-10 text-xs bg-muted/40 border-border">
+                          <SelectValue placeholder={templatesLoading ? 'Carregando templates...' : 'Selecione um template'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {templates.map((template) => (
+                            <SelectItem key={template.key} value={template.key}>
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-0.5">
+                                  {template.preview.slice(0, 3).map((color) => (
+                                    <span
+                                      key={`${template.key}-${color}`}
+                                      className="w-2.5 h-2.5 rounded-full border border-border/70"
+                                      style={{ backgroundColor: color }}
+                                    />
+                                  ))}
+                                </div>
+                                <span>{template.label}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Theme Mode Toggle (Light/Dark/System) */}
+                    <div className="space-y-2.5 pt-2">
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Modo de Exibição</label>
+                      <div className="grid grid-cols-3 gap-2 bg-muted p-1 rounded-xl">
+                        {(Object.keys(THEME_MODE_LABELS) as ThemeMode[]).map((modeOption) => {
+                          const isActive = mode === modeOption;
+                          const Icon = modeOption === 'light' ? Sun : modeOption === 'dark' ? Moon : Laptop;
+                          return (
+                            <button
+                              key={modeOption}
+                              type="button"
+                              onClick={() => void setMode(modeOption)}
+                              className={cn(
+                                "h-8 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all",
+                                isActive 
+                                  ? "bg-background text-foreground shadow-sm border border-border" 
+                                  : "text-muted-foreground hover:text-foreground"
+                              )}
+                            >
+                              <Icon className="w-3.5 h-3.5" />
+                              {THEME_MODE_LABELS[modeOption]}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 </div>
-              ))}
+              )}
+
+              {view === 'permissions' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 rounded-[1.5rem] bg-card border border-border shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center">
+                        <Bell className="w-5 h-5 text-primary" />
+                      </div>
+                      <div className="text-left">
+                        <h4 className="text-xs font-black text-foreground">Notificações Push</h4>
+                        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-tighter mt-0.5">
+                          {systemPermission === 'granted' 
+                            ? 'Permitido no navegador' 
+                            : systemPermission === 'denied' 
+                              ? 'Bloqueado pelo usuário' 
+                              : 'Perguntar ao iniciar'}
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={systemPermission === 'granted'}
+                      onCheckedChange={handleRequestNotifications}
+                      disabled={systemPermission === 'denied'}
+                    />
+                  </div>
+                  {systemPermission === 'denied' ? (
+                    <div className="p-4 rounded-[1.5rem] bg-destructive/10 border border-destructive/20 text-xs text-destructive leading-relaxed space-y-1">
+                      <p className="font-bold">⚠️ Notificações Bloqueadas</p>
+                      <p>
+                        Você recusou a permissionamento deste site. Para receber notificações de finalização de ciclos Pomodoro ou cronômetro, é necessário abrir as configurações do site no seu navegador e redefinir a permissão para "Permitir".
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground leading-relaxed px-1">
+                      Ao ativar as notificações desktop, você receberá avisos sonoros e popups do sistema operacional ao terminar uma meta de estudos ou iniciar um intervalo, mesmo se estiver em outra aba.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
-
-          {/* MENU SECTION */}
-          <div className="space-y-4">
-             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 px-2">Conta e Preferências</h3>
-             <div className="grid grid-cols-1 gap-2">
-                <MenuCard icon={<User className="text-blue-500" />} label="Perfil" sub="Editar dados" />
-                <MenuCard icon={<CreditCard className="text-emerald-500" />} label="Assinatura" sub="Gerenciar plano" />
-                <MenuCard icon={<Shield className="text-amber-500" />} label="Segurança" sub="Senha e 2FA" />
-                <MenuCard icon={<Moon className="text-indigo-500" />} label="Tema Escuro" sub="Modo noturno" toggle />
-                <MenuCard icon={<Settings className="text-slate-500" />} label="Configurações" sub="Geral do app" />
-             </div>
-          </div>
-        </div>
-
-        {/* LOGOUT FOOTER */}
-        <div className="p-6 bg-white border-t border-slate-100 mt-auto">
-          <Button 
-            variant="ghost" 
-            className="w-full h-14 rounded-3xl text-red-500 hover:text-red-600 hover:bg-red-50 font-black text-xs uppercase tracking-widest gap-3 transition-all active:scale-95"
-            onClick={() => signOut()}
-          >
-            <LogOut className="w-5 h-5" />
-            Encerrar Sessão
-          </Button>
-        </div>
+        )}
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `
@@ -134,28 +485,5 @@ export function UserProfilePanel({ isOpen, onClose }: UserProfilePanelProps) {
         }
       `}} />
     </ResponsivePanel>
-  );
-}
-
-function MenuCard({ icon, label, sub, toggle }: { icon: React.ReactNode, label: string, sub: string, toggle?: boolean }) {
-  return (
-    <button className="w-full flex items-center justify-between p-4 rounded-[1.5rem] bg-white border border-transparent hover:border-slate-100 hover:shadow-sm transition-all group active:scale-[0.98]">
-      <div className="flex items-center gap-4">
-        <div className="w-10 h-10 rounded-2xl bg-slate-50 flex items-center justify-center group-hover:scale-110 transition-transform">
-          {React.cloneElement(icon as React.ReactElement, { className: "w-5 h-5" })}
-        </div>
-        <div className="text-left">
-          <h4 className="text-xs font-black text-slate-800">{label}</h4>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mt-0.5">{sub}</p>
-        </div>
-      </div>
-      {toggle ? (
-        <div className="w-10 h-5 rounded-full bg-slate-100 relative p-1">
-          <div className="w-3 h-3 rounded-full bg-white shadow-sm" />
-        </div>
-      ) : (
-        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-primary group-hover:translate-x-1 transition-all" />
-      )}
-    </button>
   );
 }
