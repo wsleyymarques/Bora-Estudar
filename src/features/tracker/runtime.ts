@@ -10,6 +10,7 @@ export interface RuntimePauseSegment {
 
 export interface TrackerBinding {
   subjectId: string;
+  planId?: string;
   scheduleDate?: string;
   scheduleEntryId?: string;
   plannedStartTime?: string;
