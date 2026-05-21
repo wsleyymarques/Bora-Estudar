@@ -154,6 +154,7 @@ function summaryToSessionPayload(
 
   return {
     subjectId: runtime.subjectId,
+    planId: runtime.planId,
     date,
     startTime: runtime.actualStartTimeOverride || clockFromIso(effectiveStartedAt),
     endTime: clockFromIso(summary.endedAt),
