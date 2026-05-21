@@ -24,19 +24,6 @@ export default function PlansPage() {
     );
   }, [plans, query]);
 
-  const planStats = useMemo(() => {
-    const total = plans.length;
-    const active = plans.filter((plan) => plan.status === 'active').length;
-    const withCover = plans.filter((plan) => Boolean(plan.cover_image_url)).length;
-    const withSchedule = plans.filter((plan) => Boolean(plan.schedule_id)).length;
-
-    return [
-      { label: 'Planos', value: total, detail: 'salvos no workspace' },
-      { label: 'Ativos', value: active, detail: 'prontos para usar' },
-      { label: 'Com capa', value: withCover, detail: 'com identidade visual' },
-      { label: 'Com cronograma', value: withSchedule, detail: 'vinculados ao fluxo' },
-    ];
-  }, [plans]);
 
   const getPlanInitials = (name: string) => {
     const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -72,37 +59,26 @@ export default function PlansPage() {
   };
 
   return (
-    <div className="relative mx-auto w-full max-w-full space-y-6">
+    <div className="relative mx-auto w-full max-w-full space-y-4">
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-72 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.9),_transparent_35%),radial-gradient(circle_at_top_right,_rgba(255,255,255,0.75),_transparent_30%),linear-gradient(180deg,_rgba(255,255,255,0.6),_transparent)]" />
 
       <section className="overflow-hidden rounded-[2rem] border border-border/60 bg-background/80 shadow-[0_18px_60px_-35px_rgba(0,0,0,0.35)] backdrop-blur-sm">
-        <div className="flex flex-col gap-6 px-6 py-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm">
+        <div className="flex flex-col gap-4 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="max-w-2xl space-y-2.5">
+            <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-sm">
               <Sparkles className="h-3.5 w-3.5 text-primary" />
               Espaço de planos
             </div>
             <div>
-              <h1 className="text-3xl font-display font-bold text-foreground sm:text-4xl">Planos de Estudos</h1>
-              <p className="mt-2 max-w-2xl text-sm text-muted-foreground sm:text-base">
-                Organize concursos, bancos e cargos em uma visão única, com cronograma e revisões conectados ao seu fluxo.
+              <h1 className="text-2xl font-display font-bold text-foreground sm:text-3xl">Planos de Estudos</h1>
+              <p className="mt-1 max-w-2xl text-xs text-muted-foreground sm:text-sm">
+                Organize concursos, bancas e cargos em uma visão única, com cronograma e revisões conectados ao seu fluxo.
               </p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {planStats.map((stat) => (
-                <div key={stat.label} className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">{stat.label}</p>
-                  <div className="mt-2 flex items-end gap-2">
-                    <span className="text-2xl font-semibold text-foreground">{stat.value}</span>
-                    <span className="pb-0.5 text-xs text-muted-foreground">{stat.detail}</span>
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
 
-          <Button onClick={openCreateDialog} className="h-12 rounded-2xl px-6 shadow-lg shadow-black/10">
-            <Plus className="mr-1.5 h-5 w-5" />
+          <Button onClick={openCreateDialog} className="h-11 rounded-[1.25rem] px-5 shadow-lg shadow-black/5 shrink-0">
+            <Plus className="mr-1.5 h-4.5 w-4.5" />
             Criar plano guiado
           </Button>
         </div>

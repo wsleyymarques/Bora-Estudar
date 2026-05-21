@@ -9,7 +9,8 @@ import {
   Layers, 
   BarChart3,
   HelpCircle,
-  Sparkles
+  Sparkles,
+  History
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useStudyPlans } from '@/hooks/useStudyPlans';
@@ -22,7 +23,8 @@ import { cn } from '@/lib/utils';
 import { NavLink } from '@/components/NavLink';
 
 export function AppSidebar() {
-  const { state, isMobile, toggleSidebar } = useSidebar();
+  const state = useSidebar().state;
+  const isMobile = useSidebar().isMobile;
   const collapsed = state === 'collapsed';
   const { logout } = useAuth();
   const { plans } = useStudyPlans();
@@ -34,6 +36,7 @@ export function AppSidebar() {
     { title: 'Dashboard', url: '/', icon: LayoutDashboard },
     { title: 'Planos', url: '/plans', icon: Layers, badge: activePlansCount > 0 ? `${activePlansCount}+` : null },
     { title: 'Estatísticas', url: '/stats', icon: BarChart3 },
+    { title: 'Histórico', url: '/history', icon: History },
   ];
 
   if (!isMobile) {
