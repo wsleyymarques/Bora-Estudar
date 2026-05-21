@@ -24,12 +24,14 @@ import {
 } from '@/components/ui/drawer';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CalendarDays, CheckCircle2, Clock, Copy, Link2, Loader2, Pencil, Plus, Trash2, Wand2, BookOpen, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react';
+import { CalendarDays, CheckCircle2, Clock, Copy, Link2, Loader2, Pencil, Plus, Trash2, Wand2, BookOpen, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, TrendingUp, AlertTriangle, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DAY_NAMES_SHORT, ScheduleEntry } from '@/types/study';
 import WeeklyPlannerView from '@/components/schedule/WeeklyPlannerView';
 import { ResponsivePanel } from '@/components/generic/ResponsivePanel';
 import DayDetailSheet from '@/components/schedule/DayDetailSheet';
+import { useStudy } from '@/contexts/StudyContext';
+import SessionDialog from '@/components/history/SessionDialog';
 
 interface ScheduleEntryRow { id: string; user_id?: string; plan_id?: string | null; schedule_id?: string | null; date: string; subject_id: string; start_time?: string | null; planned_minutes?: number | null; completed?: boolean | null; optional?: boolean | null; item_note?: string | null; sort_order?: number | null; }
 
@@ -47,8 +49,10 @@ export default function PlanDetailsPage() {
   const plan = plans.find((item) => item.id === planId);
   const { loading: loadingSubjects, planSubjects, availableSubjects, addExistingSubjectToPlan, createAndLinkSubject, removeSubjectFromPlan, updateSubject } = usePlanSubjects(planId);
   const { templates, loading: loadingTemplates, createTemplate, duplicateTemplate, deleteTemplate, addTemplateItem, removeTemplateItem, applyTemplate } = useTemplates({ planId: planId || null, scheduleId: plan?.schedule_id || null, includeGlobal: true });
+  const { data: studyContextData } = useStudy();
 
   const [entries, setEntries] = useState<ScheduleEntryRow[]>([]);
+  const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
   const [loadingFlow, setLoadingFlow] = useState(false);
   const [editPlanOpen, setEditPlanOpen] = useState(false);
   const [subjectOpen, setSubjectOpen] = useState(false);
@@ -567,10 +571,15 @@ export default function PlanDetailsPage() {
   const deleteEntry = async (entryId: string) => { if (!confirm('Deseja remover este item do cronograma?')) return; const { error } = await supabase.from('schedule_entries').delete().eq('id', entryId).eq('user_id', user?.id || ''); if (error) { toast.error('Erro ao remover item.'); return; } await loadFlow(); };
 
   const [isHeaderMinimized, setIsHeaderMinimized] = useState(false);
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   // Calculate real activity data
   const activityStats = useMemo(() => {
     const now = new Date();
+    // A session belongs to this plan if planId matches OR if subjectId is in planSubjects
+    const planSubjectIds = new Set(planSubjects.map(s => s.id));
+    const isPlanSession = (s: { planId?: string; subjectId: string }) =>
+      s.planId === planId || (!s.planId && planSubjectIds.has(s.subjectId));
     const last7Days = Array.from({ length: 7 }).map((_, i) => {
       const date = new Date();
       date.setDate(now.getDate() - (6 - i));
@@ -579,7 +588,15 @@ export default function PlanDetailsPage() {
       const dayEntries = entries.filter(e => e.date === dateStr);
       const completedCount = dayEntries.filter(e => e.completed).length;
       const totalCount = dayEntries.length;
-      const intensity = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+      
+      const daySessions = studyContextData.sessions.filter(s => isPlanSession(s) && s.date === dateStr);
+      const dayStudiedMins = daySessions.reduce((acc, curr) => acc + (curr.durationMinutes || Math.round((curr.actualDurationSeconds || 0) / 60) || 0), 0);
+      
+      let intensity = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+      if (dayStudiedMins > 0) {
+        const studyIntensity = Math.min((dayStudiedMins / 120) * 100, 100);
+        intensity = Math.max(intensity, studyIntensity);
+      }
       
       return {
         label: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][date.getDay()],
@@ -587,10 +604,17 @@ export default function PlanDetailsPage() {
         isToday: i === 6
       };
     });
-
-    const todayStr = now.toISOString().split('T')[0];
-    const todayEntries = entries.filter(e => e.date === todayStr && e.completed);
-    const todayMinutes = todayEntries.reduce((acc, curr) => acc + (Number(curr.planned_minutes) || 0), 0);
+    
+    // Calculate today's logged sessions minutes
+    const todaySessions = studyContextData.sessions.filter(s => isPlanSession(s) && s.date === todayStr);
+    const actualMins = todaySessions.reduce((acc, curr) => acc + (curr.durationMinutes || Math.round((curr.actualDurationSeconds || 0) / 60) || 0), 0);
+    
+    let todayMinutes = actualMins;
+    if (todayMinutes === 0) {
+      const todayEntries = entries.filter(e => e.date === todayStr && e.completed);
+      todayMinutes = todayEntries.reduce((acc, curr) => acc + (Number(curr.planned_minutes) || 0), 0);
+    }
+    
     const hours = Math.floor(todayMinutes / 60);
     const mins = todayMinutes % 60;
 
@@ -605,7 +629,80 @@ export default function PlanDetailsPage() {
       focusRate: `${focusRate}%`,
       productivity: focusRate > 80 ? 'Alta' : focusRate > 50 ? 'Média' : 'Baixa'
     };
-  }, [entries]);
+  }, [entries, studyContextData.sessions, planId, planSubjects]);
+
+  const insights = useMemo(() => {
+    const subjectsMap = new Map(planSubjects.map(s => [s.id, s]));
+    const planSubjectIds = new Set(planSubjects.map(s => s.id));
+    const isPlanSession = (s: { planId?: string; subjectId: string }) =>
+      s.planId === planId || (!s.planId && planSubjectIds.has(s.subjectId));
+    
+    let totalDaysBelow = 0;
+    let totalMinutesDeficit = 0;
+    const subjectDeficits = new Map();
+    
+    const pastEntries = entries.filter(e => e.date <= todayStr);
+    const planSessions = studyContextData.sessions.filter(s => isPlanSession(s));
+    
+    const dailyHistory = [];
+    
+    pastEntries.forEach(entry => {
+      const subject = subjectsMap.get(entry.subject_id);
+      if (!subject) return;
+      
+      const daySessions = planSessions.filter(s => s.subjectId === entry.subject_id && s.date === entry.date);
+      const actualMins = daySessions.reduce((sum, s) => sum + (s.durationMinutes || Math.round((s.actualDurationSeconds || 0) / 60) || 0), 0);
+      const plannedMins = Number(entry.planned_minutes) || 0;
+      
+      if (actualMins < plannedMins) {
+        const deficit = plannedMins - actualMins;
+        totalDaysBelow++;
+        totalMinutesDeficit += deficit;
+        
+        const currentStats = subjectDeficits.get(entry.subject_id) || {
+          name: subject.name,
+          color: subject.color || '#5B8C7E',
+          belowCount: 0,
+          minutesDeficit: 0
+        };
+        currentStats.belowCount++;
+        currentStats.minutesDeficit += deficit;
+        subjectDeficits.set(entry.subject_id, currentStats);
+        
+        dailyHistory.push({
+          date: entry.date,
+          subjectId: entry.subject_id,
+          subjectName: subject.name,
+          subjectColor: subject.color || '#5B8C7E',
+          plannedMins,
+          actualMins,
+          deficitMins: deficit
+        });
+      }
+    });
+    
+    dailyHistory.sort((a, b) => b.date.localeCompare(a.date));
+    
+    let mostNeglectedSubject = 'Nenhuma';
+    let maxBelowCount = 0;
+    subjectDeficits.forEach((stats) => {
+      if (stats.belowCount > maxBelowCount) {
+        maxBelowCount = stats.belowCount;
+        mostNeglectedSubject = stats.name;
+      }
+    });
+    
+    return {
+      totalDaysBelow,
+      totalHoursDeficit: Math.round((totalMinutesDeficit / 60) * 10) / 10,
+      mostNeglectedSubject,
+      dailyHistory: dailyHistory.slice(0, 10),
+      subjectBreakdown: Array.from(subjectDeficits.entries()).map(([id, stats]) => ({
+        id,
+        ...stats
+      })).sort((a, b) => b.belowCount - a.belowCount)
+    };
+  }, [entries, studyContextData.sessions, planSubjects, planId]);
 
   if (!plan) return <div className="space-y-4"><p className="text-muted-foreground">Plano de Estudos não encontrado ou ainda carregando.</p><Button asChild variant="outline"><Link to="/plans">Voltar para planos</Link></Button></div>;
 
@@ -619,7 +716,7 @@ export default function PlanDetailsPage() {
         variant="ghost" 
         size="icon" 
         onClick={() => setIsHeaderMinimized(!isHeaderMinimized)}
-        className="absolute -bottom-3 left-1/2 -translate-x-1/2 z-20 h-6 w-12 rounded-full bg-background border shadow-sm hover:bg-muted opacity-0 group-hover/header:opacity-100 transition-opacity"
+        className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 h-6 w-12 rounded-full bg-background border shadow-md hover:bg-muted opacity-100 transition-all"
       >
         {isHeaderMinimized ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
       </Button>
@@ -704,8 +801,18 @@ export default function PlanDetailsPage() {
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Últimos 7 dias</p>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <div className="bg-primary/10 text-primary px-3 py-1 rounded-full text-[10px] font-bold border border-primary/10 whitespace-nowrap">Produtividade: {activityStats.productivity}</div>
+            {!isHeaderMinimized && (
+              <Button 
+                onClick={() => setSessionDialogOpen(true)}
+                size="sm"
+                className="h-8 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1 bg-primary text-primary-foreground hover:bg-primary/95 transition-all"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Registrar Estudo
+              </Button>
+            )}
           </div>
         </div>
 
@@ -754,8 +861,17 @@ export default function PlanDetailsPage() {
       </div>
     </div>
 
-    {/* CRONOGRAMA ROW */}
-    <div className="glass-card flex flex-col p-5">
+    {/* TABS CONTAINER FOR CRONOGRAMA & INSIGHTS */}
+    <Tabs defaultValue="cronograma" className="w-full">
+      <TabsList className="grid w-full max-w-[400px] grid-cols-2 bg-muted/60 p-1.5 rounded-2xl mb-6">
+        <TabsTrigger value="cronograma" className="rounded-xl font-bold text-xs py-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">Cronograma</TabsTrigger>
+        <TabsTrigger value="insights" className="rounded-xl font-bold text-xs py-2 flex items-center gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+          <TrendingUp className="h-3.5 w-3.5" /> Insights
+        </TabsTrigger>
+      </TabsList>
+      
+      <TabsContent value="cronograma" className="outline-none space-y-4">
+        <div className="glass-card flex flex-col p-5">
       {/* 2. Seletor de Período (Semanal, Mensal, Anual) e 1. Navegador de Data Centralizado e Maior */}
       <div className="flex flex-col gap-4 mb-6 shrink-0 border-b border-black/5 pb-5">
         {/* Top Header Row: Title & Matérias Button */}
@@ -880,6 +996,144 @@ export default function PlanDetailsPage() {
         )}
       </div>
     </div>
+      </TabsContent>
+      
+      <TabsContent value="insights" className="outline-none">
+        <div className="glass-card flex flex-col p-5 gap-6">
+          <div>
+            <h2 className="font-display text-xl font-black tracking-tight text-foreground flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-primary" /> Insights de Andamento
+            </h2>
+            <p className="text-xs text-muted-foreground font-semibold">
+              Análise comparativa entre o planejado no seu cronograma e o que foi efetivamente estudado.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-primary/5 border border-primary/10 rounded-2xl p-4 flex flex-col gap-1.5 relative overflow-hidden">
+              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Média de Foco</span>
+              <span className="text-2xl font-black text-primary tracking-tight">{activityStats.focusRate}</span>
+              <span className="text-[10px] text-muted-foreground mt-1">Sessões concluídas do total planejado</span>
+            </div>
+            
+            <div className="bg-destructive/5 border border-destructive/10 rounded-2xl p-4 flex flex-col gap-1.5 relative overflow-hidden">
+              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Dias abaixo do planejado</span>
+              <span className="text-2xl font-black text-destructive tracking-tight">{insights.totalDaysBelow} dias</span>
+              <span className="text-[10px] text-muted-foreground mt-1">Dias onde estudou menos do que planejou</span>
+            </div>
+
+            <div className="bg-warning/5 border border-warning/10 rounded-2xl p-4 flex flex-col gap-1.5 relative overflow-hidden">
+              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Horas não cumpridas</span>
+              <span className="text-2xl font-black text-warning-foreground tracking-tight">{insights.totalHoursDeficit}h</span>
+              <span className="text-[10px] text-muted-foreground mt-1">Total de horas que faltaram para bater a meta</span>
+            </div>
+
+            <div className="bg-muted/40 border border-border/40 rounded-2xl p-4 flex flex-col gap-1.5 relative overflow-hidden">
+              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Matéria mais negligenciada</span>
+              <span className="text-2xl font-black text-foreground tracking-tight truncate" title={insights.mostNeglectedSubject}>
+                {insights.mostNeglectedSubject}
+              </span>
+              <span className="text-[10px] text-muted-foreground mt-1">Matéria com maior frequência de déficits</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-2">
+            <div className="lg:col-span-7 flex flex-col gap-3">
+              <h3 className="font-display font-black text-sm text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <AlertTriangle className="h-4 w-4 text-warning" /> Histórico de desvios recentes
+              </h3>
+              <div className="border border-border/40 rounded-2xl overflow-hidden bg-muted/5">
+                {insights.dailyHistory.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground text-xs font-medium">
+                    Parabéns! Você não tem desvios recentes nos últimos dias planejados.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border/30 max-h-[300px] overflow-y-auto custom-scrollbar">
+                    {insights.dailyHistory.map((item, idx) => {
+                      const dayParts = item.date.split('-');
+                      const formattedDate = dayParts.length === 3 ? `${dayParts[2]}/${dayParts[1]}` : item.date;
+                      return (
+                        <div key={idx} className="flex items-center justify-between p-3.5 hover:bg-muted/10 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs font-bold text-muted-foreground whitespace-nowrap bg-muted px-2 py-0.5 rounded-lg">
+                              {formattedDate}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: item.subjectColor }} />
+                              <span className="text-xs font-bold text-foreground truncate max-w-[150px] md:max-w-[200px]" title={item.subjectName}>
+                                {item.subjectName}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-4 text-right">
+                            <div className="text-[10px] text-muted-foreground font-semibold">
+                              <span>Planejado: </span>
+                              <span className="text-foreground">{Math.floor(item.plannedMins / 60)}h{item.plannedMins % 60}m</span>
+                              <span className="mx-1">•</span>
+                              <span>Feito: </span>
+                              <span className="text-primary font-bold">{Math.floor(item.actualMins / 60)}h{item.actualMins % 60}m</span>
+                            </div>
+                            <span className="text-xs font-black text-destructive bg-destructive/10 px-2 py-0.5 rounded-lg whitespace-nowrap">
+                              -{Math.floor(item.deficitMins / 60)}h{item.deficitMins % 60}m
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="lg:col-span-5 flex flex-col gap-3">
+              <h3 className="font-display font-black text-sm text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <BarChart3 className="h-4 w-4 text-primary" /> Frequência de déficits
+              </h3>
+              <div className="border border-border/40 rounded-2xl p-4 bg-muted/5 flex flex-col gap-4 max-h-[300px] overflow-y-auto custom-scrollbar">
+                {insights.subjectBreakdown.length === 0 ? (
+                  <div className="py-8 text-center text-muted-foreground text-xs font-medium">
+                    Nenhuma matéria com déficit de horas registrado.
+                  </div>
+                ) : (
+                  insights.subjectBreakdown.map((subject, idx) => {
+                    const totalPlannedMins = entries.filter(e => e.subject_id === subject.id && e.date <= todayStr).reduce((acc, curr) => acc + (Number(curr.planned_minutes) || 0), 0);
+                    const totalActualMins = studyContextData.sessions.filter(s => s.subjectId === subject.id && s.planId === planId).reduce((acc, curr) => acc + (curr.durationMinutes || Math.round((curr.actualDurationSeconds || 0) / 60) || 0), 0);
+                    const completionRate = totalPlannedMins > 0 ? Math.min(Math.round((totalActualMins / totalPlannedMins) * 100), 100) : 0;
+                    
+                    return (
+                      <div key={idx} className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between text-xs font-bold">
+                          <div className="flex items-center gap-2">
+                            <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: subject.color }} />
+                            <span className="text-foreground truncate max-w-[120px]">{subject.name}</span>
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">
+                            <span className="text-destructive font-black">{subject.belowCount}x abaixo</span>
+                            <span className="mx-1">•</span>
+                            <span className="text-primary">{completionRate}% concluído</span>
+                          </div>
+                        </div>
+                        
+                        <div className="h-2 bg-muted rounded-full overflow-hidden border border-border/30">
+                          <div 
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{ 
+                              backgroundColor: subject.color,
+                              width: `${completionRate}%` 
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </TabsContent>
+    </Tabs>
     {/* RESPONSIVE PANEL: EDITAR PLANO (Side on Desktop, Bottom on Mobile) */}
     <ResponsivePanel
       open={editPlanOpen}
@@ -1102,6 +1356,12 @@ export default function PlanDetailsPage() {
         />
       </div>
     </ResponsivePanel>
+
+    <SessionDialog
+      open={sessionDialogOpen}
+      onOpenChange={setSessionDialogOpen}
+      defaultPlanId={planId}
+    />
   </div>;
 }
 

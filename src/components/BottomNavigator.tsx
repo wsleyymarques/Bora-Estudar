@@ -1,10 +1,11 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, Layers, BarChart3, Settings } from "lucide-react";
+import { LayoutDashboard, Layers, BarChart3, History } from "lucide-react";
 
 const mobileItems = [
   { title: "Início", url: "/", icon: LayoutDashboard },
   { title: "Planos", url: "/plans", icon: Layers },
   { title: "Estatísticas", url: "/stats", icon: BarChart3 },
+  { title: "Histórico", url: "/history", icon: History },
 ];
 
 export function BottomNavigator() {
@@ -12,7 +13,7 @@ export function BottomNavigator() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/95 backdrop-blur md:hidden">
-      <ul className="grid grid-cols-3 ">
+      <ul className="grid grid-cols-4 ">
         {mobileItems.map((item) => {
           const isActive = item.url === "/" ? pathname === "/" : pathname.startsWith(item.url);
           return (

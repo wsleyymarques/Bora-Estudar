@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
   BookOpen, 
@@ -24,6 +24,7 @@ import { formatMinutesCompact } from '@/lib/duration-utils';
 import { getSessionActualMinutes } from '@/features/tracker/session-metrics';
 import { cn } from '@/lib/utils';
 import { QuickPlanTimerCard } from '@/components/dashboard/QuickPlanTimerCard';
+import { DashboardPlansCard } from '@/components/dashboard/DashboardPlansCard';
 
 export default function DashboardPage() {
   const { data, getSubject, getScheduleForDate, getTotalMinutesForDate } = useStudy();
@@ -157,7 +158,8 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <QuickPlanTimerCard plans={plans} className="lg:col-span-12" />
+        <QuickPlanTimerCard plans={plans} className="lg:col-span-6" />
+        <DashboardPlansCard plans={plans} className="lg:col-span-6" />
       </div>
 
       {/* STYLES FOR THE INACTIVE CHART STRIPES AND SCROLLBAR */}

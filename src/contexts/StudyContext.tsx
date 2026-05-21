@@ -93,6 +93,7 @@ interface StudyContextType {
   upsertScheduleDayPlan: (date: string, plan: Partial<Omit<ScheduleDayPlan, 'id' | 'date'>>) => Promise<void>;
   addSession: (s: SessionInput) => Promise<void>;
   updateSession: (id: string, s: Partial<StudySession>) => Promise<void>;
+  deleteSession: (id: string) => Promise<void>;
   addNote: (n: Omit<Note, 'id' | 'createdAt'>) => Promise<void>;
   updateNote: (id: string, content: string) => Promise<void>;
   deleteNote: (id: string) => Promise<void>;
@@ -718,8 +719,45 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Auto-complete schedule entries if total studied minutes for this subject/date >= 30
+    try {
+      const AUTO_COMPLETE_THRESHOLD_MINUTES = 30;
+
+      // Fetch all sessions for this subject on this date to get the total
+      const { data: existingSessions } = await db
+        .from('study_sessions')
+        .select('duration_minutes, actual_duration_seconds')
+        .eq('user_id', user.id)
+        .eq('subject_id', s.subjectId)
+        .eq('date', s.date)
+        .eq('status', 'completed');
+
+      const totalMinutes = (existingSessions || []).reduce((sum, sess) => {
+        return sum + (sess.duration_minutes || Math.round((sess.actual_duration_seconds || 0) / 60) || 0);
+      }, 0);
+
+      if (totalMinutes >= AUTO_COMPLETE_THRESHOLD_MINUTES) {
+        // Find matching schedule entries for this subject/date that are NOT yet completed
+        const matchingEntries = data.schedule.filter(
+          e => e.subjectId === s.subjectId && e.date === s.date && !e.completed,
+        );
+
+        for (const entry of matchingEntries) {
+          await db
+            .from('schedule_entries')
+            .update({ completed: true })
+            .eq('id', entry.id)
+            .eq('user_id', user.id);
+        }
+      }
+    } catch (autoCompleteErr) {
+      // Non-critical — don't block the session save
+      console.warn('Auto-complete schedule entry failed:', autoCompleteErr);
+    }
+
     await fetchAll();
   };
+
 
   const updateSession = async (id: string, s: Partial<StudySession>) => {
     const update: any = {};
@@ -740,6 +778,20 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     if (response.error) {
       toast.error('Erro ao atualizar sessão');
       console.error(response.error);
+      return;
+    }
+
+    await fetchAll();
+  };
+
+  const deleteSession = async (id: string) => {
+    if (!user) return;
+
+    const { error } = await db.from('study_sessions').delete().eq('id', id);
+
+    if (error) {
+      toast.error('Erro ao excluir sessão');
+      console.error(error);
       return;
     }
 
@@ -839,6 +891,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         upsertScheduleDayPlan,
         addSession,
         updateSession,
+        deleteSession,
         addNote,
         updateNote,
         deleteNote,
