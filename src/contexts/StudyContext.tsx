@@ -16,7 +16,7 @@ import {
 import { useAuth } from './AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { getSessionActualMinutes, getSessionPauseSeconds, getSessionActualSeconds } from '@/features/tracker/session-metrics';
+import { getSessionActualMinutes, getSessionPauseSeconds, getSessionActualSeconds, getSessionDateKey } from '@/features/tracker/session-metrics';
 import { parseDateKey } from '@/lib/date-utils';
 import { generateWeeklyOccurrences } from '@/features/schedule/recurrence';
 
@@ -205,6 +205,7 @@ function mapScheduleEntry(row: any): ScheduleEntry {
     order: row.sort_order,
     startTime: row.start_time || undefined,
     plannedMinutes: row.planned_minutes ?? undefined,
+    durationMinutes: row.duration_minutes ?? undefined,
     itemNote: row.item_note || undefined,
     templateId: row.template_id || undefined,
     isOverride: row.is_override || false,
@@ -236,6 +237,22 @@ function mapSession(row: any): StudySession {
     endTime: row.end_time || undefined,
     durationMinutes: row.duration_minutes ?? 0,
     note: row.note || undefined,
+    sessionMode: row.session_mode || undefined,
+    status: row.status || undefined,
+    source: row.source || undefined,
+    pomodoroPhase: row.pomodoro_phase || undefined,
+    pomodoroCycle: row.pomodoro_cycle ?? undefined,
+    isFocusSession: row.is_focus_session ?? true,
+    startedAt: row.started_at || undefined,
+    endedAt: row.ended_at || undefined,
+    actualDurationSeconds: row.actual_duration_seconds ?? undefined,
+    totalPauseSeconds: row.total_pause_seconds ?? undefined,
+    clockDurationSeconds: row.clock_duration_seconds ?? undefined,
+    plannedStartTime: row.planned_start_time || undefined,
+    plannedMinutes: row.planned_minutes ?? undefined,
+    scheduleDate: row.schedule_date || undefined,
+    scheduleEntryId: row.schedule_entry_id || undefined,
+    metadata: row.metadata || undefined,
   };
 }
 
@@ -252,7 +269,7 @@ function mapNote(row: any): Note {
 }
 
 export function StudyProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const [data, setData] = useState<UserData>(EMPTY_DATA);
   const [loading, setLoading] = useState(true);
 
@@ -476,6 +493,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       sort_order: e.order,
       start_time: e.startTime || null,
       planned_minutes: e.plannedMinutes ?? null,
+      duration_minutes: e.durationMinutes ?? e.plannedMinutes ?? null,
       item_note: e.itemNote || null,
       template_id: e.templateId || null,
       recurrence_rule_id: e.recurrenceRuleId || null,
@@ -574,6 +592,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         sort_order: currentCount + generatedCount,
         start_time: input.startTime || null,
         planned_minutes: input.plannedMinutes ?? null,
+        duration_minutes: input.plannedMinutes ?? null,
         item_note: input.itemNote || null,
         template_id: null,
         recurrence_rule_id: rule.id,
@@ -606,6 +625,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     if (e.order !== undefined) update.sort_order = e.order;
     if (e.startTime !== undefined) update.start_time = e.startTime || null;
     if (e.plannedMinutes !== undefined) update.planned_minutes = e.plannedMinutes;
+    if (e.durationMinutes !== undefined) update.duration_minutes = e.durationMinutes;
     if (e.itemNote !== undefined) update.item_note = e.itemNote || null;
     if (e.templateId !== undefined) update.template_id = e.templateId || null;
     if (e.isOverride !== undefined) update.is_override = e.isOverride;
@@ -756,10 +776,15 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     }
 
     await fetchAll();
+    await refreshProfile();
   };
 
 
   const updateSession = async (id: string, s: Partial<StudySession>) => {
+    const existingSession = data.sessions.find((sess) => sess.id === id);
+    const targetSubjectId = s.subjectId !== undefined ? s.subjectId : existingSession?.subjectId;
+    const targetDate = s.date !== undefined ? s.date : existingSession?.date;
+
     const update: any = {};
     if (s.planId !== undefined) update.plan_id = s.planId || null;
     if (s.subjectId !== undefined) update.subject_id = s.subjectId;
@@ -767,6 +792,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     if (s.startTime !== undefined) update.start_time = s.startTime;
     if (s.endTime !== undefined) update.end_time = s.endTime;
     if (s.durationMinutes !== undefined) update.duration_minutes = s.durationMinutes;
+    if (s.actualDurationSeconds !== undefined) update.actual_duration_seconds = s.actualDurationSeconds;
+    if (s.clockDurationSeconds !== undefined) update.clock_duration_seconds = s.clockDurationSeconds;
     if (s.note !== undefined) update.note = s.note;
 
     let response = await db.from('study_sessions').update(update).eq('id', id);
@@ -781,7 +808,43 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Auto-complete schedule entries if total studied minutes for this subject/date >= 30
+    if (user && targetSubjectId && targetDate) {
+      try {
+        const AUTO_COMPLETE_THRESHOLD_MINUTES = 30;
+
+        const { data: existingSessions } = await db
+          .from('study_sessions')
+          .select('duration_minutes, actual_duration_seconds')
+          .eq('user_id', user.id)
+          .eq('subject_id', targetSubjectId)
+          .eq('date', targetDate)
+          .eq('status', 'completed');
+
+        const totalMinutes = (existingSessions || []).reduce((sum, sess) => {
+          return sum + (sess.duration_minutes || Math.round((sess.actual_duration_seconds || 0) / 60) || 0);
+        }, 0);
+
+        if (totalMinutes >= AUTO_COMPLETE_THRESHOLD_MINUTES) {
+          const matchingEntries = data.schedule.filter(
+            e => e.subjectId === targetSubjectId && e.date === targetDate && !e.completed,
+          );
+
+          for (const entry of matchingEntries) {
+            await db
+              .from('schedule_entries')
+              .update({ completed: true })
+              .eq('id', entry.id)
+              .eq('user_id', user.id);
+          }
+        }
+      } catch (autoCompleteErr) {
+        console.warn('Auto-complete schedule entry failed:', autoCompleteErr);
+      }
+    }
+
     await fetchAll();
+    await refreshProfile();
   };
 
   const deleteSession = async (id: string) => {
@@ -796,6 +859,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     }
 
     await fetchAll();
+    await refreshProfile();
   };
 
   const addNote = async (n: Omit<Note, 'id' | 'createdAt'>) => {
@@ -843,7 +907,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
   const getSessionsForDate = (date: string) =>
     data.sessions
-      .filter((session) => session.date === date)
+      .filter((session) => getSessionDateKey(session) === date)
       .sort((left, right) => (left.startTime || '').localeCompare(right.startTime || ''));
 
   const getScheduleForDate = (date: string) =>
@@ -860,14 +924,17 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
   const getTotalMinutesForDate = (date: string) => {
     const totalSeconds = data.sessions
-      .filter((session) => session.date === date)
+      .filter((session) => getSessionDateKey(session) === date)
       .reduce((acc, session) => acc + getSessionActualSeconds(session), 0);
     return Math.round(totalSeconds / 60);
   };
 
   const getTotalMinutesForSubject = (subjectId: string, from?: string, to?: string) => {
     const totalSeconds = data.sessions
-      .filter((session) => session.subjectId === subjectId && (!from || session.date >= from) && (!to || session.date <= to))
+      .filter((session) => {
+        const dateKey = getSessionDateKey(session);
+        return session.subjectId === subjectId && (!from || dateKey >= from) && (!to || dateKey <= to);
+      })
       .reduce((acc, session) => acc + getSessionActualSeconds(session), 0);
     return Math.round(totalSeconds / 60);
   };

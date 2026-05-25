@@ -72,7 +72,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     // Send push notification
     nativeSendNotification(title, {
       body: description,
-      icon: '/favicon.ico',
+      icon: '/studei-icon-192.png',
     });
 
     // Also show toast
@@ -103,6 +103,60 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     setNotificationPermission(state);
     return granted;
   }, []);
+
+  // Daemon check for scheduled reminders (e.g. entry-level alerts)
+  useEffect(() => {
+    const checkScheduledReminders = () => {
+      const savedReminders = localStorage.getItem('scheduled_reminders');
+      if (!savedReminders) return;
+
+      try {
+        const reminders = JSON.parse(savedReminders);
+        const now = new Date();
+        
+        // Local YYYY-MM-DD
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const todayDate = `${year}-${month}-${day}`;
+
+        // Local HH:MM
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const currentTime = `${hours}:${minutes}`;
+
+        let changed = false;
+        const updatedReminders = reminders.map((reminder: any) => {
+          if (
+            reminder.date === todayDate &&
+            reminder.time <= currentTime &&
+            !reminder.triggered
+          ) {
+            // Trigger!
+            addNotification(
+              reminder.title || 'Hora de Estudar! 📚',
+              reminder.body || `Lembrete para estudar ${reminder.subjectName || ''}`,
+              'info'
+            );
+            changed = true;
+            return { ...reminder, triggered: true };
+          }
+          return reminder;
+        });
+
+        if (changed) {
+          localStorage.setItem('scheduled_reminders', JSON.stringify(updatedReminders));
+        }
+      } catch (e) {
+        console.error('Error checking scheduled reminders:', e);
+      }
+    };
+
+    // Initial check and 30-sec loop
+    checkScheduledReminders();
+    const intervalId = setInterval(checkScheduledReminders, 30000);
+    return () => clearInterval(intervalId);
+  }, [addNotification]);
 
   // Helper to format/update time label (e.g. "Agora", "há 5m")
   useEffect(() => {

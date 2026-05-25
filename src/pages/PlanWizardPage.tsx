@@ -173,8 +173,9 @@ function PlanDataStep({
   onCreate: () => Promise<void>;
 }) {
   return (
-    <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-      {/* LEFT: FORM */}
+    <div className="pb-24">
+      <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+        {/* LEFT: FORM */}
       <div className="glass-card p-6 space-y-6">
         <div>
           <h2 className="text-xl font-display font-black tracking-tight">Informações do Plano</h2>
@@ -270,24 +271,6 @@ function PlanDataStep({
           </div>
         )}
 
-        {/* REVISÃO */}
-        <div className="grid gap-2">
-          <Label className="font-bold">Intervalo de revisão automática</Label>
-          <div className="flex items-center gap-3">
-            <Input
-              type="number"
-              min={1}
-              max={90}
-              value={form.review_interval_days}
-              onChange={(e) => updateForm('review_interval_days', Number(e.target.value))}
-              className="h-12 rounded-xl border-2 w-24 text-center text-lg font-bold"
-            />
-            <span className="text-sm text-muted-foreground font-medium">dias entre revisões</span>
-          </div>
-          <p className="text-[10px] text-muted-foreground ml-1">
-            O sistema marcará automaticamente conteúdos para revisão nesse intervalo. O padrão é 7 dias.
-          </p>
-        </div>
 
         {/* DESCRIÇÃO */}
         <div className="grid gap-2">
@@ -340,19 +323,25 @@ function PlanDataStep({
           </div>
         </div>
 
-        <Button
-          onClick={onCreate}
-          disabled={saving}
-          className="w-full h-14 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-primary/20 transition-all hover:shadow-2xl hover:shadow-primary/30 active:scale-[0.98]"
-          size="lg"
-        >
-          {saving ? (
-            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-          ) : (
-            <ChevronRight className="mr-2 h-5 w-5" />
-          )}
-          {saving ? 'Criando plano...' : 'Criar plano e continuar'}
-        </Button>
+        </div>
+      </div>
+
+      <div className="fixed bottom-0 right-0 left-0 md:left-[var(--sidebar-width,16rem)] p-4 bg-background/90 backdrop-blur-md border-t shadow-2xl z-50 flex justify-center">
+        <div className="w-full max-w-3xl px-4 lg:px-0">
+          <Button
+            onClick={onCreate}
+            disabled={saving}
+            className="w-full h-14 rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-primary/20 transition-all hover:shadow-xl hover:shadow-primary/30 active:scale-[0.98]"
+            size="lg"
+          >
+            {saving ? (
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+            ) : (
+              <ChevronRight className="mr-2 h-5 w-5" />
+            )}
+            {saving ? 'Criando plano...' : 'Criar plano e continuar'}
+          </Button>
+        </div>
       </div>
     </div>
   );

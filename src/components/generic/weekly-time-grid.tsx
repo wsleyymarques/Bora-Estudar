@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { CheckCircle2, Circle, Clock3 } from 'lucide-react';
+import { Bell, CheckCircle2, Circle, Clock3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatMinutesCompact } from '@/lib/duration-utils';
 
@@ -36,6 +36,8 @@ export interface WeeklyTimeGridEvent {
   onClick?: () => void;
   onToggleComplete?: () => void;
   actions?: React.ReactNode;
+  isExtra?: boolean;
+  hasNotification?: boolean;
 }
 
 interface WeeklyTimeGridProps {
@@ -143,13 +145,16 @@ export function WeeklyTimeGrid({
   );
 
   const rowStarts = useMemo(() => {
-    const totalSlots = Math.floor(totalMinutes / slotMinutes);
-    const allRows = [];
-    for (let i = 1; i <= totalSlots; i++) {
-      allRows.push(i);
+    const activeRows = new Set<number>();
+    for (const bucket of eventsByDay.values()) {
+      for (const event of bucket.timed) {
+        if (event.rowStart !== undefined) {
+          activeRows.add(event.rowStart);
+        }
+      }
     }
-    return allRows;
-  }, [totalMinutes, slotMinutes]);
+    return Array.from(activeRows).sort((a, b) => a - b);
+  }, [eventsByDay]);
 
   const hasAnyUntimed = useMemo(() => {
     for (const bucket of eventsByDay.values()) {
@@ -228,7 +233,7 @@ export function WeeklyTimeGrid({
                       </p>
                       <p className="text-sm font-display font-semibold truncate">{day.dateLabel}</p>
                       {day.metaLabel && (
-                        <p className={cn('mt-1 text-[11px] truncate', day.isToday ? 'text-background/80' : 'text-muted-foreground')}>
+                        <p className={cn('mt-1 text-[11px] leading-snug', day.isToday ? 'text-background/80' : 'text-muted-foreground')}>
                           {day.metaLabel}
                         </p>
                       )}
@@ -305,7 +310,8 @@ export function WeeklyTimeGrid({
                             className={cn(
                               'group relative rounded-2xl border bg-card px-3 py-2.5 text-left shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 cursor-grab active:cursor-grabbing min-w-0 flex flex-col justify-between h-full border-border/40',
                               event.completed ? 'opacity-80 bg-muted/40' : '',
-                              event.optional ? 'border-dashed' : '',
+                              event.optional || event.isExtra ? 'border-dashed' : '',
+                              event.isExtra ? 'bg-primary/5 border-primary/20 backdrop-blur-sm' : '',
                             )}
                             style={{
                               borderLeftWidth: 6,
@@ -332,11 +338,20 @@ export function WeeklyTimeGrid({
                                       {formatMinutesCompact(event.durationMinutes)}
                                     </div>
                                   ) : null}
-                                  {event.badgeLabel ? (
+                                  {event.isExtra ? (
+                                    <div className="inline-flex items-center rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold text-accent italic">
+                                      Sessão Extra
+                                    </div>
+                                  ) : event.badgeLabel ? (
                                     <div className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-bold text-accent">
                                       {event.badgeLabel}
                                     </div>
                                   ) : null}
+                                  {event.hasNotification && (
+                                    <div className="inline-flex items-center rounded-full bg-warning/10 px-1.5 py-0.5 text-[10px] font-bold text-warning" title="Notificação ativa">
+                                      <Bell className="h-3 w-3 animate-pulse" />
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -445,7 +460,8 @@ export function WeeklyTimeGrid({
                                     className={cn(
                                       'group relative rounded-2xl border bg-card px-3 py-2.5 text-left shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 cursor-grab active:cursor-grabbing min-w-0 flex flex-col justify-between h-full border-border/40',
                                       event.completed ? 'opacity-80 bg-muted/40' : '',
-                                      event.optional ? 'border-dashed' : '',
+                                      event.optional || event.isExtra ? 'border-dashed' : '',
+                                      event.isExtra ? 'bg-primary/5 border-primary/20 backdrop-blur-sm' : '',
                                     )}
                                     style={{
                                       borderLeftWidth: 6,
@@ -473,11 +489,20 @@ export function WeeklyTimeGrid({
                                               {formatMinutesCompact(event.durationMinutes)}
                                             </div>
                                           ) : null}
-                                          {event.badgeLabel ? (
+                                          {event.isExtra ? (
+                                            <div className="inline-flex items-center rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold text-accent italic">
+                                              Sessão Extra
+                                            </div>
+                                          ) : event.badgeLabel ? (
                                             <div className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-bold text-accent">
                                               {event.badgeLabel}
                                             </div>
                                           ) : null}
+                                          {event.hasNotification && (
+                                            <div className="inline-flex items-center rounded-full bg-warning/10 px-1.5 py-0.5 text-[10px] font-bold text-warning" title="Notificação ativa">
+                                              <Bell className="h-3 w-3 animate-pulse" />
+                                            </div>
+                                          )}
                                         </div>
                                       </div>
                                     </div>

@@ -1,14 +1,15 @@
-﻿import React from 'react';
+import React from 'react';
 
+import { DailyConsistencyCard } from '@/components/stats/DailyConsistencyCard';
 import { DetailedStatsChart } from '@/components/stats/DetailedStatsChart';
+import { WeeklyRankingCard } from '@/components/stats/WeeklyRankingCard';
 
 export default function StatsPage() {
   return (
-    <div className="space-y-6 w-full max-w-none">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-display font-bold text-foreground">Estatísticas</h1>
-        <p className="text-sm text-muted-foreground">Acompanhe o volume estudado por período, matéria e distribuição geral.</p>
-      </div>
+    <div className="w-full max-w-none space-y-6">
+
+
+
 
       <DetailedStatsChart />
     </div>

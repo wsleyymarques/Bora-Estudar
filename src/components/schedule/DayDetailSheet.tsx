@@ -16,6 +16,7 @@ interface DayDetailSheetProps extends EntryActionsProps {
   onOpenChange: (open: boolean) => void;
   onAdd: (date: string) => void;
   onNote: (date: string) => void;
+  onEditSubject?: (subjectId: string) => void;
   onApplyRecurrence?: (entryId: string, repeatValue: number, repeatUnit: string, repeatFrequency: string) => void;
 }
 
@@ -25,6 +26,7 @@ export default function DayDetailSheet({
   onOpenChange,
   onAdd,
   onNote,
+  onEditSubject,
   onMove,
   onChange,
   onRemove,
@@ -40,7 +42,13 @@ export default function DayDetailSheet({
   } = useStudy();
 
   const activeDate = date || '';
-  const entries = useMemo(() => (activeDate ? getScheduleForDate(activeDate) : []), [activeDate, getScheduleForDate]);
+  const allEntries = useMemo(() => (activeDate ? getScheduleForDate(activeDate) : []), [activeDate, getScheduleForDate]);
+  
+  const entries = useMemo(() => {
+    if (!data.activeStudyPlanId) return allEntries;
+    return allEntries.filter(entry => entry.planId === data.activeStudyPlanId);
+  }, [allEntries, data.activeStudyPlanId]);
+
   const dayPlan = activeDate ? getDayPlanForDate(activeDate) : undefined;
   const dayNotes = useMemo(
     () => (activeDate ? data.notes.filter((note) => note.type === 'day' && note.referenceDate === activeDate) : []),
@@ -71,11 +79,11 @@ export default function DayDetailSheet({
     <ResponsivePanel
       open={open}
       onOpenChange={onOpenChange}
-      title={formattedDate}
-      description="Resumo do seu cronograma para este dia."
+      title="PAINEL RÁPIDO DO DIA"
+      description="Timer + materias + edicao em poucos passos"
     >
       {!activeDate ? null : (
-        <div className="space-y-4">
+        <div className="space-y-2">
           <DaySidebarTimerPanel
             date={activeDate}
             entries={entries}
@@ -94,6 +102,7 @@ export default function DayDetailSheet({
             onUpdateEntry={(id, payload) => {
               void updateScheduleEntry(id, payload);
             }}
+            onEditSubject={onEditSubject}
             onApplyRecurrence={onApplyRecurrence}
             dayNotes={dayNotes}
           />
