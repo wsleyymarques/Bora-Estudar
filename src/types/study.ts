@@ -77,10 +77,12 @@ export interface ScheduleEntry {
   order: number;
   startTime?: string;
   plannedMinutes?: number;
+  durationMinutes?: number;
   itemNote?: string;
   templateId?: string;
   isOverride?: boolean;
   dayNote?: string;
+  isExtra?: boolean;
 }
 
 export interface ScheduleRecurrenceRule {

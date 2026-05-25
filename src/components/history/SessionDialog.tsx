@@ -23,21 +23,17 @@ interface SessionDialogProps {
 export default function SessionDialog({ open, onOpenChange, session, defaultPlanId }: SessionDialogProps) {
   const { data, addSession, updateSession } = useStudy();
   const { plans } = useStudyPlans();
-
-  // If a defaultPlanId is locked in (opened from plan details), lock it
-  const isLockedToPlan = Boolean(defaultPlanId);
-
   const [selectedPlanId, setSelectedPlanId] = useState<string>(defaultPlanId || '');
   const [subjectId, setSubjectId] = useState<string>('');
   const [date, setDate] = useState<string>(() => toDateKey(new Date()));
   const [startTime, setStartTime] = useState<string>('12:00');
   const [durationMinutes, setDurationMinutes] = useState<number>(30);
-  const [sessionMode, setSessionMode] = useState<'manual' | 'timer' | 'pomodoro'>('manual');
+
   const [note, setNote] = useState<string>('');
   const [saving, setSaving] = useState(false);
 
   // Use the proper hook that queries via study_plan_subjects join table
-  const activePlanId = selectedPlanId || undefined;
+  const activePlanId = selectedPlanId && selectedPlanId !== 'none' ? selectedPlanId : undefined;
   const { planSubjects, loading: subjectsLoading } = usePlanSubjects(activePlanId);
 
   // If no plan selected, fall back to all subjects from context
@@ -52,7 +48,7 @@ export default function SessionDialog({ open, onOpenChange, session, defaultPlan
       setDate(session.date);
       setStartTime(session.startTime || '12:00');
       setDurationMinutes(session.durationMinutes || Math.round((session.actualDurationSeconds || 0) / 60) || 30);
-      setSessionMode(session.sessionMode || 'manual');
+
       setNote(session.note || '');
     } else {
       setSelectedPlanId(defaultPlanId || '');
@@ -61,15 +57,12 @@ export default function SessionDialog({ open, onOpenChange, session, defaultPlan
       const now = new Date();
       setStartTime(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
       setDurationMinutes(30);
-      setSessionMode('manual');
+
       setNote('');
     }
   }, [session, open, defaultPlanId]);
 
-  // When plan changes, reset subject selection
-  useEffect(() => {
-    setSubjectId('');
-  }, [selectedPlanId]);
+
 
   // Auto-pick first subject when subjects list loads
   useEffect(() => {
@@ -101,7 +94,7 @@ export default function SessionDialog({ open, onOpenChange, session, defaultPlan
       console.error('Error calculating end time', err);
     }
 
-    const planId = selectedPlanId || defaultPlanId || undefined;
+    const planId = selectedPlanId && selectedPlanId !== 'none' ? selectedPlanId : undefined;
 
     try {
       if (session) {
@@ -114,7 +107,7 @@ export default function SessionDialog({ open, onOpenChange, session, defaultPlan
           durationMinutes,
           actualDurationSeconds: durationSeconds,
           clockDurationSeconds: durationSeconds,
-          sessionMode,
+          sessionMode: 'manual',
           note,
         });
         toast.success('Sessão atualizada com sucesso!');
@@ -128,7 +121,7 @@ export default function SessionDialog({ open, onOpenChange, session, defaultPlan
           durationMinutes,
           actualDurationSeconds: durationSeconds,
           clockDurationSeconds: durationSeconds,
-          sessionMode,
+          sessionMode: 'manual',
           note,
           isFocusSession: true,
           status: 'completed',
@@ -164,26 +157,28 @@ export default function SessionDialog({ open, onOpenChange, session, defaultPlan
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-          {/* Plan Select — hidden when locked to a specific plan */}
-          {!isLockedToPlan && (
-            <div className="space-y-2">
-              <Label htmlFor="plan" className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <Trophy className="w-3.5 h-3.5" /> Plano
-              </Label>
-              <Select value={selectedPlanId} onValueChange={setSelectedPlanId}>
-                <SelectTrigger id="plan" className="w-full">
-                  <SelectValue placeholder="Selecione um plano (opcional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  {activePlans.map(plan => (
-                    <SelectItem key={plan.id} value={plan.id}>
-                      {plan.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          {/* Plan Select — always editable */}
+          <div className="space-y-2">
+            <Label htmlFor="plan" className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Trophy className="w-3.5 h-3.5" /> Plano
+            </Label>
+            <Select value={selectedPlanId || 'none'} onValueChange={(val) => {
+              setSelectedPlanId(val === 'none' ? '' : val);
+              setSubjectId('');
+            }}>
+              <SelectTrigger id="plan" className="w-full">
+                <SelectValue placeholder="Selecione um plano (opcional)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sem plano</SelectItem>
+                {activePlans.map(plan => (
+                  <SelectItem key={plan.id} value={plan.id}>
+                    {plan.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           {/* Subject Select */}
           <div className="space-y-2">
@@ -222,28 +217,11 @@ export default function SessionDialog({ open, onOpenChange, session, defaultPlan
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="duration" className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5" /> Duração (minutos)
-              </Label>
-              <Input id="duration" type="number" min="1" required value={durationMinutes} onChange={(e) => setDurationMinutes(parseInt(e.target.value) || 0)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="mode" className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                Modo
-              </Label>
-              <Select value={sessionMode} onValueChange={(val: any) => setSessionMode(val)}>
-                <SelectTrigger id="mode">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="manual">Manual</SelectItem>
-                  <SelectItem value="timer">Timer</SelectItem>
-                  <SelectItem value="pomodoro">Pomodoro</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="duration" className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5" /> Duração (minutos)
+            </Label>
+            <Input id="duration" type="number" min="1" required value={durationMinutes} onChange={(e) => setDurationMinutes(parseInt(e.target.value) || 0)} />
           </div>
 
           <div className="space-y-2">

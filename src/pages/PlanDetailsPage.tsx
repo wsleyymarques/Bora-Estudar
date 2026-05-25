@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { SubjectSelector } from '@/components/subjects/SubjectSelector';
 import { cn } from '@/lib/utils';
@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/drawer';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CalendarDays, CheckCircle2, Clock, Copy, Link2, Loader2, Pencil, Plus, Trash2, Wand2, BookOpen, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, TrendingUp, AlertTriangle, BarChart3 } from 'lucide-react';
+import { CalendarDays, CheckCircle2, Clock, Copy, Link2, Loader2, Pencil, Plus, Trash2, Wand2, BookOpen, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, TrendingUp, AlertTriangle, BarChart3, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 import { DAY_NAMES_SHORT, ScheduleEntry } from '@/types/study';
 import WeeklyPlannerView from '@/components/schedule/WeeklyPlannerView';
@@ -32,6 +32,9 @@ import { ResponsivePanel } from '@/components/generic/ResponsivePanel';
 import DayDetailSheet from '@/components/schedule/DayDetailSheet';
 import { useStudy } from '@/contexts/StudyContext';
 import SessionDialog from '@/components/history/SessionDialog';
+import { Switch } from '@/components/ui/switch';
+import { getSessionActualMinutes, getSessionDateKey, getSessionStartLabel } from '@/features/tracker/session-metrics';
+import { toDateKey } from '@/lib/date-utils';
 
 interface ScheduleEntryRow { id: string; user_id?: string; plan_id?: string | null; schedule_id?: string | null; date: string; subject_id: string; start_time?: string | null; planned_minutes?: number | null; completed?: boolean | null; optional?: boolean | null; item_note?: string | null; sort_order?: number | null; }
 
@@ -65,6 +68,9 @@ export default function PlanDetailsPage() {
   const [templateItemOpen, setTemplateItemOpen] = useState(false);
   const [applyTemplateOpen, setApplyTemplateOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [entryNotificationsEnabled, setEntryNotificationsEnabled] = useState(false);
+  const [entryNotificationTimes, setEntryNotificationTimes] = useState<string[]>([]);
+  const [newEntryNotificationTime, setNewEntryNotificationTime] = useState('14:00');
   const [planForm, setPlanForm] = useState<StudyPlanInput>(EMPTY_PLAN_FORM);
   const [subjectForm, setSubjectForm] = useState(EMPTY_SUBJECT_FORM);
   const [entryForm, setEntryForm] = useState(EMPTY_ENTRY_FORM);
@@ -76,9 +82,17 @@ export default function PlanDetailsPage() {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [viewMode, setViewMode] = useState<'weekly' | 'monthly' | 'yearly'>('weekly');
 
+  const planSubjectIds = useMemo(() => new Set(planSubjects.map(s => s.id)), [planSubjects]);
+  const isPlanSession = useCallback((s: { planId?: string; subjectId: string }) =>
+    s.planId === planId, [planId]);
+  const planSessions = useMemo(() => {
+    return studyContextData.sessions.filter(s => isPlanSession(s));
+  }, [studyContextData.sessions, isPlanSession]);
+
   const subjectById = useMemo(() => new Map(planSubjects.map((subject) => [subject.id, subject])), [planSubjects]);
+  
   const mappedEntries: ScheduleEntry[] = useMemo(() => {
-    return entries.map((entry) => ({
+    const list: ScheduleEntry[] = entries.map((entry) => ({
       id: entry.id,
       userId: entry.user_id || '',
       planId: entry.plan_id || '',
@@ -92,7 +106,36 @@ export default function PlanDetailsPage() {
       itemNote: entry.item_note || undefined,
       order: entry.sort_order || 0,
     }));
-  }, [entries]);
+
+    const entryKeys = new Set(list.map(e => `${e.date}_${e.subjectId}`));
+    const synthesizedKeys = new Set<string>();
+
+    planSessions.forEach(session => {
+      const sessionDate = getSessionDateKey(session);
+      if (!sessionDate || !session.subjectId) return;
+      const key = `${sessionDate}_${session.subjectId}`;
+      if (!entryKeys.has(key) && !synthesizedKeys.has(key)) {
+        synthesizedKeys.add(key);
+        list.push({
+          id: `virtual-${sessionDate}-${session.subjectId}`,
+          userId: session.userId || user?.id || '',
+          planId: planId || '',
+          scheduleId: '',
+          date: sessionDate,
+          subjectId: session.subjectId,
+          startTime: getSessionStartLabel(session) || undefined,
+          plannedMinutes: 0,
+          completed: true,
+          optional: true,
+          itemNote: 'Sessão Extra',
+          order: 999,
+          isExtra: true
+        });
+      }
+    });
+
+    return list;
+  }, [entries, planSessions, planId, user?.id]);
   const planTemplates = useMemo(() => templates.filter((template) => !template.planId || template.planId === planId || template.scheduleId === plan?.schedule_id), [templates, planId, plan?.schedule_id]);
   const sortedEntries = useMemo(() => [...entries].sort((left, right) => `${left.date}${left.start_time || ''}`.localeCompare(`${right.date}${right.start_time || ''}`)), [entries]);
 
@@ -138,10 +181,42 @@ export default function PlanDetailsPage() {
   };
 
   const openCreateSubject = () => { setEditingSubjectId(null); setSubjectForm(EMPTY_SUBJECT_FORM); setSelectedExistingSubjectId(''); setSubjectOpen(true); };
-  const openEditSubject = (subject: SubjectRow) => { setEditingSubjectId(subject.id); setSubjectForm({ name: subject.name || '', color: subject.color || '#5B8C7E', category: subject.category || '', weekly_goal_hours: Number(subject.weekly_goal_hours || 0), monthly_goal_hours: Number(subject.monthly_goal_hours || 0), description: subject.description || '' }); setSubjectOpen(true); };
-  const saveNewSubject = async () => { if (!subjectForm.name.trim()) { toast.error('Informe o nome da matéria.'); return; } setSubmitting(true); const success = editingSubjectId ? await updateSubject(editingSubjectId, subjectForm) : await createAndLinkSubject(subjectForm); if (success) setSubjectOpen(false); setSubmitting(false); };
+  const openEditSubject = (subject: SubjectRow) => { setEditingSubjectId(subject.id); setSubjectForm({ name: subject.name || '', color: subject.color || '#5B8C7E', category: subject.category || '', weekly_goal_hours: Number(subject.weekly_goal_hours || 0), monthly_goal_hours: Number(subject.monthly_goal_hours || 0), description: subject.description || '' }); setSubjectOpen(true); };  const saveNewSubject = async () => { if (!subjectForm.name.trim()) { toast.error('Informe o nome da matéria.'); return; } setSubmitting(true); const success = editingSubjectId ? await updateSubject(editingSubjectId, subjectForm) : await createAndLinkSubject(subjectForm); if (success) setSubjectOpen(false); setSubmitting(false); };
   const linkExistingSubject = async () => { if (!selectedExistingSubjectId) { toast.error('Selecione uma matéria existente.'); return; } setSubmitting(true); const success = await addExistingSubjectToPlan(selectedExistingSubjectId); if (success) { setSelectedExistingSubjectId(''); setSubjectOpen(false); } setSubmitting(false); };
-  const deleteSubject = async (subjectId: string) => { if (!confirm('Deseja remover esta matéria apenas deste plano?')) return; await removeSubjectFromPlan(subjectId); };  const saveEntry = async () => {
+  const deleteSubject = async (subjectId: string) => { if (!confirm('Deseja remover esta matéria apenas deste plano?')) return; await removeSubjectFromPlan(subjectId); };
+
+  const registerReminders = (entryId: string, date: string, times: string[], subjectId: string) => {
+    if (times.length === 0) return;
+    const subject = planSubjects.find(s => s.id === subjectId);
+    const subjectName = subject?.name || 'Estudos';
+    const subjectColor = subject?.color || '#5B8C7E';
+
+    let reminders: any[] = [];
+    const saved = localStorage.getItem('scheduled_reminders');
+    if (saved) {
+      try {
+        reminders = JSON.parse(saved);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    const newReminders = times.map(time => ({
+      id: crypto.randomUUID(),
+      entryId,
+      date,
+      time,
+      subjectName,
+      subjectColor,
+      title: 'Hora de Estudar! 📚',
+      body: `Lembrete para estudar ${subjectName}`,
+      triggered: false
+    }));
+
+    localStorage.setItem('scheduled_reminders', JSON.stringify([...reminders, ...newReminders]));
+  };
+
+  const saveEntry = async () => {
     if (!user || !plan || !planId || !entryForm.subject_id || !entryForm.date) { toast.error('Preencha os campos obrigatórios.'); return; }
     setSubmitting(true);
     try {
@@ -149,6 +224,19 @@ export default function PlanDetailsPage() {
       if (!scheduleId) throw new Error('Não foi possível encontrar ou criar cronograma.');
 
       if (editingEntryId) {
+        // Clear previous reminders
+        localStorage.removeItem(`entry_notification_${editingEntryId}`);
+        const savedReminders = localStorage.getItem('scheduled_reminders');
+        if (savedReminders) {
+          try {
+            const reminders = JSON.parse(savedReminders);
+            const filtered = reminders.filter((r: any) => r.entryId !== editingEntryId);
+            localStorage.setItem('scheduled_reminders', JSON.stringify(filtered));
+          } catch (e) {
+            console.error(e);
+          }
+        }
+
         // Update existing entry
         const { error } = await supabase.from('schedule_entries').update({
           subject_id: entryForm.subject_id,
@@ -160,6 +248,12 @@ export default function PlanDetailsPage() {
         
         if (error) throw error;
         toast.success('Tarefa atualizada.');
+
+        // Register new reminders if enabled
+        if (entryNotificationsEnabled && entryNotificationTimes.length > 0) {
+          localStorage.setItem(`entry_notification_${editingEntryId}`, JSON.stringify(entryNotificationTimes));
+          registerReminders(editingEntryId, entryForm.date, entryNotificationTimes, entryForm.subject_id);
+        }
       } else {
         // Insert new entries (supports recurring)
         const quantity = Math.max(1, entryForm.repeat_value || 1);
@@ -196,15 +290,26 @@ export default function PlanDetailsPage() {
 
         if (inserts.length === 0) throw new Error('Nenhum item gerado');
 
-        const { error } = await supabase.from('schedule_entries').insert(inserts);
+        const { data: insertedData, error } = await supabase.from('schedule_entries').insert(inserts).select();
         if (error) throw error;
         
         toast.success(inserts.length > 1 ? `${inserts.length} itens adicionados ao cronograma.` : 'Item adicionado ao cronograma.');
+
+        // Register notifications for new entries
+        const insertedRows = (insertedData || []) as any[];
+        if (entryNotificationsEnabled && entryNotificationTimes.length > 0 && insertedRows.length > 0) {
+          insertedRows.forEach((row) => {
+            localStorage.setItem(`entry_notification_${row.id}`, JSON.stringify(entryNotificationTimes));
+            registerReminders(row.id, row.date, entryNotificationTimes, row.subject_id);
+          });
+        }
       }
       
       setEntryOpen(false);
       setEditingEntryId(null);
       setEntryForm(EMPTY_ENTRY_FORM);
+      setEntryNotificationsEnabled(false);
+      setEntryNotificationTimes([]);
       await loadFlow();
     } catch (error) {
       console.error(error);
@@ -215,6 +320,21 @@ export default function PlanDetailsPage() {
   };
 
   const openEditEntry = (entry: any) => {
+    const savedNotifs = localStorage.getItem(`entry_notification_${entry.id}`);
+    if (savedNotifs) {
+      try {
+        const parsed = JSON.parse(savedNotifs);
+        setEntryNotificationsEnabled(true);
+        setEntryNotificationTimes(parsed);
+      } catch (e) {
+        setEntryNotificationsEnabled(false);
+        setEntryNotificationTimes([]);
+      }
+    } else {
+      setEntryNotificationsEnabled(false);
+      setEntryNotificationTimes([]);
+    }
+
     setEntryForm({
       subject_id: entry.subject_id,
       date: entry.date,
@@ -568,29 +688,50 @@ export default function PlanDetailsPage() {
     if (error) { toast.error('Erro ao atualizar item.'); return; }
     await loadFlow();
   };
-  const deleteEntry = async (entryId: string) => { if (!confirm('Deseja remover este item do cronograma?')) return; const { error } = await supabase.from('schedule_entries').delete().eq('id', entryId).eq('user_id', user?.id || ''); if (error) { toast.error('Erro ao remover item.'); return; } await loadFlow(); };
+  const deleteEntry = async (entryId: string) => { 
+    if (!confirm('Deseja remover este item do cronograma?')) return; 
+    const { error } = await supabase.from('schedule_entries').delete().eq('id', entryId).eq('user_id', user?.id || ''); 
+    if (error) { 
+      toast.error('Erro ao remover item.'); 
+      return; 
+    } 
+    // Delete notifications
+    localStorage.removeItem(`entry_notification_${entryId}`);
+    const savedReminders = localStorage.getItem('scheduled_reminders');
+    if (savedReminders) {
+      try {
+        const reminders = JSON.parse(savedReminders);
+        const filtered = reminders.filter((r: any) => r.entryId !== entryId);
+        localStorage.setItem('scheduled_reminders', JSON.stringify(filtered));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    await loadFlow(); 
+  };
 
   const [isHeaderMinimized, setIsHeaderMinimized] = useState(false);
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayStr = useMemo(() => toDateKey(new Date()), []);
 
   // Calculate real activity data
   const activityStats = useMemo(() => {
     const now = new Date();
-    // A session belongs to this plan if planId matches OR if subjectId is in planSubjects
-    const planSubjectIds = new Set(planSubjects.map(s => s.id));
-    const isPlanSession = (s: { planId?: string; subjectId: string }) =>
-      s.planId === planId || (!s.planId && planSubjectIds.has(s.subjectId));
-    const last7Days = Array.from({ length: 7 }).map((_, i) => {
-      const date = new Date();
-      date.setDate(now.getDate() - (6 - i));
+    const dayOfWeek = now.getDay();
+    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + diffToMonday);
+
+    const currentWeekDays = Array.from({ length: 7 }).map((_, i) => {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + i);
       const dateStr = date.toISOString().split('T')[0];
       
       const dayEntries = entries.filter(e => e.date === dateStr);
       const completedCount = dayEntries.filter(e => e.completed).length;
       const totalCount = dayEntries.length;
       
-      const daySessions = studyContextData.sessions.filter(s => isPlanSession(s) && s.date === dateStr);
-      const dayStudiedMins = daySessions.reduce((acc, curr) => acc + (curr.durationMinutes || Math.round((curr.actualDurationSeconds || 0) / 60) || 0), 0);
+      const daySessions = planSessions.filter(s => getSessionDateKey(s) === dateStr);
+      const dayStudiedMins = daySessions.reduce((acc, curr) => acc + getSessionActualMinutes(curr), 0);
       
       let intensity = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
       if (dayStudiedMins > 0) {
@@ -601,19 +742,23 @@ export default function PlanDetailsPage() {
       return {
         label: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][date.getDay()],
         intensity,
-        isToday: i === 6
+        isToday: dateStr === todayStr
       };
     });
     
-    // Calculate today's logged sessions minutes
-    const todaySessions = studyContextData.sessions.filter(s => isPlanSession(s) && s.date === todayStr);
-    const actualMins = todaySessions.reduce((acc, curr) => acc + (curr.durationMinutes || Math.round((curr.actualDurationSeconds || 0) / 60) || 0), 0);
+    // Calculate today's logged sessions minutes — ONLY focus sessions for THIS plan
+    const todaySessions = planSessions.filter(
+      s => getSessionDateKey(s) === todayStr && s.isFocusSession !== false
+    );
+    const actualMins = todaySessions.reduce((acc, curr) => acc + getSessionActualMinutes(curr), 0);
     
-    let todayMinutes = actualMins;
-    if (todayMinutes === 0) {
-      const todayEntries = entries.filter(e => e.date === todayStr && e.completed);
-      todayMinutes = todayEntries.reduce((acc, curr) => acc + (Number(curr.planned_minutes) || 0), 0);
-    }
+    const todayEntries = entries.filter(e => e.date === todayStr && e.completed);
+    const trackedSubjectIds = new Set(todaySessions.map(s => s.subjectId));
+    const untrackedCompletedMins = todayEntries
+      .filter(e => !trackedSubjectIds.has(e.subjectId))
+      .reduce((acc, curr) => acc + (Number(curr.planned_minutes) || 0), 0);
+      
+    const todayMinutes = actualMins + untrackedCompletedMins;
     
     const hours = Math.floor(todayMinutes / 60);
     const mins = todayMinutes % 60;
@@ -623,27 +768,22 @@ export default function PlanDetailsPage() {
     const focusRate = totalPlanned > 0 ? Math.round((totalCompleted / totalPlanned) * 100) : 0;
 
     return {
-      last7Days,
+      last7Days: currentWeekDays,
       todayTime: `${hours}h ${mins}m`,
       completedText: `${totalCompleted}/${totalPlanned}`,
       focusRate: `${focusRate}%`,
       productivity: focusRate > 80 ? 'Alta' : focusRate > 50 ? 'Média' : 'Baixa'
     };
-  }, [entries, studyContextData.sessions, planId, planSubjects]);
+  }, [entries, planSessions, studyContextData.sessions, todayStr]);
 
   const insights = useMemo(() => {
     const subjectsMap = new Map(planSubjects.map(s => [s.id, s]));
-    const planSubjectIds = new Set(planSubjects.map(s => s.id));
-    const isPlanSession = (s: { planId?: string; subjectId: string }) =>
-      s.planId === planId || (!s.planId && planSubjectIds.has(s.subjectId));
     
     let totalDaysBelow = 0;
     let totalMinutesDeficit = 0;
     const subjectDeficits = new Map();
     
     const pastEntries = entries.filter(e => e.date <= todayStr);
-    const planSessions = studyContextData.sessions.filter(s => isPlanSession(s));
-    
     const dailyHistory = [];
     
     pastEntries.forEach(entry => {
@@ -651,7 +791,7 @@ export default function PlanDetailsPage() {
       if (!subject) return;
       
       const daySessions = planSessions.filter(s => s.subjectId === entry.subject_id && s.date === entry.date);
-      const actualMins = daySessions.reduce((sum, s) => sum + (s.durationMinutes || Math.round((s.actualDurationSeconds || 0) / 60) || 0), 0);
+      const actualMins = daySessions.reduce((sum, s) => sum + (s.durationMinutes || Math.round((sum.actualDurationSeconds || 0) / 60) || 0), 0);
       const plannedMins = Number(entry.planned_minutes) || 0;
       
       if (actualMins < plannedMins) {
@@ -702,7 +842,7 @@ export default function PlanDetailsPage() {
         ...stats
       })).sort((a, b) => b.belowCount - a.belowCount)
     };
-  }, [entries, studyContextData.sessions, planSubjects, planId]);
+  }, [entries, planSessions, planSubjects, todayStr]);
 
   if (!plan) return <div className="space-y-4"><p className="text-muted-foreground">Plano de Estudos não encontrado ou ainda carregando.</p><Button asChild variant="outline"><Link to="/plans">Voltar para planos</Link></Button></div>;
 
@@ -822,14 +962,24 @@ export default function PlanDetailsPage() {
         )}>
           {activityStats.last7Days.map((day, i) => (
             <div key={i} className="flex-1 flex flex-col items-center gap-2 group/bar cursor-help">
-              <div className="w-full relative h-32 bg-black/5 rounded-xl overflow-hidden border border-black/5">
+              <div className="w-full relative h-32 bg-muted/40 rounded-xl overflow-hidden border border-border/30 group-hover/bar:border-primary/30 transition-colors">
                 <div 
                   className={cn(
                     "absolute bottom-0 left-0 right-0 rounded-t-lg transition-all duration-700 ease-out",
-                    day.isToday ? "bg-primary shadow-[0_0_15px_rgba(var(--primary),0.3)]" : "bg-black/20 group-hover/bar:bg-black/30"
+                    day.isToday 
+                      ? "bg-gradient-to-t from-primary/80 to-primary shadow-[0_0_15px_rgba(var(--primary),0.5)]" 
+                      : day.intensity > 0 
+                        ? "bg-gradient-to-t from-primary/40 to-primary/60 group-hover/bar:from-primary/60 group-hover/bar:to-primary/80" 
+                        : "bg-black/10 group-hover/bar:bg-primary/20"
                   )}
                   style={{ height: `${Math.max(day.intensity, 5)}%` }}
-                />
+                >
+                  {day.intensity > 0 && (
+                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 opacity-0 group-hover/bar:opacity-100 transition-opacity bg-popover text-popover-foreground text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap">
+                      {Math.round(day.intensity)}%
+                    </div>
+                  )}
+                </div>
               </div>
               <span className={cn(
                 "text-[9px] font-bold uppercase tracking-tighter transition-colors",
@@ -863,7 +1013,7 @@ export default function PlanDetailsPage() {
 
     {/* TABS CONTAINER FOR CRONOGRAMA & INSIGHTS */}
     <Tabs defaultValue="cronograma" className="w-full">
-      <TabsList className="grid w-full max-w-[400px] grid-cols-2 bg-muted/60 p-1.5 rounded-2xl mb-6">
+      <TabsList className="grid w-full max-w-[340px] grid-cols-2 bg-muted/60 p-1.5 rounded-2xl mb-6">
         <TabsTrigger value="cronograma" className="rounded-xl font-bold text-xs py-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">Cronograma</TabsTrigger>
         <TabsTrigger value="insights" className="rounded-xl font-bold text-xs py-2 flex items-center gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
           <TrendingUp className="h-3.5 w-3.5" /> Insights
@@ -974,14 +1124,14 @@ export default function PlanDetailsPage() {
              <WeeklyPlannerView
                currentDate={currentWeek}
                schedule={mappedEntries}
-               sessions={[]}
+               sessions={planSessions}
                notes={[]}
                dayPlans={[]}
                sessionPauses={[]}
                getSubjectById={(id) => subjectById.get(id) as any}
                getScheduleForDateOverride={(date) => mappedEntries.filter(e => e.date === date)}
                toggleScheduleCompleteOverride={toggleEntryComplete}
-               onAdd={(date) => { setEditingEntryId(null); setEntryForm(f => ({ ...f, date })); setEntryOpen(true); }}
+               onAdd={(date) => { setEditingEntryId(null); setEntryForm(f => ({ ...f, date })); setEntryNotificationsEnabled(false); setEntryNotificationTimes([]); setEntryOpen(true); }}
                onRemove={deleteEntry}
                onEditEntry={(entry) => { setSelectedDay(entry.date); setDayDetailOpen(true); }}
                onOpenDay={(date) => { setSelectedDay(date); setDayDetailOpen(true); }}
@@ -1256,7 +1406,14 @@ export default function PlanDetailsPage() {
               <SelectValue placeholder="Selecione uma matéria" />
             </SelectTrigger>
             <SelectContent>
-              {planSubjects.map((subject) => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}
+              {planSubjects.map((subject) => (
+                <SelectItem key={subject.id} value={subject.id}>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: subject.color || '#a1a1a1' }} />
+                    <span className="truncate">{subject.name}</span>
+                  </div>
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -1286,7 +1443,7 @@ export default function PlanDetailsPage() {
           </div>
           <div className="grid grid-cols-1 gap-3">
             <Select value={entryForm.repeat_frequency} onValueChange={(val: any) => setEntryForm(f => ({ ...f, repeat_frequency: val }))}>
-              <SelectTrigger className="bg-white h-10 border-primary/20">
+              <SelectTrigger className="bg-background h-10 border-primary/20">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1296,9 +1453,9 @@ export default function PlanDetailsPage() {
             </Select>
             <div className="flex items-center gap-2 text-sm">
               <span className="text-muted-foreground">por</span>
-              <Input type="number" min={1} max={365} value={entryForm.repeat_value} onChange={(e) => setEntryForm((f) => ({ ...f, repeat_value: Number(e.target.value) }))} className="w-20 bg-white h-10" />
+              <Input type="number" min={1} max={365} value={entryForm.repeat_value} onChange={(e) => setEntryForm((f) => ({ ...f, repeat_value: Number(e.target.value) }))} className="w-20 bg-background h-10" />
               <Select value={entryForm.repeat_unit} onValueChange={(val: any) => setEntryForm(f => ({ ...f, repeat_unit: val }))}>
-                <SelectTrigger className="w-full bg-white h-10 border-primary/20">
+                <SelectTrigger className="w-full bg-background h-10 border-primary/20">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1312,6 +1469,75 @@ export default function PlanDetailsPage() {
         </div>
       )}
 
+        {/* Notificações do Item */}
+        <div className="space-y-4 p-4 border border-border/40 rounded-2xl bg-muted/10">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label className="font-bold text-sm">Lembretes para esta tarefa</Label>
+              <p className="text-[11px] text-muted-foreground">Receba alertas no seu aparelho para esta matéria.</p>
+            </div>
+            <Switch
+              checked={entryNotificationsEnabled}
+              onCheckedChange={setEntryNotificationsEnabled}
+            />
+          </div>
+
+          {entryNotificationsEnabled && (
+            <div className="space-y-3 pt-2 border-t border-border/20 animate-in fade-in duration-200">
+              <div className="flex gap-2">
+                <Input
+                  type="time"
+                  value={newEntryNotificationTime}
+                  onChange={(e) => setNewEntryNotificationTime(e.target.value)}
+                  className="rounded-xl border-2 h-10 w-32 font-bold text-sm bg-background"
+                />
+                <Button
+                  type="button"
+                  onClick={() => {
+                    if (!newEntryNotificationTime) return;
+                    if (entryNotificationTimes.includes(newEntryNotificationTime)) {
+                      toast.info('Este horário já foi adicionado.');
+                      return;
+                    }
+                    setEntryNotificationTimes(prev => [...prev, newEntryNotificationTime].sort());
+                  }}
+                  className="rounded-xl h-10 text-xs font-bold flex-1"
+                >
+                  <Plus className="h-4 w-4 mr-1.5" />
+                  Adicionar
+                </Button>
+              </div>
+
+              {entryNotificationTimes.length > 0 ? (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {entryNotificationTimes.map((time) => (
+                    <div
+                      key={time}
+                      className="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full bg-background border border-border text-xs font-bold text-foreground"
+                    >
+                      <Clock className="h-3 w-3 text-muted-foreground" />
+                      {time}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEntryNotificationTimes(prev => prev.filter(t => t !== time));
+                        }}
+                        className="h-5 w-5 rounded-full hover:bg-destructive/10 hover:text-destructive flex items-center justify-center transition-colors"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[11px] text-muted-foreground text-center py-3 border border-dashed rounded-xl bg-background/50 font-medium">
+                  Nenhum horário de lembrete adicionado ainda.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="grid gap-2">
           <Label>Observação</Label>
           <Textarea value={entryForm.item_note} onChange={(e) => setEntryForm((f) => ({ ...f, item_note: e.target.value }))} placeholder="Ex.: teoria, questões ou revisão" rows={3} className="resize-none" />
@@ -1319,11 +1545,11 @@ export default function PlanDetailsPage() {
       </div>
     </ResponsivePanel>
 
-    <DayDetailSheet
-      open={dayDetailOpen}
-      date={selectedDay}
-      onOpenChange={setDayDetailOpen}
-      onAdd={(date) => { setEditingEntryId(null); setEntryForm(f => ({ ...f, date })); setEntryOpen(true); }}
+      <DayDetailSheet
+        open={dayDetailOpen}
+        date={selectedDay}
+        onOpenChange={setDayDetailOpen}
+        onAdd={(date) => { setEditingEntryId(null); setEntryForm(f => ({ ...f, date })); setEntryNotificationsEnabled(false); setEntryNotificationTimes([]); setEntryOpen(true); }}
       onNote={(date) => { 
         // For now, use a simple prompt for notes if we don't have a better UI here
         const content = prompt('Informe a observação para este dia:');
@@ -1335,12 +1561,16 @@ export default function PlanDetailsPage() {
             content: content.trim()
           }).then(() => loadFlow());
         }
-      }}
-      onMove={() => toast.info('Funcionalidade em desenvolvimento para esta tela.')}
-      onChange={() => toast.info('Funcionalidade em desenvolvimento para esta tela.')}
-      onRemove={deleteEntry}
-      onApplyRecurrence={handleApplyRecurrence}
-    />
+        }}
+        onMove={() => toast.info('Funcionalidade em desenvolvimento para esta tela.')}
+        onChange={() => toast.info('Funcionalidade em desenvolvimento para esta tela.')}
+        onRemove={deleteEntry}
+        onEditSubject={(subjectId) => {
+          const subject = planSubjects.find((item) => item.id === subjectId);
+          if (subject) openEditSubject(subject as SubjectRow);
+        }}
+        onApplyRecurrence={handleApplyRecurrence}
+      />
 
     <ResponsivePanel
       open={manageSubjectsOpen}
@@ -1362,6 +1592,8 @@ export default function PlanDetailsPage() {
       onOpenChange={setSessionDialogOpen}
       defaultPlanId={planId}
     />
+
+    {/* Cleaned up NotificationSettingsModal */}
   </div>;
 }
 

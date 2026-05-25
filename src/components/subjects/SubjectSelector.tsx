@@ -118,7 +118,7 @@ export function SubjectSelector({ planId, onFinish, showFinishButton = false }: 
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-3xl mx-auto">
+    <div className="flex flex-col gap-6 max-w-3xl mx-auto pb-24">
       {/* HEADER & SEARCH */}
       <div className="space-y-4">
         <div className="relative">
@@ -134,12 +134,11 @@ export function SubjectSelector({ planId, onFinish, showFinishButton = false }: 
         {/* CREATE NEW QUICK ACCESS */}
         {!showNewForm ? (
           <Button
-            variant="outline"
             onClick={() => setShowNewForm(true)}
-            className="w-full h-11 rounded-xl border-2 border-dashed font-bold text-xs bg-muted/30"
+            className="w-full h-12 rounded-xl bg-primary text-primary-foreground font-black text-sm shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40 transition-all hover:-translate-y-0.5 active:scale-[0.98]"
           >
-            <Plus className="h-4 w-4 mr-2" />
-            Criar matéria personalizada
+            <Plus className="h-5 w-5 mr-2" />
+            Adicionar nova matéria
           </Button>
         ) : (
           <div className="space-y-3 rounded-2xl border-2 border-primary/20 bg-primary/5 p-4 animate-in fade-in slide-in-from-top-2">
@@ -278,17 +277,18 @@ export function SubjectSelector({ planId, onFinish, showFinishButton = false }: 
         </div>
       </div>
 
-      {/* FINISH BUTTON (IF NEEDED) */}
       {showFinishButton && (
-        <div className="sticky bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-md border-t">
-          <Button
-            onClick={onFinish}
-            disabled={planSubjects.length === 0}
-            className="w-full h-12 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg"
-          >
-            <CheckCircle2 className="mr-2 h-4 w-4" />
-            Finalizar Seleção
-          </Button>
+        <div className="fixed bottom-0 right-0 left-0 md:left-[var(--sidebar-width,16rem)] p-4 bg-background/90 backdrop-blur-md border-t shadow-2xl z-50 flex justify-center">
+          <div className="w-full max-w-3xl px-4 lg:px-0">
+            <Button
+              onClick={onFinish}
+              disabled={planSubjects.length === 0}
+              className="w-full h-14 rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all active:scale-[0.98]"
+            >
+              <CheckCircle2 className="mr-2 h-5 w-5" />
+              Finalizar Seleção
+            </Button>
+          </div>
         </div>
       )}
     </div>

@@ -12,6 +12,7 @@ export interface ScheduleEntryFormValue {
   date: string;
   startTime: string;
   plannedMinutes?: number;
+  durationMinutes?: number;
   itemNote: string;
   optional: boolean;
   recurrence: RecurrenceOptionsValue;
@@ -66,7 +67,7 @@ export function ScheduleEntryForm({
         </div>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-4">
         <div className="grid gap-2">
           <Label>Horário</Label>
           <Input type="time" value={value.startTime} onChange={(event) => update({ startTime: event.target.value })} />
@@ -80,6 +81,19 @@ export function ScheduleEntryForm({
             onChange={(event) =>
               update({
                 plannedMinutes: event.target.value ? Number(event.target.value) : undefined,
+              })
+            }
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label>Duração da sessão</Label>
+          <Input
+            type="number"
+            min={1}
+            value={value.durationMinutes ?? ''}
+            onChange={(event) =>
+              update({
+                durationMinutes: event.target.value ? Number(event.target.value) : undefined,
               })
             }
           />
