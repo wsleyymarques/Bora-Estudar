@@ -1,5 +1,5 @@
 import { StudySession, StudySessionPause } from '@/types/study';
-import { getSessionActualMinutes, getSessionPauseSeconds } from '@/features/tracker/session-metrics';
+import { getSessionActualMinutes, getSessionPauseSeconds, getSessionDateKey } from '@/features/tracker/session-metrics';
 
 export interface PlannedVsExecuted {
   plannedMinutes: number;
@@ -13,7 +13,7 @@ export function getFocusSessions(sessions: StudySession[]): StudySession[] {
 }
 
 export function getSessionsForDate(sessions: StudySession[], date: string): StudySession[] {
-  return sessions.filter((session) => session.date === date);
+  return sessions.filter((session) => getSessionDateKey(session) === date);
 }
 
 export function getFocusSessionsForDate(sessions: StudySession[], date: string): StudySession[] {

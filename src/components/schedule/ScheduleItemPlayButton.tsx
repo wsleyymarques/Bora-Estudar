@@ -52,7 +52,7 @@ export function ScheduleItemPlayButton({
     scheduleDate: date,
     scheduleEntryId: entry.id,
     plannedStartTime: entry.startTime,
-    plannedMinutes: entry.plannedMinutes,
+    plannedMinutes: entry.durationMinutes ?? entry.plannedMinutes,
   };
 
   const bindingState = getBindingState(binding);

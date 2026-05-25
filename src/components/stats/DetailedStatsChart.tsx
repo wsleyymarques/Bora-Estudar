@@ -160,6 +160,7 @@ export function DetailedStatsChart() {
   const [anchorDate, setAnchorDate] = useState(() => startOfToday()); 
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined); 
   const [selectedBucketIndex, setSelectedBucketIndex] = useState<number | null>(null); 
+  const [subjectFilter, setSubjectFilter] = useState<string>('all');
   
   // Dialog state for adding/editing sessions
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -183,10 +184,22 @@ export function DetailedStatsChart() {
     const endKey = toDateKey(range.end); 
     return focusSessions.filter((session) => { 
       if (scope === 'plan' && planId && session.planId !== planId) return false; 
+      if (subjectFilter !== 'all' && session.subjectId !== subjectFilter) return false;
       const dateKey = getSessionDateKey(session); 
       return dateKey >= startKey && dateKey <= endKey; 
     }); 
-  }, [focusSessions, planId, range.end, range.start, scope]); 
+  }, [focusSessions, planId, range.end, range.start, scope, subjectFilter]); 
+
+  const availableSubjects = useMemo(() => {
+    if (scope === 'all') return data.subjects;
+    const planSubjectIds = new Set<string>();
+    for (const session of focusSessions) {
+      if (session.planId === planId) {
+        planSubjectIds.add(session.subjectId);
+      }
+    }
+    return data.subjects.filter(s => s.planId === planId || planSubjectIds.has(s.id));
+  }, [data.subjects, focusSessions, scope, planId]);
 
   const { chartData, subjects, totalMinutesPeriod, periodCount } = useMemo(() => { 
     const subjectMinutes = new Map<string, number>(); 
@@ -290,6 +303,31 @@ export function DetailedStatsChart() {
     });
   }, [filteredSessions, selectedBucketIndex, chartData, period]);
 
+  const displayStats = useMemo(() => {
+    const subjectMinutes = new Map<string, number>();
+    for (const session of listSessions) {
+      const minutes = getSessionActualMinutes(session);
+      if (minutes <= 0) continue;
+      subjectMinutes.set(session.subjectId, (subjectMinutes.get(session.subjectId) || 0) + minutes);
+    }
+    
+    const displaySubjects = Array.from(subjectMinutes.entries()).map(([id, totalMinutes]) => ({
+      id,
+      name: getSubject(id)?.name || 'Matéria',
+      color: getSubject(id)?.color || 'hsl(var(--muted-foreground))',
+      totalMinutes
+    })).sort((a, b) => b.totalMinutes - a.totalMinutes);
+
+    const displayTotalMinutes = displaySubjects.reduce((acc, item) => acc + item.totalMinutes, 0);
+    
+    const displaySubjectShares = displaySubjects.map((subject) => ({
+      ...subject,
+      percentage: displayTotalMinutes > 0 ? Math.round((subject.totalMinutes / displayTotalMinutes) * 10000) / 100 : 0
+    }));
+
+    return { displaySubjects, displayTotalMinutes, displaySubjectShares };
+  }, [listSessions, getSubject]);
+
   const handleAddSession = () => {
     setSelectedSession(undefined);
     setDialogOpen(true);
@@ -314,7 +352,7 @@ export function DetailedStatsChart() {
 
   return (
     <section className="glass-card p-5 space-y-6">
-      <div className="flex flex-col gap-4 border-b border-border/50 pb-5 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-6 border-b border-border/50 pb-5">
         <div className="space-y-2">
           <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/80 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
             <BarChart3 className="h-3.5 w-3.5 text-primary" />
@@ -325,13 +363,17 @@ export function DetailedStatsChart() {
             Acompanhe o tempo estudado por matéria em visão semanal, mensal ou anual, filtrando por plano ou visão geral e escolhendo o intervalo no calendário.
           </p>
         </div>
-        <div className="flex flex-col gap-3 xl:items-end">
+        
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <StatsFilters 
             scope={scope} 
             planId={planId} 
             period={period} 
             dateRange={customRange} 
             plans={plans} 
+            subjectId={subjectFilter}
+            subjects={availableSubjects}
+            onSubjectChange={setSubjectFilter}
             onScopeChange={setScope} 
             onPlanChange={setPlanId} 
             onPeriodChange={handlePeriodChange} 
@@ -341,7 +383,7 @@ export function DetailedStatsChart() {
               setSelectedBucketIndex(null); 
             }} 
           />
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl" onClick={handlePrev}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -356,19 +398,19 @@ export function DetailedStatsChart() {
         </div>
       </div>
 
-      <div className="rounded-[1.5rem] border border-border/60 bg-background/70 px-5 py-4 shadow-sm">
+      <div className="rounded-[1.5rem] border border-border/60 bg-background/70 px-5 py-3 shadow-sm">
         <div className="grid gap-4 md:grid-cols-3">
           <div className="text-center md:text-left">
             <p className="text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground">Total no período</p>
-            <p className="mt-2 text-2xl font-display font-black text-foreground">{formatMinutesCompact(totalMinutesPeriod)}</p>
+            <p className="mt-0.5 text-xl font-display font-black text-foreground">{formatMinutesCompact(totalMinutesPeriod)}</p>
           </div>
           <div className="text-center md:text-left">
             <p className="text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground">Matéria líder</p>
-            <p className="mt-2 truncate text-2xl font-display font-black text-foreground">{topSubject?.name || 'Sem dados'}</p>
+            <p className="mt-0.5 truncate text-xl font-display font-black text-foreground">{topSubject?.name || 'Sem dados'}</p>
           </div>
           <div className="text-center md:text-right">
             <p className="text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground">Média por período</p>
-            <p className="mt-2 text-2xl font-display font-black text-foreground">{formatMinutesCompact(averageMinutes)}</p>
+            <p className="mt-0.5 text-xl font-display font-black text-foreground">{formatMinutesCompact(averageMinutes)}</p>
           </div>
         </div>
       </div>
@@ -426,10 +468,12 @@ export function DetailedStatsChart() {
           <div className="flex flex-col gap-2 border-b border-border/50 pb-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Resumo por matéria</p>
-              <h4 className="mt-1 text-sm font-black text-foreground">Tempo total distribuído no período</h4>
+              <h4 className="mt-1 text-sm font-black text-foreground">
+                {selectedBucketIndex !== null ? `Tempo distribuído em: ${chartData[selectedBucketIndex].label}` : 'Tempo total distribuído no período'}
+              </h4>
             </div>
             <div className="rounded-full border border-border/60 bg-muted/30 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-              {subjects.length} {subjects.length === 1 ? 'matéria' : 'matérias'}
+              {displayStats.displaySubjects.length} {displayStats.displaySubjects.length === 1 ? 'matéria' : 'matérias'}
             </div>
           </div>
           <div className="mt-4 space-y-2">
@@ -438,8 +482,8 @@ export function DetailedStatsChart() {
               <span>Duração</span>
               <span>%</span>
             </div>
-            {subjectShares.length > 0 ? (
-              subjectShares.map((subject) => (
+            {displayStats.displaySubjectShares.length > 0 ? (
+              displayStats.displaySubjectShares.map((subject) => (
                 <div key={subject.id} className="rounded-2xl border border-border/50 bg-card/60 px-3 py-3 transition-colors hover:border-border/80">
                   <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3">
                     <div className="min-w-0">
@@ -458,7 +502,7 @@ export function DetailedStatsChart() {
               ))
             ) : (
               <div className="rounded-2xl border border-dashed border-border/60 bg-muted/10 px-4 py-10 text-center text-sm text-muted-foreground">
-                Sem matérias estudadas no período.
+                Sem matérias estudadas.
               </div>
             )}
           </div>
@@ -471,15 +515,15 @@ export function DetailedStatsChart() {
               <h4 className="mt-1 text-sm font-black text-foreground">Participação por matéria</h4>
             </div>
             <div className="rounded-full border border-border/60 bg-muted/30 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-              {formatMinutesCompact(totalMinutesPeriod)}
+              {formatMinutesCompact(displayStats.displayTotalMinutes)}
             </div>
           </div>
           <div className="mt-4 flex items-center justify-center">
-            {subjectShares.length > 0 ? (
+            {displayStats.displaySubjectShares.length > 0 ? (
               <ResponsiveContainer width={260} height={260}>
                 <PieChart>
-                  <Pie data={subjectShares} dataKey="totalMinutes" nameKey="name" cx="50%" cy="50%" innerRadius={70} outerRadius={108} paddingAngle={3}>
-                    {subjectShares.map((subject) => (
+                  <Pie data={displayStats.displaySubjectShares} dataKey="totalMinutes" nameKey="name" cx="50%" cy="50%" innerRadius={70} outerRadius={108} paddingAngle={3}>
+                    {displayStats.displaySubjectShares.map((subject) => (
                       <Cell key={subject.id} fill={subject.color} />
                     ))}
                   </Pie>
@@ -496,7 +540,7 @@ export function DetailedStatsChart() {
                   }} />
                   <text x="50%" y="48%" textAnchor="middle" dominantBaseline="middle" className="fill-foreground">
                     <tspan x="50%" className="text-[10px] font-black uppercase tracking-[0.18em] fill-muted-foreground">Total</tspan>
-                    <tspan x="50%" dy="1.5rem" className="text-lg font-black fill-foreground">{formatMinutesCompact(totalMinutesPeriod)}</tspan>
+                    <tspan x="50%" dy="1.5rem" className="text-lg font-black fill-foreground">{formatMinutesCompact(displayStats.displayTotalMinutes)}</tspan>
                   </text>
                 </PieChart>
               </ResponsiveContainer>

@@ -46,9 +46,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
-        <AppSidebar />
+        <AppSidebar onOpenProfile={() => setIsProfileOpen(true)} onOpenNotifications={() => setIsNotificationsOpen(true)} />
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="h-14 flex items-center justify-between border-b border-border px-4 bg-background/80 backdrop-blur-sm sticky top-0 z-30">
+          <header className="md:hidden h-14 flex items-center justify-between border-b border-border px-4 bg-background/80 backdrop-blur-sm sticky top-0 z-30">
             <div className="flex items-center gap-3">
               <div className="hidden md:block">
                 <SidebarTrigger />

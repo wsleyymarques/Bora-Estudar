@@ -35,7 +35,7 @@ interface UserProfilePanelProps {
 }
 
 export function UserProfilePanel({ isOpen, onClose }: UserProfilePanelProps) {
-  const { user, logout } = useAuth();
+  const { user, profile, logout, refreshProfile, updateProfile } = useAuth();
   const { data: studyData } = useStudy();
   const identities = user?.identities || [];
   const isGoogleLinked = identities.some(identity => identity.provider === 'google');
@@ -69,10 +69,10 @@ export function UserProfilePanel({ isOpen, onClose }: UserProfilePanelProps) {
 
   useEffect(() => {
     if (user) {
-      setUserName(user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário');
-      setAvatarUrlInput(user?.user_metadata?.avatar_url || '');
+      setUserName(profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário');
+      setAvatarUrlInput(profile?.avatar_url || user?.user_metadata?.avatar_url || '');
     }
-  }, [user]);
+  }, [profile?.avatar_url, profile?.full_name, user]);
 
   // Reset view when panel closes
   useEffect(() => {
@@ -108,6 +108,12 @@ export function UserProfilePanel({ isOpen, onClose }: UserProfilePanelProps) {
         }
       });
       if (error) throw error;
+      const profileResult = await updateProfile({
+        full_name: userName.trim(),
+        avatar_url: avatarUrlInput.trim() || null,
+      });
+      if (profileResult.error) throw new Error(profileResult.error);
+      await refreshProfile();
       toast.success('Perfil atualizado com sucesso!');
       setView('main');
     } catch (err: any) {
@@ -115,6 +121,16 @@ export function UserProfilePanel({ isOpen, onClose }: UserProfilePanelProps) {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleRankingPrivacyChange = async (checked: boolean) => {
+    const result = await updateProfile({ profile_private: checked });
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+
+    toast.success(checked ? 'Modo privado ativado no ranking.' : 'Modo competitivo ativado no ranking.');
   };
 
   const hasTemplates = templates.length > 0;
@@ -438,6 +454,27 @@ export function UserProfilePanel({ isOpen, onClose }: UserProfilePanelProps) {
 
               {view === 'permissions' && (
                 <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 rounded-[1.5rem] bg-card border border-border shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center">
+                        <Zap className="w-5 h-5 text-primary" />
+                      </div>
+                      <div className="text-left">
+                        <h4 className="text-xs font-black text-foreground">Modo no Ranking</h4>
+                        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-tighter mt-0.5">
+                          {profile?.profile_private ? 'Privado' : 'Competitivo'}
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={profile?.profile_private ?? false}
+                      onCheckedChange={handleRankingPrivacyChange}
+                    />
+                  </div>
+                  <p className="px-1 text-[11px] leading-relaxed text-muted-foreground">
+                    No modo privado, seu nome e avatar ficam ocultos no ranking semanal. Você continua ganhando XP, bônus e mantendo a ofensiva normalmente.
+                  </p>
+
                   <div className="flex items-center justify-between p-4 rounded-[1.5rem] bg-card border border-border shadow-sm">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center">
