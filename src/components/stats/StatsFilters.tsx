@@ -1,4 +1,4 @@
-﻿import { DateRange } from 'react-day-picker';
+import { DateRange } from 'react-day-picker';
 import { CalendarDays, Filter } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,9 @@ interface StatsFiltersProps {
   onPlanChange: (planId: string) => void;
   onPeriodChange: (period: StatsPeriod) => void;
   onDateRangeChange: (range?: DateRange) => void;
+  subjectId?: string;
+  subjects?: Array<{ id: string; name: string }>;
+  onSubjectChange?: (subjectId: string) => void;
 }
 
 function formatRangeLabel(range?: DateRange) {
@@ -39,41 +42,55 @@ export function StatsFilters({
   onPlanChange,
   onPeriodChange,
   onDateRangeChange,
+  subjectId = 'all',
+  subjects = [],
+  onSubjectChange,
 }: StatsFiltersProps) {
   const planOptions = plans.length > 0 ? plans : [{ id: '', name: 'Sem planos' }];
 
   return (
-    <div className="rounded-[1.5rem] border border-border/60 bg-background/75 p-4 shadow-sm backdrop-blur-md">
+    <div className="rounded-[1.5rem] border border-border/60 bg-background/75 px-4 py-2.5 shadow-sm backdrop-blur-md">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <div className="inline-flex items-center gap-2 rounded-2xl border border-border/60 bg-muted/40 px-3 py-2">
-            <Filter className="h-4 w-4 text-primary" />
-            <span className="text-xs font-black uppercase tracking-[0.14em] text-muted-foreground">Filtro</span>
-          </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="min-w-[12rem]">
-              <Select value={scope} onValueChange={(value) => onScopeChange(value as StatsScope)}>
+            <div className="min-w-[14rem]">
+              <Select 
+                value={scope === 'all' ? 'all' : planId} 
+                onValueChange={(value) => {
+                  if (value === 'all') {
+                    onScopeChange('all');
+                  } else {
+                    onScopeChange('plan');
+                    onPlanChange(value);
+                  }
+                }}
+              >
                 <SelectTrigger className="rounded-2xl border-border/60 bg-background/80">
-                  <SelectValue placeholder="Escopo" />
+                  <SelectValue placeholder="Geral" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Geral</SelectItem>
-                  <SelectItem value="plan">Por plano</SelectItem>
+                  {plans.map((plan) => (
+                    <SelectItem key={plan.id} value={plan.id}>
+                      {plan.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {scope === 'plan' && (
-              <div className="min-w-[14rem]">
-                <Select value={planId} onValueChange={onPlanChange}>
+            {onSubjectChange && (
+              <div className="min-w-[12rem]">
+                <Select value={subjectId} onValueChange={onSubjectChange}>
                   <SelectTrigger className="rounded-2xl border-border/60 bg-background/80">
-                    <SelectValue placeholder="Selecione um plano" />
+                    <SelectValue placeholder="Todas as matérias" />
                   </SelectTrigger>
                   <SelectContent>
-                    {planOptions.map((plan) => (
-                      <SelectItem key={plan.id || 'none'} value={plan.id}>
-                        {plan.name}
+                    <SelectItem value="all">Todas as matérias</SelectItem>
+                    {subjects.map((subj) => (
+                      <SelectItem key={subj.id} value={subj.id}>
+                        {subj.name}
                       </SelectItem>
                     ))}
                   </SelectContent>

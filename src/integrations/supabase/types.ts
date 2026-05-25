@@ -46,22 +46,82 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_url: string | null
           created_at: string
+          daily_goal_minutes: number
+          daily_goal_reached: boolean
           full_name: string
           id: string
+          last_processed_date: string | null
+          last_streak_date: string | null
+          minutes_today: number
+          profile_private: boolean
+          streak_current: number
           updated_at: string
+          xp_total: number
+          xp_weekly: number
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          daily_goal_minutes?: number
+          daily_goal_reached?: boolean
+          full_name?: string
+          id: string
+          last_processed_date?: string | null
+          last_streak_date?: string | null
+          minutes_today?: number
+          profile_private?: boolean
+          streak_current?: number
+          updated_at?: string
+          xp_total?: number
+          xp_weekly?: number
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          daily_goal_minutes?: number
+          daily_goal_reached?: boolean
+          full_name?: string
+          id?: string
+          last_processed_date?: string | null
+          last_streak_date?: string | null
+          minutes_today?: number
+          profile_private?: boolean
+          streak_current?: number
+          updated_at?: string
+          xp_total?: number
+          xp_weekly?: number
+        }
+        Relationships: []
+      }
+      study_reward_events: {
+        Row: {
+          created_at: string
+          event_date: string
+          event_type: string
+          id: string
+          user_id: string
+          week_start: string
+          xp_amount: number
         }
         Insert: {
           created_at?: string
-          full_name?: string
-          id: string
-          updated_at?: string
+          event_date: string
+          event_type: string
+          id?: string
+          user_id: string
+          week_start: string
+          xp_amount: number
         }
         Update: {
           created_at?: string
-          full_name?: string
+          event_date?: string
+          event_type?: string
           id?: string
-          updated_at?: string
+          user_id?: string
+          week_start?: string
+          xp_amount?: number
         }
         Relationships: []
       }
@@ -382,7 +442,34 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_weekly_ranking: {
+        Args: {
+          target_date?: string
+          limit_count?: number
+        }
+        Returns: {
+          avatar_url: string | null
+          full_name: string
+          minutes_week: number
+          rank_position: number
+          streak_current: number
+          user_id: string
+          xp_weekly: number
+        }[]
+      }
+      process_daily_streak_rollover: {
+        Args: {
+          process_date?: string
+        }
+        Returns: number
+      }
+      refresh_user_engagement: {
+        Args: {
+          target_user_id: string
+          target_date?: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

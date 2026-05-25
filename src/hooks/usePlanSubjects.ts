@@ -120,14 +120,28 @@ export function usePlanSubjects(planId?: string) {
     return () => window.removeEventListener(STUDY_SUBJECTS_UPDATED_EVENT, handlePlanSubjectsUpdated);
   }, [loadSubjects, planId]);
 
-  const linkedSubjectIds = useMemo(() => new Set(links.map((link) => link.subject_id)), [links]);
+  const linkedSubjectIds = useMemo(() => {
+    const ids = new Set(links.map((link) => link.subject_id));
+    allSubjects.forEach(sub => {
+      if (sub.plan_id === planId) {
+        ids.add(sub.id);
+      }
+    });
+    return ids;
+  }, [links, allSubjects, planId]);
 
   const planSubjects = useMemo(() => {
     const subjectById = new Map(allSubjects.map((subject) => [subject.id, subject]));
-    return links
+    const linked = links
       .map((link) => subjectById.get(link.subject_id))
       .filter(Boolean) as SubjectRow[];
-  }, [allSubjects, links]);
+
+    const direct = allSubjects.filter(
+      (sub) => sub.plan_id === planId && !linked.some((l) => l.id === sub.id)
+    );
+
+    return [...linked, ...direct];
+  }, [allSubjects, links, planId]);
 
   const availableSubjects = useMemo(
     () => allSubjects.filter((subject) => !linkedSubjectIds.has(subject.id)),

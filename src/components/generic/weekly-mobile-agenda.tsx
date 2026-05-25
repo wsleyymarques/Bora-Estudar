@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { CalendarDays, CheckCircle2, Circle, Clock3 } from 'lucide-react';
+import { Bell, CalendarDays, CheckCircle2, Circle, Clock3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { WeeklyTimeGridDay, WeeklyTimeGridEvent } from '@/components/generic/weekly-time-grid';
 
@@ -144,7 +144,7 @@ export function WeeklyMobileAgenda({
                 {selectedDay.weekdayLabel} {selectedDay.dateLabel}
               </p>
               {selectedDay.metaLabel && (
-                <p className="text-[11px] text-muted-foreground truncate mt-0.5">{selectedDay.metaLabel}</p>
+                <p className="text-[11px] text-muted-foreground leading-snug mt-0.5">{selectedDay.metaLabel}</p>
               )}
             </div>
 
@@ -187,7 +187,8 @@ export function WeeklyMobileAgenda({
                     className={cn(
                       'rounded-lg border bg-background/95 px-2.5 py-2 transition-all active:scale-[0.99] min-w-0',
                       event.completed ? 'opacity-70' : '',
-                      event.optional ? 'border-dashed' : '',
+                      event.optional || event.isExtra ? 'border-dashed' : '',
+                      event.isExtra ? 'bg-primary/5 border-primary/20 backdrop-blur-sm' : '',
                     )}
                     style={{
                       borderLeftWidth: 3,
@@ -203,9 +204,18 @@ export function WeeklyMobileAgenda({
                         <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
                           <Clock3 className="w-3 h-3" />
                           {timeLabel}
-                          {event.badgeLabel && (
+                          {event.isExtra ? (
+                            <span className="ml-1 inline-flex rounded-md bg-accent/15 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-accent font-bold italic">
+                              Sessão Extra
+                            </span>
+                          ) : event.badgeLabel ? (
                             <span className="ml-1 inline-flex rounded-md bg-muted px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-muted-foreground">
                               {event.badgeLabel}
+                            </span>
+                          ) : null}
+                          {event.hasNotification && (
+                            <span className="ml-1 inline-flex rounded-md bg-warning/15 px-1 py-0.5 text-[9px] text-warning font-bold align-middle animate-pulse" title="Notificação ativa">
+                              <Bell className="w-2.5 h-2.5" />
                             </span>
                           )}
                         </p>

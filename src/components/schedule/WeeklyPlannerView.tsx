@@ -9,8 +9,9 @@ import { WeeklyMobileAgenda } from '@/components/generic/weekly-mobile-agenda';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ArrowRightLeft, FileText, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { getSessionActualMinutes } from '@/features/tracker/session-metrics';
+import { getSessionActualMinutes, getSessionDateKey } from '@/features/tracker/session-metrics';
 import { ScheduleItemPlayButton } from '@/components/schedule/ScheduleItemPlayButton';
+import { toast } from 'sonner';
 
 interface WeeklyPlannerViewProps {
   currentDate: Date;
@@ -63,7 +64,10 @@ export default function WeeklyPlannerView({
   const resolvedDayPlans = dayPlans ?? data.dayPlans;
   const resolvedSessionPauses = sessionPauses ?? data.sessionPauses;
   const resolvedGetSubject = getSubjectById ?? getSubject;
-  const resolvedGetScheduleForDate = getScheduleForDateOverride ?? getScheduleForDate;
+  const resolvedGetScheduleForDate = React.useMemo(() => {
+    if (getScheduleForDateOverride) return getScheduleForDateOverride;
+    return (date: string) => resolvedSchedule.filter(e => e.date === date);
+  }, [getScheduleForDateOverride, resolvedSchedule]);
   const resolvedToggleScheduleComplete = toggleScheduleCompleteOverride ?? toggleScheduleComplete;
 
   const monday = React.useMemo(() => getMonday(currentDate), [currentDate]);
@@ -91,7 +95,7 @@ export default function WeeklyPlannerView({
     const metaParts = [
       dayTarget !== undefined ? `Meta ${formatMinutesCompact(dayTarget)}` : undefined,
       planned > 0 ? `Plan ${formatMinutesCompact(planned)}` : undefined,
-      stats.minutes > 0 ? `Feito ${formatMinutesCompact(stats.minutes)}` : undefined,
+      stats.minutes > 0 ? `${formatMinutesCompact(stats.minutes)} feito` : undefined,
     ].filter(Boolean);
 
     return {
@@ -139,7 +143,7 @@ export default function WeeklyPlannerView({
   const events = days.flatMap((date) => {
     const entries = resolvedGetScheduleForDate(date);
     const executedBySubject = resolvedSessions
-      .filter((session) => session.date === date && session.isFocusSession !== false)
+      .filter((session) => getSessionDateKey(session) === date && session.isFocusSession !== false)
       .reduce<Record<string, number>>((acc, session) => {
         acc[session.subjectId] = (acc[session.subjectId] || 0) + getSessionActualMinutes(session);
         return acc;
@@ -153,6 +157,19 @@ export default function WeeklyPlannerView({
         subjectExecuted > 0 ? `Feito ${formatMinutesCompact(subjectExecuted)}` : undefined,
       ].filter(Boolean);
 
+      let hasNotification = false;
+      try {
+        const savedNotifs = localStorage.getItem(`entry_notification_${entry.id}`);
+        if (savedNotifs) {
+          const parsed = JSON.parse(savedNotifs);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            hasNotification = true;
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+
       return {
         id: entry.id,
         order: entry.order,
@@ -163,39 +180,49 @@ export default function WeeklyPlannerView({
         durationMinutes: entry.plannedMinutes ?? 60,
         badgeLabel: entry.optional ? 'Opcional' : undefined,
         optional: entry.optional,
-        completed: entry.completed,
+        completed: entry.completed || subjectExecuted >= 30,
         color: subject?.color,
+        isExtra: entry.isExtra,
+        hasNotification,
         onClick: () => onEditEntry ? onEditEntry(entry) : onOpenDay(date),
         onToggleComplete: () => {
+          if (entry.isExtra) {
+            toast.info("Esta é uma sessão extra realizada. Para alterá-la, edite o histórico de sessões.");
+            return;
+          }
           void resolvedToggleScheduleComplete(entry.id);
         },
         actions: (
           <div className="flex items-center gap-1.5">
-            <ScheduleItemPlayButton 
-              entry={entry} 
-              date={date} 
-              className="h-7 w-7 rounded-full border border-border/60 bg-white/50 backdrop-blur-sm shadow-sm hover:scale-105 transition-transform" 
-            />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="h-7 w-7 flex items-center justify-center rounded-full border-2 border-foreground bg-foreground text-background shadow-md hover:scale-105 transition-all" title="Mais acoes">
-                  <MoreHorizontal className="w-3.5 h-3.5" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {onMove && <DropdownMenuItem onClick={() => onMove(entry)}>Mover</DropdownMenuItem>}
-                {onChange && (
-                  <DropdownMenuItem onClick={() => onChange(entry)}>
-                    <ArrowRightLeft className="w-4 h-4 mr-2" />Trocar
-                  </DropdownMenuItem>
-                )}
-                {onRemove && (
-                  <DropdownMenuItem onClick={() => onRemove(entry.id)} className="text-destructive focus:text-destructive">
-                    <Trash2 className="w-4 h-4 mr-2" />Remover
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {!entry.isExtra && (
+              <>
+                <ScheduleItemPlayButton 
+                  entry={entry} 
+                  date={date} 
+                  className="h-7 w-7 rounded-full border border-border/60 bg-white/50 backdrop-blur-sm shadow-sm hover:scale-105 transition-transform" 
+                />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="h-7 w-7 flex items-center justify-center rounded-full border-2 border-foreground bg-foreground text-background shadow-md hover:scale-105 transition-all" title="Mais acoes">
+                      <MoreHorizontal className="w-3.5 h-3.5" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {onMove && <DropdownMenuItem onClick={() => onMove(entry)}>Mover</DropdownMenuItem>}
+                    {onChange && (
+                      <DropdownMenuItem onClick={() => onChange(entry)}>
+                        <ArrowRightLeft className="w-4 h-4 mr-2" />Trocar
+                      </DropdownMenuItem>
+                    )}
+                    {onRemove && (
+                      <DropdownMenuItem onClick={() => onRemove(entry.id)} className="text-destructive focus:text-destructive">
+                        <Trash2 className="w-4 h-4 mr-2" />Remover
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            )}
           </div>
         ),
       };
