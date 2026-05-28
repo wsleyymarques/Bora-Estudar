@@ -222,5 +222,6 @@ export default function PlansPage() {
         </div>
       )}
     </div>
+    </div>
   );
 }
