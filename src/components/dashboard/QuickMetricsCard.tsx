@@ -33,50 +33,46 @@ export function QuickMetricsCard({ className }: { className?: string }) {
   const strokeDashoffset = circleCircumference - (dailyPercent / 100) * circleCircumference;
 
   return (
-    <div className={cn("bg-card border border-border/50 text-card-foreground rounded-3xl p-6 shadow-sm flex flex-col relative", className)}>
-      <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:items-start mb-6">
-        <h3 className="text-lg font-black tracking-tight">Métricas Rápidas</h3>
-        <span className="text-xs font-bold text-muted-foreground">
-          Estudado Hoje: {Math.floor(todayMinutes)}m / {dailyGoalMinutes}m
-        </span>
+    <div className={cn("grid grid-cols-2 gap-3 sm:gap-4", className)}>
+      {/* Daily Goal Card */}
+      <div className="bg-[#facc15] text-black rounded-3xl p-4 sm:p-5 flex flex-col justify-between shadow-sm relative overflow-hidden">
+        <div>
+          <h4 className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-black/60">Meta Diária</h4>
+          <div className="flex items-baseline gap-0.5 mt-1 sm:mt-2">
+            <span className="text-3xl sm:text-4xl font-black tracking-tight">{dailyGoalMinutes}</span>
+            <span className="text-sm font-bold">m</span>
+          </div>
+          <p className="text-[11px] sm:text-xs font-semibold text-black/70 mt-1">
+            {Math.floor(todayMinutes)}m estudados hoje
+          </p>
+        </div>
+        
+        <div className="mt-4 sm:mt-6 w-full h-1.5 bg-black/15 rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-black/60 rounded-full" 
+            style={{ width: `${dailyPercent}%` }}
+          />
+        </div>
       </div>
 
-      <div className="flex items-center gap-6">
-        {/* Circular Progress */}
-        <div className="relative flex items-center justify-center shrink-0">
-          <svg width="96" height="96" className="transform -rotate-90">
-            <circle
-              cx="48"
-              cy="48"
-              r={circleRadius}
-              className="stroke-muted"
-              strokeWidth="10"
-              fill="transparent"
-            />
-            <circle
-              cx="48"
-              cy="48"
-              r={circleRadius}
-              className="stroke-green-500 transition-all duration-1000 ease-in-out"
-              strokeWidth="10"
-              strokeLinecap="round"
-              fill="transparent"
-              strokeDasharray={circleCircumference}
-              strokeDashoffset={strokeDashoffset}
-            />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-2xl font-black">{dailyGoalMinutes}</span>
+      {/* Weekly Goal Card */}
+      <div className="bg-card text-card-foreground rounded-3xl p-4 sm:p-5 flex flex-col justify-between border border-border/50 shadow-sm">
+        <div>
+          <h4 className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-muted-foreground">Meta Semanal</h4>
+          <div className="flex items-baseline gap-0.5 mt-1 sm:mt-2">
+            <span className="text-3xl sm:text-4xl font-black tracking-tight">{weeklyGoalHours}</span>
+            <span className="text-sm font-bold">h</span>
           </div>
-        </div>
-
-        {/* Linear Progress */}
-        <div className="flex-1 space-y-2">
-          <h4 className="text-base font-bold">Meta Diária de Estudo</h4>
-          <Progress value={dailyPercent} className="h-3" indicatorClassName="bg-green-500" />
-          <p className="text-xs font-bold text-muted-foreground pt-1">
-            Meta Semanal: {Math.floor(weekMinutes / 60)}h / {weeklyGoalHours}h
+          <p className="text-[11px] sm:text-xs font-semibold text-muted-foreground mt-1">
+            {Math.floor(weekMinutes / 60)}h / {weeklyGoalHours}h concluídas
           </p>
+        </div>
+        
+        <div className="mt-4 sm:mt-6 w-full h-1.5 bg-muted rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-amber-500 rounded-full" 
+            style={{ width: `${Math.min(Math.round((weekMinutes / weeklyGoalMinutes) * 100), 100)}%` }}
+          />
         </div>
       </div>
     </div>
