@@ -5,12 +5,27 @@ import { useStudy } from '@/contexts/StudyContext';
 import { getSessionActualMinutes, getSessionPauseSeconds, getSessionStartLabel, getSessionEndLabel } from '@/features/tracker/session-metrics';
 import { toDateKey } from '@/lib/date-utils';
 import { formatMinutesCompact } from '@/lib/duration-utils';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, History, CalendarDays } from 'lucide-react';
+import { DateRange } from 'react-day-picker';
+import { PageHeader } from '@/components/generic/PageHeader';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
 import SessionDialog from '@/components/history/SessionDialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { StudySession } from '@/types/study';
 import { toast } from 'sonner';
+import { QuickPlanTimerCard } from '@/components/dashboard/QuickPlanTimerCard';
+import { useStudyPlans } from '@/hooks/useStudyPlans';
 
 type FilterPeriod = 'week' | 'month' | 'year' | 'all';
+
+function formatRangeLabel(range?: DateRange) {
+  if (!range?.from) return 'Selecionar período';
+  const from = range.from.toLocaleDateString('pt-BR');
+  const to = range.to ? range.to.toLocaleDateString('pt-BR') : from;
+  return from === to ? from : `${from} - ${to}`;
+}
 
 function getFromDateByPeriod(period: FilterPeriod): string | undefined {
   if (period === 'all') return undefined;
@@ -25,23 +40,39 @@ function getFromDateByPeriod(period: FilterPeriod): string | undefined {
 
 export default function HistoryPage() {
   const { data, getSubject, deleteSession } = useStudy();
+  const { plans } = useStudyPlans();
   const [period, setPeriod] = useState<FilterPeriod>('month');
   const [subjectFilter, setSubjectFilter] = useState<string>('all');
+  const [sessionType, setSessionType] = useState<'all' | 'stopwatch' | 'pomodoro'>('all');
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  
+  // Multi-select State
+  const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set());
   
   // Dialog State
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState<StudySession | undefined>(undefined);
 
   const filtered = useMemo(() => {
-    const fromDate = getFromDateByPeriod(period);
     let sessions = data.sessions.filter((session) => session.isFocusSession !== false);
 
-    if (fromDate) {
-      sessions = sessions.filter((session) => session.date >= fromDate);
+    if (dateRange?.from) {
+      const fromStr = toDateKey(dateRange.from);
+      const toStr = dateRange.to ? toDateKey(dateRange.to) : fromStr;
+      sessions = sessions.filter((session) => session.date >= fromStr && session.date <= toStr);
+    } else {
+      const fromDate = getFromDateByPeriod(period);
+      if (fromDate) {
+        sessions = sessions.filter((session) => session.date >= fromDate);
+      }
     }
 
     if (subjectFilter !== 'all') {
       sessions = sessions.filter((session) => session.subjectId === subjectFilter);
+    }
+
+    if (sessionType !== 'all') {
+      sessions = sessions.filter((session) => session.sessionMode === sessionType);
     }
 
     return sessions.sort((a, b) => {
@@ -49,7 +80,7 @@ export default function HistoryPage() {
       const bStart = b.startedAt || `${b.date}T${b.startTime || '00:00'}:00`;
       return bStart.localeCompare(aStart);
     });
-  }, [data.sessions, period, subjectFilter]);
+  }, [data.sessions, period, subjectFilter, sessionType, dateRange]);
 
   const summary = useMemo(() => {
     const totalMinutes = filtered.reduce((acc, session) => acc + getSessionActualMinutes(session), 0);
@@ -88,6 +119,11 @@ export default function HistoryPage() {
     if (window.confirm('Tem certeza de que deseja excluir esta sessão de estudo permanentemente?')) {
       try {
         await deleteSession(id);
+        setSelectedSessionIds(prev => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
         toast.success('Sessão excluída com sucesso!');
       } catch (err) {
         console.error(err);
@@ -96,45 +132,138 @@ export default function HistoryPage() {
     }
   };
 
+  const toggleSelectSession = (id: string) => {
+    const next = new Set(selectedSessionIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedSessionIds(next);
+  };
+
+  const handleBulkDelete = async () => {
+    if (window.confirm(`Tem certeza de que deseja excluir ${selectedSessionIds.size} sessões permanentemente?`)) {
+      try {
+        for (const id of selectedSessionIds) {
+          await deleteSession(id);
+        }
+        setSelectedSessionIds(new Set());
+        toast.success('Sessões excluídas com sucesso!');
+      } catch (err) {
+        console.error(err);
+        toast.error('Erro ao excluir sessões.');
+      }
+    }
+  };
+
   return (
-    <div className="space-y-5 sm:space-y-6 max-w-3xl">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-display font-bold text-foreground">Histórico</h1>
-        <Button onClick={handleAddSession} className="flex items-center gap-1.5 shadow-sm">
-          <Plus className="w-4 h-4" />
-          Registrar Sessão
-        </Button>
-      </div>
+    <div className="relative mx-auto w-full max-w-full">
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-72 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.9),_transparent_35%),radial-gradient(circle_at_top_right,_rgba(255,255,255,0.75),_transparent_30%),linear-gradient(180deg,_rgba(255,255,255,0.6),_transparent)]" />
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-        <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
-          {(['week', 'month', 'year', 'all'] as FilterPeriod[]).map((value) => (
-            <button
-              key={value}
-              onClick={() => setPeriod(value)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                period === value ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
-              }`}
-            >
-              {{ week: 'Semana', month: 'Mês', year: 'Ano', all: 'Tudo' }[value]}
-            </button>
-          ))}
-        </div>
+      <PageHeader 
+        title="Sessões de Estudo"
+        description="Acompanhe o seu progresso, filtre por matérias, períodos e exclua sessões antigas com facilidade."
+        badgeText="Seu histórico"
+        badgeIcon={History}
+        action={
+          <div className="flex items-center gap-2">
+            {selectedSessionIds.size > 0 && (
+              <Button variant="destructive" onClick={handleBulkDelete} className="h-11 rounded-[1.25rem] px-5 shadow-lg shadow-black/5 shrink-0">
+                <Trash2 className="mr-1.5 h-4.5 w-4.5" />
+                Excluir ({selectedSessionIds.size})
+              </Button>
+            )}
+            <Button onClick={handleAddSession} className="h-11 rounded-[1.25rem] px-5 shadow-lg shadow-black/5 shrink-0">
+              <Plus className="mr-1.5 h-4.5 w-4.5" />
+              Registrar Sessão
+            </Button>
+          </div>
+        }
+      />
 
-        <Select value={subjectFilter} onValueChange={setSubjectFilter}>
-          <SelectTrigger className="w-full sm:w-[220px]"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas as matérias</SelectItem>
-            {data.subjects.map((subject) => (
-              <SelectItem key={subject.id} value={subject.id}>
-                <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: subject.color }} />
-                  {subject.name}
+      <div className="space-y-6 mt-6">
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+        <div className="flex-1 space-y-5 sm:space-y-6 w-full">
+      <div className="rounded-[1.5rem] border border-border/60 bg-background/75 px-4 py-2.5 shadow-sm backdrop-blur-md">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Select value={sessionType} onValueChange={(val: any) => setSessionType(val)}>
+              <SelectTrigger className="w-full sm:w-[14rem] rounded-2xl border-border/60 bg-background/80">
+                <SelectValue placeholder="Geral" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Geral</SelectItem>
+                <SelectItem value="stopwatch">Cronômetro</SelectItem>
+                <SelectItem value="pomodoro">Pomodoro</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={subjectFilter} onValueChange={setSubjectFilter}>
+              <SelectTrigger className="w-full sm:w-[14rem] rounded-2xl border-border/60 bg-background/80">
+                <SelectValue placeholder="Todas as matérias" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as matérias</SelectItem>
+                {data.subjects.map((subject) => (
+                  <SelectItem key={subject.id} value={subject.id}>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: subject.color }} />
+                      {subject.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="inline-flex items-center gap-1 rounded-2xl border border-border/60 bg-muted/30 p-1 shadow-inner">
+              {(['week', 'month', 'year', 'all'] as FilterPeriod[]).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => { setPeriod(value); setDateRange(undefined); }}
+                  className={cn(
+                    'rounded-xl px-3 py-1.5 text-xs font-black transition-colors',
+                    period === value && !dateRange ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {{ week: 'Semanal', month: 'Mensal', year: 'Anual', all: 'Tudo' }[value]}
+                </button>
+              ))}
+            </div>
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="h-11 rounded-2xl border-border/60 bg-background/80 px-4 justify-start gap-2">
+                  <CalendarDays className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">{formatRangeLabel(dateRange)}</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <div className="flex flex-col gap-4 p-4 lg:flex-row">
+                  <div className="flex min-w-[9rem] flex-col gap-2 border-b border-border/50 pb-3 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-4">
+                    <button type="button" className="rounded-xl px-3 py-2 text-left text-sm hover:bg-muted/60" onClick={() => setDateRange({ from: new Date(), to: new Date() })}>Hoje</button>
+                    <button type="button" className="rounded-xl px-3 py-2 text-left text-sm hover:bg-muted/60" onClick={() => {
+                      const end = new Date();
+                      const start = new Date();
+                      start.setDate(end.getDate() - 6);
+                      setDateRange({ from: start, to: end });
+                    }}>Últimos 7 dias</button>
+                    <button type="button" className="rounded-xl px-3 py-2 text-left text-sm hover:bg-muted/60" onClick={() => {
+                      const today = new Date();
+                      const start = new Date(today.getFullYear(), today.getMonth(), 1);
+                      const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                      setDateRange({ from: start, to: end });
+                    }}>Este mês</button>
+                    <button type="button" className="rounded-xl px-3 py-2 text-left text-sm text-muted-foreground hover:bg-muted/60" onClick={() => setDateRange(undefined)}>Limpar</button>
+                  </div>
+                  <div className="rounded-2xl border border-border/60 bg-background/80 p-2">
+                    <Calendar mode="range" numberOfMonths={2} selected={dateRange} onSelect={setDateRange} />
+                  </div>
                 </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
       </div>
 
       {/* Summary */}
@@ -186,9 +315,13 @@ export default function HistoryPage() {
                   return (
                     <div key={session.id} className="glass-card p-3 space-y-2 group relative">
                       <div className="flex items-center gap-3">
+                        <Checkbox 
+                          checked={selectedSessionIds.has(session.id)}
+                          onCheckedChange={() => toggleSelectSession(session.id)}
+                        />
                         <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: subject?.color }} />
                         <span className="text-sm font-medium text-foreground flex-1 truncate">{subject?.name || 'Matéria'}</span>
-                        <span className="text-xs text-muted-foreground capitalize mr-2">{session.sessionMode || 'manual'}</span>
+                        <span className="text-xs font-semibold text-muted-foreground capitalize mr-2">{session.sessionMode === 'pomodoro' ? 'Pomodoro' : 'Cronômetro'}</span>
                         
                         <div className="flex items-center gap-1">
                           <Button
@@ -257,7 +390,14 @@ export default function HistoryPage() {
         onOpenChange={setDialogOpen} 
         session={selectedSession} 
       />
+
+      </div>
+
+      <div className="hidden lg:block w-full lg:w-[420px] xl:w-[480px] shrink-0 sticky top-6">
+        <QuickPlanTimerCard plans={plans} />
+      </div>
+    </div>
+    </div>
     </div>
   );
 }
-

@@ -32,15 +32,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       .map((part) => part[0]?.toUpperCase() || '')
       .join('') || 'U';
 
-  let logoSrc = '/logo-black.png';
+  let logoSrc = '/assets/media__1779551687484.png'; // Blue
   if (templateKey === 'cutie') {
-    logoSrc = '/logo-pink.png';
-  } else if (templateKey === 'padrao') {
-    logoSrc = resolvedTheme === 'dark' ? '/logo-blue.png' : '/logo-navy.png';
+    logoSrc = '/assets/media__1779562329907.png'; // Pink
   } else if (templateKey === 'minimalista') {
-    logoSrc = resolvedTheme === 'dark' ? '/logo-white.png' : '/logo-black.png';
-  } else {
-    logoSrc = resolvedTheme === 'dark' ? '/logo-white.png' : '/logo-black.png';
+    logoSrc = resolvedTheme === 'dark' 
+      ? '/assets/media__1779562483004.png' // White
+      : '/assets/media__1779562328484.png'; // Black
   }
 
   return (
@@ -53,9 +51,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="hidden md:block">
                 <SidebarTrigger />
               </div>
-              <div className="flex items-center gap-2">
-                <img src={logoSrc} alt="BoraEstudar Logo" className="h-10 w-10 object-contain" />
-                <span className="font-display font-black text-sm tracking-tight text-foreground uppercase">BoraEstudar</span>
+              <div className="flex items-center gap-2 overflow-hidden">
+                <img 
+                  key={logoSrc}
+                  src={logoSrc} 
+                  alt="BoraEstudar Logo" 
+                  className="w-[160px] max-w-none h-auto object-contain -ml-2 -mt-10 -mb-10 transition-all duration-300 origin-left"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                  }}
+                />
+                <span className="font-display font-black text-sm tracking-tight text-foreground uppercase hidden">BoraEstudar</span>
               </div>
               <div className="hidden sm:block h-4 w-px bg-border/80 mx-1" />
               <span className="hidden sm:inline text-xs font-bold text-muted-foreground uppercase tracking-widest">
@@ -92,7 +99,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </button>
             </div>
           </header>
-          <main className="flex-1 overflow-auto p-4 pb-24 md:p-6 lg:p-8 md:pb-6" style={{ overflowAnchor: 'none' }}>
+          <main className="flex-1 overflow-auto px-2 pt-1 pb-24 sm:p-4 sm:pb-24 md:p-6 lg:p-8 md:pb-6" style={{ overflowAnchor: 'none' }}>
             {children}
           </main>
         </div>
