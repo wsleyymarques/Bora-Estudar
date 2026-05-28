@@ -52,7 +52,7 @@ export function AppSidebar({ onOpenProfile, onOpenNotifications }: AppSidebarPro
     { title: 'APRENDER', url: '/', iconImage: '/assets/media__1779561373778.png', fallbackIcon: Home },
     { title: 'PLANOS', url: '/plans', iconImage: '/assets/media__1779561369461.png', fallbackIcon: Layers, badge: activePlansCount > 0 ? `${activePlansCount}` : null },
     { title: 'ESTATÍSTICAS', url: '/stats', iconImage: '/assets/media__1779561368073.png', fallbackIcon: BarChart3 },
-    { title: 'HISTÓRICO', url: '/history', iconImage: '/icon-history.png', fallbackIcon: History },
+    { title: 'SESSÕES', url: '/history', iconImage: '/icon-history.png', fallbackIcon: History },
   ];
 
   if (!isMobile) {

@@ -10,6 +10,7 @@ import { type StudyPlan } from '@/hooks/useStudyPlans';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ClockTimePickerField } from '@/components/generic/time-picker-fields';
+import { PomodoroQuickSettings } from '@/components/generic/pomodoro-quick-settings';
 import { cn } from '@/lib/utils';
 
 interface QuickPlanTimerCardProps {
@@ -63,6 +64,8 @@ export function QuickPlanTimerCard({ plans, className }: QuickPlanTimerCardProps
     runtime,
     mode,
     setMode,
+    pomodoroSettings,
+    setPomodoroSettings,
     startWithBinding,
     getBindingState,
     togglePauseResume,
@@ -126,17 +129,17 @@ export function QuickPlanTimerCard({ plans, className }: QuickPlanTimerCardProps
   return (
     <section
       className={cn(
-        'bg-card border border-border/50 text-card-foreground rounded-[2rem] p-5 shadow-sm flex flex-col gap-3',
+        'bg-card border border-border/50 text-card-foreground rounded-3xl p-4 sm:p-5 shadow-sm flex flex-col gap-3 sm:gap-4',
         className,
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/70 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-            <Timer className="h-3.5 w-3.5 text-primary" />
+          <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/70 px-2.5 py-1 text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+            <Timer className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-primary" />
             Timer rapido
           </div>
-          <h3 className="mt-3 text-lg font-display font-black tracking-tight text-foreground">
+          <h3 className="mt-2 sm:mt-3 text-base sm:text-lg font-display font-black tracking-tight text-foreground">
             {runtime ? 'Sessão em andamento' : 'Comecar materia do plano'}
           </h3>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -164,15 +167,15 @@ export function QuickPlanTimerCard({ plans, className }: QuickPlanTimerCardProps
             {/* Left: status dot + mode label + subject */}
             <div className="flex items-center gap-3 min-w-0">
               <span className={cn("h-2.5 w-2.5 rounded-full shrink-0", isRunning ? "bg-success animate-pulse" : "bg-warning")} />
-              <div className="flex flex-col leading-tight">
+              <div className="flex flex-col leading-tight min-w-0">
                 <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
                   {isRunning ? 'Ativo' : 'Pausado'} · {runtime.kind === 'pomodoro' ? 'Pomodoro' : 'Cronômetro'}
                 </span>
-                <span className="flex items-center gap-1.5 text-xs font-bold text-foreground whitespace-nowrap">
+                <span className="flex items-center gap-1.5 text-xs font-bold text-foreground overflow-hidden">
                   {activeSubject && (
                     <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: activeSubject.color || '#5B8C7E' }} />
                   )}
-                  {activeSubject?.name || phaseStateLabel || 'Sessão ativa'}
+                  <span className="truncate">{activeSubject?.name || phaseStateLabel || 'Sessão ativa'}</span>
                 </span>
               </div>
             </div>
@@ -211,9 +214,9 @@ export function QuickPlanTimerCard({ plans, className }: QuickPlanTimerCardProps
         <>
           <div className="flex flex-col gap-3">
             <div className="space-y-1.5">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">Plano</p>
+              <p className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">Plano</p>
               <Select value={selectedPlan?.id} onValueChange={setSelectedPlanId}>
-                <SelectTrigger className="h-11 rounded-2xl border-border/60 bg-background/80">
+                <SelectTrigger className="h-9 sm:h-11 rounded-xl sm:rounded-2xl border-border/60 bg-background/80 text-xs sm:text-sm">
                   <SelectValue placeholder="Selecione um plano" />
                 </SelectTrigger>
                 <SelectContent>
@@ -227,9 +230,9 @@ export function QuickPlanTimerCard({ plans, className }: QuickPlanTimerCardProps
             </div>
 
             <div className="space-y-1.5">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">Matéria</p>
+              <p className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">Matéria</p>
               <Select value={selectedSubjectId} onValueChange={setSelectedSubjectId} disabled={subjectsLoading || !selectedPlan}>
-                <SelectTrigger className="h-11 rounded-2xl border-border/60 bg-background/80">
+                <SelectTrigger className="h-9 sm:h-11 rounded-xl sm:rounded-2xl border-border/60 bg-background/80 text-xs sm:text-sm">
                   <SelectValue placeholder={subjectsLoading ? 'Carregando...' : 'Selecione uma matéria'} />
                 </SelectTrigger>
                 <SelectContent>
@@ -250,6 +253,15 @@ export function QuickPlanTimerCard({ plans, className }: QuickPlanTimerCardProps
             <div className="rounded-2xl border border-dashed border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
               Este plano ainda não tem matérias vinculadas.
             </div>
+          )}
+
+          {mode === 'pomodoro' && (
+            <PomodoroQuickSettings 
+              settings={pomodoroSettings} 
+              onChange={setPomodoroSettings}
+              compact
+              className="mt-2 mb-2"
+            />
           )}
 
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -278,7 +290,7 @@ export function QuickPlanTimerCard({ plans, className }: QuickPlanTimerCardProps
 
             <div className="flex items-center gap-2">
               <Button
-                className="rounded-full px-5"
+                className="h-9 sm:h-10 rounded-full px-4 sm:px-5 text-xs sm:text-sm"
                 onClick={() => void handleStart(mode)}
                 disabled={isTransitioning || !selectedPlan || !selectedSubject || busyMode !== null}
               >
