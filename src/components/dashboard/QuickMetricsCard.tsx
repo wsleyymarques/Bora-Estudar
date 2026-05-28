@@ -34,14 +34,14 @@ export function QuickMetricsCard({ className }: { className?: string }) {
 
   return (
     <div className={cn("bg-card border border-border/50 text-card-foreground rounded-3xl p-6 shadow-sm flex flex-col relative", className)}>
-      <div className="flex justify-between items-start mb-6">
+      <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:items-start mb-6">
         <h3 className="text-lg font-black tracking-tight">Métricas Rápidas</h3>
         <span className="text-xs font-bold text-muted-foreground">
           Estudado Hoje: {Math.floor(todayMinutes)}m / {dailyGoalMinutes}m
         </span>
       </div>
 
-      <div className="flex items-center gap-6 flex-1">
+      <div className="flex items-center gap-6">
         {/* Circular Progress */}
         <div className="relative flex items-center justify-center shrink-0">
           <svg width="96" height="96" className="transform -rotate-90">

@@ -224,10 +224,46 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!isRuntimeRunning(runtime)) return;
+    if (!isRuntimeRunning(runtime)) {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then((reg) => {
+          reg.getNotifications({ tag: 'timer-pwa' }).then((notifications) => {
+            notifications.forEach((n) => n.close());
+          });
+        });
+      }
+      return;
+    }
+    
+    const updatePwaNotification = () => {
+      if ('serviceWorker' in navigator && Notification.permission === 'granted') {
+        const title = runtime?.kind === 'pomodoro' ? 'Pomodoro Ativo' : 'Sessão Ativa';
+        let displayTime = '';
+        if (runtime?.kind === 'stopwatch') {
+          displayTime = formatSecondsAsClock(getStopwatchElapsedSeconds(runtime, Date.now()));
+        } else if (runtime?.kind === 'pomodoro') {
+          displayTime = formatSecondsAsClock(getPomodoroRemainingSeconds(runtime, Date.now()));
+        }
+
+        navigator.serviceWorker.ready.then((reg) => {
+          reg.showNotification(title, {
+            body: `Tempo rodando: ${displayTime}`,
+            icon: '/studei-icon-192.png',
+            badge: '/studei-icon-32.png',
+            tag: 'timer-pwa',
+            silent: true,
+            renotify: false,
+          }).catch(() => {});
+        });
+      }
+    };
+
+    updatePwaNotification();
     const timer = window.setInterval(() => {
       setNowMs(Date.now());
+      updatePwaNotification();
     }, 1000);
+    
     return () => window.clearInterval(timer);
   }, [runtime]);
 

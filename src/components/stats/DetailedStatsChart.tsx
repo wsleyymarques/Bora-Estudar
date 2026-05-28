@@ -7,6 +7,7 @@ import { getSessionActualMinutes, getSessionDateKey } from '@/features/tracker/s
 import { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { BarChart3, ChevronLeft, ChevronRight, Plus, Pencil, Trash2 } from 'lucide-react';
+import { PageHeader } from '@/components/generic/PageHeader';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import SessionDialog from '@/components/history/SessionDialog';
@@ -351,20 +352,18 @@ export function DetailedStatsChart() {
   };
 
   return (
-    <section className="glass-card p-5 space-y-6">
-      <div className="flex flex-col gap-6 border-b border-border/50 pb-5">
-        <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/80 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
-            <BarChart3 className="h-3.5 w-3.5 text-primary" />
-            Estatísticas detalhadas
-          </div>
-          <h3 className="text-xl font-display font-black tracking-tight text-foreground">Horas por matéria no período</h3>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            Acompanhe o tempo estudado por matéria em visão semanal, mensal ou anual, filtrando por plano ou visão geral e escolhendo o intervalo no calendário.
-          </p>
-        </div>
-        
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+    <div className="relative mx-auto w-full max-w-full">
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-72 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.9),_transparent_35%),radial-gradient(circle_at_top_right,_rgba(255,255,255,0.75),_transparent_30%),linear-gradient(180deg,_rgba(255,255,255,0.6),_transparent)]" />
+
+      <PageHeader 
+        title="Horas por matéria no período"
+        description="Acompanhe o tempo estudado por matéria em visão semanal, mensal ou anual, filtrando por plano ou visão geral e escolhendo o intervalo no calendário."
+        badgeText="Estatísticas detalhadas"
+        badgeIcon={BarChart3}
+      />
+
+      <div className="space-y-6 mt-6">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <StatsFilters 
             scope={scope} 
             planId={planId} 
@@ -395,9 +394,7 @@ export function DetailedStatsChart() {
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-        </div>
-      </div>
-
+          </div>
       <div className="rounded-[1.5rem] border border-border/60 bg-background/70 px-5 py-3 shadow-sm">
         <div className="grid gap-4 md:grid-cols-3">
           <div className="text-center md:text-left">
@@ -648,6 +645,7 @@ export function DetailedStatsChart() {
         onOpenChange={setDialogOpen} 
         session={selectedSession} 
       />
-    </section>
+      </div>
+    </div>
   ); 
 }
