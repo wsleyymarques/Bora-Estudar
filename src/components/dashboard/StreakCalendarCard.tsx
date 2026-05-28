@@ -104,13 +104,13 @@ export function StreakCalendarCard({ className }: { className?: string }) {
   };
 
   return (
-    <div className={cn("bg-card text-card-foreground rounded-3xl p-5 sm:p-6 shadow-sm border border-border/50 relative overflow-hidden flex flex-col gap-6", className)}>
+    <div className={cn("bg-card text-card-foreground rounded-3xl p-4 sm:p-5 shadow-sm border border-border/50 relative overflow-hidden flex flex-col gap-4 sm:gap-5", className)}>
       <div className="relative z-10 flex justify-between items-start">
         <div className="flex flex-col">
           <h2 className="text-5xl sm:text-6xl font-display font-black text-[#facc15] tracking-tight leading-none">
             {streakCurrent}
           </h2>
-          <p className="text-sm sm:text-base font-semibold text-muted-foreground mt-2">
+          <p className="text-sm sm:text-base font-semibold text-muted-foreground mt-1">
             dias de consistência
           </p>
         </div>
@@ -186,16 +186,16 @@ export function StreakCalendarCard({ className }: { className?: string }) {
         </Dialog>
       </div>
 
-      <div className="relative z-10 w-full mt-2">
+      <div className="relative z-10 w-full mt-1">
         <div className="flex justify-between items-center w-full px-1">
           {weekDays.map((day, i) => (
-            <div key={i} className="flex flex-col items-center gap-3">
+            <div key={i} className="flex flex-col items-center gap-1.5">
               <span className="text-[10px] font-bold text-muted-foreground/70 uppercase">
                 {day.label}
               </span>
               
               <div className={cn(
-                "w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all duration-300",
+                "w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all duration-300",
                 day.isCompleted 
                   ? "bg-[#facc15] text-black shadow-md shadow-[#facc15]/20 scale-110" 
                   : day.isToday
