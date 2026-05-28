@@ -104,7 +104,7 @@ export function StreakCalendarCard({ className }: { className?: string }) {
   };
 
   return (
-    <div className={cn("bg-card text-card-foreground rounded-3xl p-5 shadow-sm border border-border/50 relative overflow-hidden flex flex-col justify-between h-44 group", className)}>
+    <div className={cn("bg-card text-card-foreground rounded-3xl p-5 shadow-sm border border-border/50 relative overflow-hidden flex flex-col gap-4 group", className)}>
       {/* Background Icon */}
       <Flame className="absolute -right-4 -top-4 w-40 h-40 text-amber-500/5 dark:text-amber-500/10 -rotate-12 pointer-events-none" />
 
@@ -194,10 +194,10 @@ export function StreakCalendarCard({ className }: { className?: string }) {
         </div>
       </div>
 
-      <div className="relative z-10 bg-background/50 dark:bg-black/20 backdrop-blur-sm rounded-2xl p-3 border border-border/50 mt-auto">
+      <div className="relative z-10 bg-background/50 dark:bg-black/20 backdrop-blur-sm rounded-2xl p-3 border border-border/50">
         <div className="flex justify-between items-center max-w-md mx-auto px-2">
           {weekDays.map((day, i) => (
-            <div key={i} className="flex flex-col items-center gap-1.5">
+            <div key={i} className="flex flex-col items-center gap-0.8">
               <span className={cn(
                 "text-[10px] font-black",
                 day.isToday 

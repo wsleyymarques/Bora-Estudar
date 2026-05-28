@@ -3,7 +3,8 @@ import { useStudyPlans } from '@/hooks/useStudyPlans';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useNavigate } from 'react-router-dom';
-import { CalendarDays, CheckCircle2, Loader2, MoreVertical, Plus, Search, Sparkles, Trash2, Trophy } from 'lucide-react';
+import { Loader2, MoreVertical, Plus, Search, Sparkles, Trash2, Trophy, CalendarDays, CheckCircle2 } from 'lucide-react';
+import { PageHeader } from '@/components/generic/PageHeader';
 import { toast } from 'sonner';
 
 export default function PlansPage() {
@@ -59,48 +60,40 @@ export default function PlansPage() {
   };
 
   return (
-    <div className="relative mx-auto w-full max-w-full space-y-4">
+    <div className="relative mx-auto w-full max-w-full">
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-72 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.9),_transparent_35%),radial-gradient(circle_at_top_right,_rgba(255,255,255,0.75),_transparent_30%),linear-gradient(180deg,_rgba(255,255,255,0.6),_transparent)]" />
 
-      <section className="overflow-hidden rounded-[2rem] border border-border/60 bg-background/80 shadow-[0_18px_60px_-35px_rgba(0,0,0,0.35)] backdrop-blur-sm">
-        <div className="flex flex-col gap-4 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="max-w-2xl space-y-2.5">
-            <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-sm">
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
-              Espaço de planos
-            </div>
-            <div>
-              <h1 className="text-2xl font-display font-bold text-foreground sm:text-3xl">Planos de Estudos</h1>
-              <p className="mt-1 max-w-2xl text-xs text-muted-foreground sm:text-sm">
-                Organize concursos, bancas e cargos em uma visão única, com cronograma e revisões conectados ao seu fluxo.
-              </p>
-            </div>
-          </div>
-
-          <Button onClick={openCreateDialog} className="h-11 rounded-[1.25rem] px-5 shadow-lg shadow-black/5 shrink-0">
+      <PageHeader 
+        title="Planos de Estudos"
+        description="Organize concursos, bancas e cargos em uma visão única, com cronograma e revisões conectados ao seu fluxo."
+        badgeText="Espaço de planos"
+        badgeIcon={Sparkles}
+        action={
+          <Button onClick={openCreateDialog} className="h-11 rounded-[1.25rem] px-5 shadow-lg shadow-black/5">
             <Plus className="mr-1.5 h-4.5 w-4.5" />
             Criar plano guiado
           </Button>
-        </div>
-      </section>
+        }
+      />
 
-      <div className="rounded-[1.25rem] border border-border/60 bg-background/85 p-1 shadow-sm backdrop-blur-sm">
-        <div className="flex items-center gap-2 rounded-[1rem] bg-background px-3 py-1.5">
-          <Search className="h-4 w-4 text-muted-foreground/70" />
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar por plano, concurso, banca ou cargo"
-            className="h-8 border-0 bg-transparent px-0 text-sm shadow-none placeholder:text-muted-foreground/60 focus-visible:ring-0"
-          />
+      <div className="space-y-2.5 mt-2 sm:space-y-6 sm:mt-6">
+        <div className="rounded-xl sm:rounded-[1.25rem] border border-border/60 bg-background/85 p-1 shadow-sm backdrop-blur-sm">
+          <div className="flex items-center gap-2 rounded-[1rem] bg-background px-3 py-1.5">
+            <Search className="h-4 w-4 text-muted-foreground/70" />
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Buscar por plano, concurso, banca ou cargo"
+              className="h-8 border-0 bg-transparent px-0 text-sm shadow-none placeholder:text-muted-foreground/60 focus-visible:ring-0"
+            />
+          </div>
         </div>
-      </div>
 
-      {error ? (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-          Erro ao carregar planos: {error}
-        </div>
-      ) : null}
+        {error ? (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+            Erro ao carregar planos: {error}
+          </div>
+        ) : null}
 
       {loading ? (
         <div className="workspace-panel flex items-center justify-center gap-2 p-8 text-sm text-muted-foreground">
@@ -133,7 +126,7 @@ export default function PlansPage() {
                   navigate(`/plans/${plan.id}`);
                 }
               }}
-              className="group relative flex cursor-pointer flex-col overflow-hidden rounded-[1.75rem] border border-border/60 bg-background/90 text-left shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/10"
+              className="group relative flex cursor-pointer flex-col overflow-hidden rounded-[1.25rem] sm:rounded-[1.75rem] border border-border/60 bg-background/90 text-left shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/10"
             >
               {plan.cover_image_url ? (
                 <div className="relative h-44 w-full overflow-hidden bg-muted">
@@ -149,7 +142,7 @@ export default function PlansPage() {
                 </div>
               )}
 
-              <div className="flex flex-1 flex-col p-5">
+              <div className="flex flex-1 flex-col p-4 sm:p-5 lg:p-6">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">Plano de Estudos</p>

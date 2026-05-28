@@ -131,14 +131,14 @@ export function DailySubjectsCard({ className }: DailySubjectsCardProps) {
   return (
     <section
       className={cn(
-        'bg-card border border-border/50 text-card-foreground rounded-[2rem] p-5 shadow-sm flex flex-col gap-3 min-h-[300px]',
+        'bg-card border border-border/50 text-card-foreground rounded-3xl p-4 sm:p-5 shadow-sm flex flex-col gap-3 sm:gap-4 min-h-[300px]',
         className
       )}
     >
       <div className="flex flex-col gap-1">
         <div className="flex items-center justify-between gap-3">
-          <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/70 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-            <BookOpen className="h-3.5 w-3.5 text-primary" />
+          <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/70 px-2.5 py-1 text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+            <BookOpen className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-primary" />
             Matérias de hoje
           </div>
           <span className="text-[10px] font-bold text-muted-foreground flex items-center gap-1">
@@ -148,7 +148,7 @@ export function DailySubjectsCard({ className }: DailySubjectsCardProps) {
         </div>
 
         <div className="flex items-baseline justify-between mt-2">
-          <h3 className="text-lg font-display font-black tracking-tight text-foreground">
+          <h3 className="text-base sm:text-lg font-display font-black tracking-tight text-foreground">
             Cronograma do Dia
           </h3>
           {selectedPlanId && (

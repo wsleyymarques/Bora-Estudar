@@ -88,16 +88,16 @@ export default function DashboardPage() {
       {/* BENTO GRID: ROW 1 */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
         {/* QUICK METRICS CARD */}
-        <QuickMetricsCard className="xl:col-span-6 h-[380px] xl:h-full" />
+        <QuickMetricsCard className="xl:col-span-8 xl:h-full" />
         {/* STREAK CALENDAR CARD */}
-        <StreakCalendarCard className="xl:col-span-6 h-[380px] xl:h-full" />
+        <StreakCalendarCard className="xl:col-span-4 xl:h-full" />
       </div>
 
       {/* BENTO GRID: ROW 2 */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-        <DailySubjectsCard className="xl:col-span-4 h-full" />
-        <QuickPlanTimerCard plans={plans} className="xl:col-span-4 h-full" />
-        <DashboardPlansCard plans={plans} className="xl:col-span-4 h-full" />
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 flex-col">
+        <DailySubjectsCard className="order-2 xl:order-1 xl:col-span-4 h-full" />
+        <QuickPlanTimerCard plans={plans} className="order-1 xl:order-2 xl:col-span-4 h-full" />
+        <DashboardPlansCard plans={plans} className="order-3 xl:col-span-4 h-full" />
       </div>
 
       {/* STYLES FOR THE INACTIVE CHART STRIPES AND SCROLLBAR */}
