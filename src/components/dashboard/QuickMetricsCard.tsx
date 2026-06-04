@@ -1,9 +1,60 @@
 import React, { useMemo } from 'react';
 import { useStudy } from '@/contexts/StudyContext';
 import { toDateKey } from '@/lib/date-utils';
-import { formatMinutesCompact } from '@/lib/duration-utils';
 import { cn } from '@/lib/utils';
-import { Progress } from '@/components/ui/progress';
+
+const DonutChart = ({ percent, value, unit }: { percent: number, value: string | number, unit: string }) => {
+  const size = 84;
+  const strokeWidth = 12;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = radius * 2 * Math.PI;
+  const offset = circumference - (percent / 100) * circumference;
+
+  return (
+    <div className="relative flex items-center justify-center shrink-0" style={{ width: size, height: size }}>
+      {/* Inner shaded circle */}
+      <div 
+        className="absolute rounded-full z-0 bg-primary-foreground/10" 
+        style={{ 
+          width: size - strokeWidth * 2 + 1,
+          height: size - strokeWidth * 2 + 1, 
+        }} 
+      />
+      <svg width={size} height={size} className="transform -rotate-90 z-10">
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          className="stroke-primary-foreground/20"
+          strokeWidth={strokeWidth}
+          fill="none"
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          className="stroke-primary-foreground/90 transition-all duration-1000 ease-out"
+          strokeWidth={strokeWidth}
+          fill="none"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-1 z-20">
+        <span className="text-[19px] font-black leading-none text-primary-foreground/90 tracking-tight">{value}</span>
+        <span className="text-[9px] font-bold text-primary-foreground/70 leading-[1.1] mt-0.5 max-w-[50px] tracking-wide">
+          {unit.split(' ').map((word, i) => (
+            <React.Fragment key={i}>
+              {word}
+              {i < unit.split(' ').length - 1 && <br />}
+            </React.Fragment>
+          ))}
+        </span>
+      </div>
+    </div>
+  );
+};
 
 export function QuickMetricsCard({ className }: { className?: string }) {
   const { data, getTotalMinutesForDate } = useStudy();
@@ -26,54 +77,43 @@ export function QuickMetricsCard({ className }: { className?: string }) {
   const weekMinutes = weekDates.reduce((acc, date) => acc + getTotalMinutesForDate(date), 0);
   const weeklyGoalHours = data.subjects.reduce((acc, subj) => acc + (subj.weeklyGoalHours || 0), 0) || 28;
   const weeklyGoalMinutes = weeklyGoalHours * 60;
-
-  // For the circular progress (donut)
-  const circleRadius = 36;
-  const circleCircumference = 2 * Math.PI * circleRadius;
-  const strokeDashoffset = circleCircumference - (dailyPercent / 100) * circleCircumference;
+  const weeklyPercent = Math.min(Math.round((weekMinutes / weeklyGoalMinutes) * 100), 100) || 0;
 
   return (
-    <div className={cn("grid grid-cols-2 gap-3 sm:gap-4", className)}>
-      {/* Daily Goal Card */}
-      <div className="bg-[#facc15] text-black rounded-3xl p-4 sm:p-5 flex flex-col justify-between shadow-sm relative overflow-hidden">
-        <div>
-          <h4 className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-black/60">Meta Diária</h4>
-          <div className="flex items-baseline gap-0.5 mt-1 sm:mt-2">
-            <span className="text-3xl sm:text-4xl font-black tracking-tight">{dailyGoalMinutes}</span>
-            <span className="text-sm font-bold">m</span>
+    <div className={cn("bg-primary text-primary-foreground rounded-[2rem] p-5 sm:p-6 flex flex-col justify-between shadow-sm relative overflow-hidden", className)}>
+      <div className="flex items-center justify-between w-full z-10">
+        
+        {/* Left: Daily Goal */}
+        <div className="flex flex-col items-start">
+          <h4 className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-primary-foreground/70 mb-1">
+            Meta Diária
+          </h4>
+          <div className="flex items-baseline gap-0.5 text-primary-foreground">
+            <span className="text-5xl sm:text-6xl font-black tracking-tighter leading-none">{dailyGoalMinutes}</span>
+            <span className="text-xl sm:text-2xl font-bold leading-none">m</span>
           </div>
-          <p className="text-[11px] sm:text-xs font-semibold text-black/70 mt-1">
+          <p className="text-xs sm:text-sm font-semibold text-primary-foreground/80 mt-1">
             {Math.floor(todayMinutes)}m estudados hoje
           </p>
         </div>
-        
-        <div className="mt-4 sm:mt-6 w-full h-1.5 bg-black/15 rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-black/60 rounded-full" 
-            style={{ width: `${dailyPercent}%` }}
-          />
-        </div>
-      </div>
 
-      {/* Weekly Goal Card */}
-      <div className="bg-card text-card-foreground rounded-3xl p-4 sm:p-5 flex flex-col justify-between border border-border/50 shadow-sm">
-        <div>
-          <h4 className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-muted-foreground">Meta Semanal</h4>
-          <div className="flex items-baseline gap-0.5 mt-1 sm:mt-2">
-            <span className="text-3xl sm:text-4xl font-black tracking-tight">{weeklyGoalHours}</span>
-            <span className="text-sm font-bold">h</span>
-          </div>
-          <p className="text-[11px] sm:text-xs font-semibold text-muted-foreground mt-1">
-            {Math.floor(weekMinutes / 60)}h / {weeklyGoalHours}h concluídas
-          </p>
-        </div>
-        
-        <div className="mt-4 sm:mt-6 w-full h-1.5 bg-muted rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-amber-500 rounded-full" 
-            style={{ width: `${Math.min(Math.round((weekMinutes / weeklyGoalMinutes) * 100), 100)}%` }}
+        {/* Right: Weekly Goal Donut */}
+        <div className="flex flex-col items-center justify-center shrink-0">
+          <DonutChart 
+            percent={weeklyPercent} 
+            value={`${weeklyGoalHours}h`} 
+            unit="meta semanal" 
           />
         </div>
+
+      </div>
+      
+      {/* Bottom: Linear Progress Bar for Daily Goal */}
+      <div className="mt-5 w-full h-2 bg-primary-foreground/20 rounded-full overflow-hidden z-10">
+        <div 
+          className="h-full bg-primary-foreground/90 rounded-full transition-all duration-1000 ease-out" 
+          style={{ width: `${dailyPercent}%` }}
+        />
       </div>
     </div>
   );
