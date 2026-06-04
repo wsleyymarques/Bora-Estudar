@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ClockTimePickerField } from '@/components/generic/time-picker-fields';
 import { PomodoroQuickSettings } from '@/components/generic/pomodoro-quick-settings';
+import { Drawer, DrawerContent, DrawerTrigger, DrawerTitle } from '@/components/ui/drawer';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 
 interface QuickPlanTimerCardProps {
@@ -20,6 +22,9 @@ interface QuickPlanTimerCardProps {
 
 export function QuickPlanTimerCard({ plans, className }: QuickPlanTimerCardProps) {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  
   const activePlans = useMemo(() => plans.filter((plan) => plan.status === 'active'), [plans]);
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const selectedPlan = useMemo(
@@ -113,11 +118,15 @@ export function QuickPlanTimerCard({ plans, className }: QuickPlanTimerCardProps
         toast.error('Nao foi possivel iniciar esta sessao agora.');
       }
       setBusyMode(null);
+      
+      if (isMobile) setIsDrawerOpen(false);
       return;
     }
 
     if (!result.ok) {
       toast.error('Nao foi possivel iniciar esta sessao agora.');
+    } else {
+      if (isMobile) setIsDrawerOpen(false);
     }
 
     setBusyMode(null);
@@ -126,10 +135,106 @@ export function QuickPlanTimerCard({ plans, className }: QuickPlanTimerCardProps
   const hasPlans = activePlans.length > 0;
   const hasSubjects = planSubjects.length > 0;
 
+  const renderForm = () => (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3">
+        <div className="space-y-1.5">
+          <p className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">Plano</p>
+          <Select value={selectedPlan?.id} onValueChange={setSelectedPlanId}>
+            <SelectTrigger className="h-10 sm:h-11 rounded-xl sm:rounded-2xl border-border/60 bg-background/80 text-sm">
+              <SelectValue placeholder="Selecione um plano" />
+            </SelectTrigger>
+            <SelectContent>
+              {activePlans.map((plan) => (
+                <SelectItem key={plan.id} value={plan.id}>
+                  {plan.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <p className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">Matéria</p>
+          <Select value={selectedSubjectId} onValueChange={setSelectedSubjectId} disabled={subjectsLoading || !selectedPlan}>
+            <SelectTrigger className="h-10 sm:h-11 rounded-xl sm:rounded-2xl border-border/60 bg-background/80 text-sm">
+              <SelectValue placeholder={subjectsLoading ? 'Carregando...' : 'Selecione uma matéria'} />
+            </SelectTrigger>
+            <SelectContent>
+              {planSubjects.map((subject) => (
+                <SelectItem key={subject.id} value={subject.id}>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: subject.color || '#5B8C7E' }} />
+                    <span>{subject.name}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {!hasSubjects && selectedPlan && (
+        <div className="rounded-2xl border border-dashed border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
+          Este plano ainda não tem matérias vinculadas.
+        </div>
+      )}
+
+      {mode === 'pomodoro' && (
+        <PomodoroQuickSettings 
+          settings={pomodoroSettings} 
+          onChange={setPomodoroSettings}
+          compact
+          className="mt-2 mb-2"
+        />
+      )}
+
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between pt-1">
+        <div className="flex items-center gap-1.5 rounded-full bg-muted/70 p-1 w-fit mx-auto lg:mx-0">
+          <button
+            type="button"
+            onClick={() => setMode('stopwatch')}
+            className={cn(
+              'rounded-full px-4 py-2 text-xs font-semibold transition-colors',
+              mode === 'stopwatch' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground',
+            )}
+          >
+            Cronometro
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('pomodoro')}
+            className={cn(
+              'rounded-full px-4 py-2 text-xs font-semibold transition-colors',
+              mode === 'pomodoro' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground',
+            )}
+          >
+            Pomodoro
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 w-full lg:w-auto">
+          <Button
+            className="h-11 rounded-full px-5 text-sm w-full lg:w-auto"
+            onClick={() => void handleStart(mode)}
+            disabled={isTransitioning || !selectedPlan || !selectedSubject || busyMode !== null}
+          >
+            {busyMode ? 'Iniciando...' : (
+              <>
+                <Play className="mr-2 h-4 w-4 fill-current" />
+                Iniciar agora
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <section
       className={cn(
-        'bg-card border border-border/50 text-card-foreground rounded-3xl p-4 sm:p-5 shadow-sm flex flex-col gap-3 sm:gap-4',
+        'bg-card border border-border/50 text-card-foreground rounded-3xl p-4 sm:p-5 shadow-sm flex flex-col gap-4 sm:gap-4',
         className,
       )}
     >
@@ -162,7 +267,7 @@ export function QuickPlanTimerCard({ plans, className }: QuickPlanTimerCardProps
           </Button>
         </div>
       ) : runtime ? (
-        <div className="space-y-4 flex-1 flex flex-col justify-between">
+        <div className="space-y-4 flex-1 flex flex-col justify-between mt-1">
           <div className="flex items-center justify-between gap-3 bg-muted/30 px-4 py-3 rounded-2xl border border-border/40">
             {/* Left: status dot + mode label + subject */}
             <div className="flex items-center gap-3 min-w-0">
@@ -199,10 +304,9 @@ export function QuickPlanTimerCard({ plans, className }: QuickPlanTimerCardProps
             </div>
           </div>
 
-
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/40">
             <Button variant={isRunning ? 'default' : 'outline'} className="rounded-full h-9" onClick={() => togglePauseResume()} disabled={isTransitioning}>
-              {isRunning ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
+              {isRunning ? <Pause className="mr-2 h-4 w-4 fill-current" /> : <Play className="mr-2 h-4 w-4 fill-current" />}
               {isRunning ? 'Pausar' : 'Retomar'}
             </Button>
             <Button variant="outline" className="rounded-full h-9 text-destructive hover:bg-destructive/10 hover:text-destructive border-border/60" onClick={() => void finishActive('completed')} disabled={isTransitioning}>
@@ -210,100 +314,22 @@ export function QuickPlanTimerCard({ plans, className }: QuickPlanTimerCardProps
             </Button>
           </div>
         </div>
+      ) : isMobile ? (
+        <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+          <DrawerTrigger asChild>
+            <Button className="w-full mt-2 rounded-full h-12" size="lg">
+              <Play className="mr-2 h-5 w-5 fill-current" /> Configurar e Iniciar
+            </Button>
+          </DrawerTrigger>
+          <DrawerContent className="p-4 pb-8 bg-background border-t">
+            <DrawerTitle className="text-lg font-bold mb-4 font-display">Configurar Timer Rápido</DrawerTitle>
+            {renderForm()}
+          </DrawerContent>
+        </Drawer>
       ) : (
-        <>
-          <div className="flex flex-col gap-3">
-            <div className="space-y-1.5">
-              <p className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">Plano</p>
-              <Select value={selectedPlan?.id} onValueChange={setSelectedPlanId}>
-                <SelectTrigger className="h-9 sm:h-11 rounded-xl sm:rounded-2xl border-border/60 bg-background/80 text-xs sm:text-sm">
-                  <SelectValue placeholder="Selecione um plano" />
-                </SelectTrigger>
-                <SelectContent>
-                  {activePlans.map((plan) => (
-                    <SelectItem key={plan.id} value={plan.id}>
-                      {plan.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <p className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">Matéria</p>
-              <Select value={selectedSubjectId} onValueChange={setSelectedSubjectId} disabled={subjectsLoading || !selectedPlan}>
-                <SelectTrigger className="h-9 sm:h-11 rounded-xl sm:rounded-2xl border-border/60 bg-background/80 text-xs sm:text-sm">
-                  <SelectValue placeholder={subjectsLoading ? 'Carregando...' : 'Selecione uma matéria'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {planSubjects.map((subject) => (
-                    <SelectItem key={subject.id} value={subject.id}>
-                      <div className="flex items-center gap-2">
-                        <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: subject.color || '#5B8C7E' }} />
-                        <span>{subject.name}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {!hasSubjects && selectedPlan && (
-            <div className="rounded-2xl border border-dashed border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
-              Este plano ainda não tem matérias vinculadas.
-            </div>
-          )}
-
-          {mode === 'pomodoro' && (
-            <PomodoroQuickSettings 
-              settings={pomodoroSettings} 
-              onChange={setPomodoroSettings}
-              compact
-              className="mt-2 mb-2"
-            />
-          )}
-
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div className="flex items-center gap-1.5 rounded-full bg-muted/70 p-1 w-fit">
-              <button
-                type="button"
-                onClick={() => setMode('stopwatch')}
-                className={cn(
-                  'rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors',
-                  mode === 'stopwatch' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground',
-                )}
-              >
-                Cronometro
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode('pomodoro')}
-                className={cn(
-                  'rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors',
-                  mode === 'pomodoro' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground',
-                )}
-              >
-                Pomodoro
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                className="h-9 sm:h-10 rounded-full px-4 sm:px-5 text-xs sm:text-sm"
-                onClick={() => void handleStart(mode)}
-                disabled={isTransitioning || !selectedPlan || !selectedSubject || busyMode !== null}
-              >
-                {busyMode ? 'Iniciando...' : (
-                  <>
-                    <Play className="mr-2 h-4 w-4" />
-                    Iniciar agora
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </>
+        <div className="mt-1">
+          {renderForm()}
+        </div>
       )}
     </section>
   );
