@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/drawer';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CalendarDays, CheckCircle2, Clock, Copy, Link2, Loader2, Pencil, Plus, Trash2, Wand2, BookOpen, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, TrendingUp, AlertTriangle, BarChart3, Bell } from 'lucide-react';
+import { CalendarDays, CheckCircle2, Clock, Copy, Link2, Loader2, Pencil, Plus, Trash2, Wand2, BookOpen, ChevronLeft, ChevronRight, TrendingUp, AlertTriangle, BarChart3, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 import { DAY_NAMES_SHORT, ScheduleEntry } from '@/types/study';
 import WeeklyPlannerView from '@/components/schedule/WeeklyPlannerView';
@@ -56,6 +56,7 @@ export default function PlanDetailsPage() {
 
   const [entries, setEntries] = useState<ScheduleEntryRow[]>([]);
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
+  const [activityPanelOpen, setActivityPanelOpen] = useState(false);
   const [loadingFlow, setLoadingFlow] = useState(false);
   const [editPlanOpen, setEditPlanOpen] = useState(false);
   const [subjectOpen, setSubjectOpen] = useState(false);
@@ -710,7 +711,6 @@ export default function PlanDetailsPage() {
     await loadFlow(); 
   };
 
-  const [isHeaderMinimized, setIsHeaderMinimized] = useState(false);
   const todayStr = useMemo(() => toDateKey(new Date()), []);
 
   // Calculate real activity data
@@ -846,26 +846,11 @@ export default function PlanDetailsPage() {
 
   if (!plan) return <div className="space-y-4"><p className="text-muted-foreground">Plano de Estudos não encontrado ou ainda carregando.</p><Button asChild variant="outline"><Link to="/plans">Voltar para planos</Link></Button></div>;
 
-  return <div className="flex flex-col h-auto w-full max-w-full mx-auto gap-4 pb-12">
+  return <div className="flex h-auto w-full max-w-full flex-col gap-3 pb-12 lg:h-full lg:min-h-0 lg:overflow-hidden lg:pb-0">
     {/* HEADER ROW */}
-    <div className={cn(
-      "flex flex-col lg:flex-row gap-4 shrink-0 transition-all duration-500 ease-in-out relative group/header overflow-hidden",
-      isHeaderMinimized ? "max-h-[90px] md:max-h-[100px] lg:max-h-[120px] opacity-95 shadow-sm" : "max-h-[600px] h-auto"
-    )}>
-      <Button 
-        variant="ghost" 
-        size="icon" 
-        onClick={() => setIsHeaderMinimized(!isHeaderMinimized)}
-        className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 h-6 w-12 rounded-full bg-background border shadow-md hover:bg-muted opacity-100 transition-all"
-      >
-        {isHeaderMinimized ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
-      </Button>
-      
+    <div className="relative flex shrink-0 flex-col gap-3 overflow-hidden transition-all duration-500 ease-in-out lg:h-[104px] lg:max-h-[104px] lg:flex-row">
       {/* HERO BANNER INFO CARD */}
-      <div className={cn(
-        "glass-card flex flex-col relative overflow-hidden shrink-0 border-white/40 shadow-2xl group transition-all duration-500",
-        isHeaderMinimized ? "lg:w-[320px] min-h-[80px] p-4" : "lg:w-[540px] min-h-[220px]"
-      )}>
+      <div className="glass-card group relative flex min-h-[104px] shrink-0 flex-col overflow-hidden border-white/40 shadow-2xl transition-all duration-500 lg:h-full lg:min-h-0 lg:w-[320px]">
         {/* Full Background Image with Overlay */}
         <div className="absolute inset-0 z-0">
           {plan.cover_image_url ? (
@@ -873,176 +858,91 @@ export default function PlanDetailsPage() {
           ) : (
             <div className="h-full w-full bg-gradient-to-br from-primary/40 to-primary/20" />
           )}
-          <div className={cn(
-            "absolute inset-0 transition-all duration-500",
-            isHeaderMinimized ? "bg-black/60 backdrop-blur-[2px]" : "bg-gradient-to-t from-black/80 via-black/40 to-transparent"
-          )} />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] transition-all duration-500" />
         </div>
         
         {/* Content Top */}
-        <div className={cn("relative z-10 flex items-start justify-between transition-all duration-500", isHeaderMinimized ? "p-4" : "p-6")}>
-          <div className="space-y-0.5 min-w-0">
-            <h1 className={cn(
-              "font-display font-black tracking-tight leading-tight transition-all truncate drop-shadow-md",
-              isHeaderMinimized ? "text-xl text-white" : "text-3xl text-white"
-            )}>{plan.name}</h1>
-            {!isHeaderMinimized && (
-              <p className="text-lg text-white/90 font-bold tracking-tight leading-none drop-shadow-sm">{plan.role_name || 'Estudo Ativo'}</p>
-            )}
-            {isHeaderMinimized && plan.role_name && (
-              <p className="text-[10px] text-white/80 font-bold uppercase tracking-widest truncate">{plan.role_name}</p>
-            )}
-          </div>
-          {!isHeaderMinimized && (
-            <Button onClick={openEditPlan} size="icon" variant="ghost" className="h-10 w-10 rounded-full bg-white/20 hover:bg-white/30 text-white backdrop-blur-md border border-white/20 transition-all"><Pencil className="h-4 w-4" /></Button>
-          )}
-        </div>
-
-        {!isHeaderMinimized && <div className="flex-1" />}
-
-        {/* Content Bottom */}
-        <div className={cn(
-          "relative z-10 flex items-end justify-between gap-4 transition-all duration-500",
-          isHeaderMinimized ? "hidden" : "p-6 pt-0"
-        )}>
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              {plan.board_name && (
-                <span className="text-[9px] font-black uppercase tracking-widest text-white bg-white/20 backdrop-blur-md px-2 py-0.5 rounded-md border border-white/10">{plan.board_name}</span>
-              )}
-              <span className="text-[9px] font-black uppercase tracking-widest text-white/80">Rev: {plan.review_interval_days || 7}d</span>
-            </div>
-            
-            <div className="flex items-center gap-1.5">
-              <div className="flex -space-x-2">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="h-6 w-6 rounded-full border-2 border-black/40 bg-white/10 backdrop-blur-sm flex items-center justify-center">
-                    <div className="h-1 w-1 rounded-full bg-primary" />
-                  </div>
-                ))}
-              </div>
-              <span className="text-[10px] font-black text-white/90 uppercase tracking-tighter ml-1">
-                {entries.filter(e=>e.completed).length}/{entries.length} FEITOS
+        <div className="relative z-10 flex h-full items-center p-4 transition-all duration-500">
+          <button
+            type="button"
+            onClick={openEditPlan}
+            className="group/plan min-w-0 rounded-2xl text-left outline-none transition-transform hover:scale-[1.01] focus-visible:ring-2 focus-visible:ring-white/70"
+            aria-label="Ver informações e editar plano"
+          >
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="truncate font-display text-xl font-black leading-tight tracking-tight text-white drop-shadow-md">
+                {plan.name}
               </span>
-            </div>
-          </div>
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/20 text-white backdrop-blur-md transition-colors group-hover/plan:bg-white/30">
+                <Pencil className="h-3.5 w-3.5" />
+              </span>
+            </span>
+            <span className="mt-0.5 block truncate text-[10px] font-bold uppercase tracking-widest text-white/80">
+              {plan.role_name || 'Estudo Ativo'}
+            </span>
+          </button>
         </div>
       </div>
 
       {/* ACTIVITY/STATS CARD */}
-      <div className={cn(
-        "glass-card flex-1 relative overflow-hidden flex flex-col min-w-0 border-white/40 shadow-xl group transition-all duration-500",
-        isHeaderMinimized ? "p-4" : "p-6"
-      )}>
-        <div className={cn("flex justify-between items-center relative z-10", isHeaderMinimized ? "mb-0" : "mb-6")}>
-          <div>
-            <h2 className={cn("font-display font-black tracking-tighter transition-all", isHeaderMinimized ? "text-base" : "text-xl")}>Sua Atividade</h2>
-            {!isHeaderMinimized && (
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Últimos 7 dias</p>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="bg-primary/10 text-primary px-3 py-1 rounded-full text-[10px] font-bold border border-primary/10 whitespace-nowrap">Produtividade: {activityStats.productivity}</div>
-            {!isHeaderMinimized && (
-              <Button 
-                onClick={() => setSessionDialogOpen(true)}
-                size="sm"
-                className="h-8 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1 bg-primary text-primary-foreground hover:bg-primary/95 transition-all"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Registrar Estudo
-              </Button>
-            )}
-          </div>
-        </div>
+      <div className="glass-card group relative flex min-w-0 flex-1 flex-col overflow-hidden border-white/40 p-4 shadow-xl transition-all duration-500">
+        <div className="relative z-10 flex h-full items-center justify-end gap-4">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setManageSubjectsOpen(true)}
+              size="sm"
+              className="h-10 shrink-0 rounded-2xl border-2 px-4 text-xs font-black shadow-sm"
+            >
+              <BookOpen className="mr-1.5 h-4 w-4 text-primary" />
+              Matérias ({planSubjects.length})
+            </Button>
 
-        <div className={cn(
-          "flex-1 flex items-end justify-between gap-2 px-1 relative z-10 transition-all duration-500",
-          isHeaderMinimized ? "hidden" : "mb-2"
-        )}>
-          {activityStats.last7Days.map((day, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center gap-2 group/bar cursor-help">
-              <div className="w-full relative h-32 bg-muted/40 rounded-xl overflow-hidden border border-border/30 group-hover/bar:border-primary/30 transition-colors">
-                <div 
-                  className={cn(
-                    "absolute bottom-0 left-0 right-0 rounded-t-lg transition-all duration-700 ease-out",
-                    day.isToday 
-                      ? "bg-gradient-to-t from-primary/80 to-primary shadow-[0_0_15px_rgba(var(--primary),0.5)]" 
-                      : day.intensity > 0 
-                        ? "bg-gradient-to-t from-primary/40 to-primary/60 group-hover/bar:from-primary/60 group-hover/bar:to-primary/80" 
-                        : "bg-black/10 group-hover/bar:bg-primary/20"
-                  )}
-                  style={{ height: `${Math.max(day.intensity, 5)}%` }}
-                >
-                  {day.intensity > 0 && (
-                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 opacity-0 group-hover/bar:opacity-100 transition-opacity bg-popover text-popover-foreground text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap">
-                      {Math.round(day.intensity)}%
-                    </div>
-                  )}
-                </div>
-              </div>
-              <span className={cn(
-                "text-[9px] font-bold uppercase tracking-tighter transition-colors",
-                day.isToday ? "text-primary" : "text-muted-foreground/60"
-              )}>
-                {day.label}
-              </span>
-            </div>
-          ))}
-        </div>
+            <Button
+              onClick={() => setSessionDialogOpen(true)}
+              size="sm"
+              className="h-10 shrink-0 rounded-2xl px-4 text-xs font-black shadow-sm"
+            >
+              <Plus className="mr-1.5 h-4 w-4" />
+              Registrar Estudo
+            </Button>
 
-        <div className={cn(
-          "grid gap-4 pt-4 border-t border-black/5 relative z-10 transition-all duration-500",
-          isHeaderMinimized ? "grid-cols-3 mt-2" : "grid-cols-3 mt-4"
-        )}>
-          <div className="flex flex-col">
-            <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1">Tempo Hoje</span>
-            <span className={cn("font-black tracking-tight leading-none transition-all", isHeaderMinimized ? "text-sm" : "text-lg")}>{activityStats.todayTime}</span>
-          </div>
-          <div className="flex flex-col border-x border-black/5 px-4">
-            <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1">Concluídos</span>
-            <span className={cn("font-black tracking-tight leading-none transition-all", isHeaderMinimized ? "text-sm" : "text-lg")}>{activityStats.completedText}</span>
-          </div>
-          <div className="flex flex-col items-end">
-            <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1">Foco</span>
-            <span className={cn("font-black tracking-tight leading-none text-primary transition-all", isHeaderMinimized ? "text-sm" : "text-lg")}>{activityStats.focusRate}</span>
+            <Button
+              onClick={() => setActivityPanelOpen(true)}
+              size="sm"
+              className="h-10 shrink-0 rounded-2xl px-4 text-xs font-black shadow-sm"
+            >
+              <BarChart3 className="mr-1.5 h-4 w-4" />
+              Ver análise
+            </Button>
           </div>
         </div>
       </div>
     </div>
 
     {/* TABS CONTAINER FOR CRONOGRAMA & INSIGHTS */}
-    <Tabs defaultValue="cronograma" className="w-full">
-      <TabsList className="grid w-full max-w-[340px] grid-cols-2 bg-muted/60 p-1.5 rounded-2xl mb-6">
+    <Tabs defaultValue="cronograma" className="flex min-h-0 w-full flex-1 flex-col lg:overflow-hidden">
+      <TabsList className="mb-3 grid w-full max-w-[340px] shrink-0 grid-cols-2 rounded-2xl bg-muted/60 p-1.5 lg:mb-2">
         <TabsTrigger value="cronograma" className="rounded-xl font-bold text-xs py-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">Cronograma</TabsTrigger>
         <TabsTrigger value="insights" className="rounded-xl font-bold text-xs py-2 flex items-center gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
           <TrendingUp className="h-3.5 w-3.5" /> Insights
         </TabsTrigger>
       </TabsList>
       
-      <TabsContent value="cronograma" className="outline-none space-y-4">
-        <div className="glass-card flex flex-col p-5">
+      <TabsContent value="cronograma" className="min-h-0 flex-1 outline-none data-[state=inactive]:hidden">
+        <div className="glass-card flex min-h-0 flex-col p-5 lg:h-full lg:overflow-hidden lg:p-4">
       {/* 2. Seletor de Período (Semanal, Mensal, Anual) e 1. Navegador de Data Centralizado e Maior */}
-      <div className="flex flex-col gap-4 mb-6 shrink-0 border-b border-black/5 pb-5">
-        {/* Top Header Row: Title & Matérias Button */}
+      <div className="mb-4 flex shrink-0 flex-col gap-4 border-b border-black/5 pb-4 lg:mb-3 lg:gap-3 lg:pb-3">
+        {/* Top Header Row */}
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-display text-xl font-black tracking-tight text-foreground">Cronograma</h2>
             <p className="text-xs text-muted-foreground font-semibold">Gerencie e acompanhe sua rotina de estudos de forma flexível.</p>
           </div>
-
-          <Button 
-            variant="outline" 
-            onClick={() => setManageSubjectsOpen(true)} 
-            className="rounded-2xl border-2 hover:bg-muted font-bold text-xs h-10 px-4 shrink-0 transition-all active:scale-95 flex items-center gap-2 shadow-sm"
-          >
-            <BookOpen className="h-4 w-4 text-primary" />
-            Matérias ({planSubjects.length})
-          </Button>
         </div>
 
         {/* Central Larger Navigator & Period Selector Row */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-muted/30 p-3 rounded-3xl border border-border/20 relative">
+        <div className="relative flex flex-col items-center justify-between gap-4 rounded-3xl border border-border/20 bg-muted/30 p-3 md:flex-row lg:gap-3 lg:p-2.5">
           
           {/* 2. Selector for Weekly / Monthly / Annual */}
           <div className="flex items-center bg-muted/80 p-1 rounded-2xl border shadow-sm z-10">
@@ -1116,9 +1016,7 @@ export default function PlanDetailsPage() {
         </div>
       </div>
 
-      <div 
-        className="relative -mx-2 px-2 overflow-x-auto custom-scrollbar pb-4"
-      >
+      <div className="custom-scrollbar relative -mx-2 min-h-0 flex-1 overflow-auto px-2 pb-4">
         {loadingFlow ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Carregando cronograma...</p> : (
            viewMode === 'weekly' ? (
              <WeeklyPlannerView
@@ -1148,8 +1046,8 @@ export default function PlanDetailsPage() {
     </div>
       </TabsContent>
       
-      <TabsContent value="insights" className="outline-none">
-        <div className="glass-card flex flex-col p-5 gap-6">
+      <TabsContent value="insights" className="min-h-0 flex-1 overflow-auto outline-none data-[state=inactive]:hidden">
+        <div className="glass-card flex flex-col gap-6 p-5 lg:min-h-full">
           <div>
             <h2 className="font-display text-xl font-black tracking-tight text-foreground flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-primary" /> Insights de Andamento
@@ -1284,6 +1182,94 @@ export default function PlanDetailsPage() {
         </div>
       </TabsContent>
     </Tabs>
+    <ResponsivePanel
+      open={activityPanelOpen}
+      onOpenChange={setActivityPanelOpen}
+      title="Sua Atividade"
+      description="Resumo dos últimos 7 dias, produtividade e progresso do plano."
+      size="lg"
+    >
+      <div className="space-y-6">
+        <div className="flex flex-col gap-3 rounded-3xl border border-border/50 bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Produtividade</p>
+            <div className="mt-1 inline-flex rounded-full border border-primary/10 bg-primary/10 px-3 py-1 text-[11px] font-black text-primary">
+              {activityStats.productivity}
+            </div>
+          </div>
+
+          <Button
+            onClick={() => {
+              setActivityPanelOpen(false);
+              setSessionDialogOpen(true);
+            }}
+            className="h-11 rounded-2xl text-sm font-black shadow-sm"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Registrar Estudo
+          </Button>
+        </div>
+
+        <div className="rounded-3xl border border-border/50 bg-card p-4">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="font-display text-lg font-black tracking-tight">Últimos 7 dias</h3>
+              <p className="text-xs font-semibold text-muted-foreground">Intensidade de estudo e tarefas concluídas.</p>
+            </div>
+            <span className="shrink-0 rounded-full bg-primary/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-primary">
+              Foco {activityStats.focusRate}
+            </span>
+          </div>
+
+          <div className="flex h-44 items-end justify-between gap-2 px-1">
+            {activityStats.last7Days.map((day, i) => (
+              <div key={i} className="group/bar flex flex-1 cursor-help flex-col items-center gap-2">
+                <div className="relative h-32 w-full overflow-hidden rounded-xl border border-border/30 bg-muted/40 transition-colors group-hover/bar:border-primary/30">
+                  <div
+                    className={cn(
+                      "absolute bottom-0 left-0 right-0 rounded-t-lg transition-all duration-700 ease-out",
+                      day.isToday
+                        ? "bg-gradient-to-t from-primary/80 to-primary shadow-[0_0_15px_rgba(var(--primary),0.5)]"
+                        : day.intensity > 0
+                          ? "bg-gradient-to-t from-primary/40 to-primary/60 group-hover/bar:from-primary/60 group-hover/bar:to-primary/80"
+                          : "bg-black/10 group-hover/bar:bg-primary/20"
+                    )}
+                    style={{ height: `${Math.max(day.intensity, 5)}%` }}
+                  >
+                    {day.intensity > 0 && (
+                      <div className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-popover px-1.5 py-0.5 text-[9px] font-bold text-popover-foreground opacity-0 shadow-sm transition-opacity group-hover/bar:opacity-100">
+                        {Math.round(day.intensity)}%
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <span className={cn(
+                  "text-[9px] font-bold uppercase tracking-tighter transition-colors",
+                  day.isToday ? "text-primary" : "text-muted-foreground/60"
+                )}>
+                  {day.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-3xl border border-border/50 bg-card p-4">
+            <span className="mb-2 block text-[9px] font-black uppercase tracking-widest text-muted-foreground">Tempo Hoje</span>
+            <span className="font-display text-2xl font-black tracking-tight">{activityStats.todayTime}</span>
+          </div>
+          <div className="rounded-3xl border border-border/50 bg-card p-4">
+            <span className="mb-2 block text-[9px] font-black uppercase tracking-widest text-muted-foreground">Concluídos</span>
+            <span className="font-display text-2xl font-black tracking-tight">{activityStats.completedText}</span>
+          </div>
+          <div className="rounded-3xl border border-border/50 bg-card p-4">
+            <span className="mb-2 block text-[9px] font-black uppercase tracking-widest text-muted-foreground">Foco</span>
+            <span className="font-display text-2xl font-black tracking-tight text-primary">{activityStats.focusRate}</span>
+          </div>
+        </div>
+      </div>
+    </ResponsivePanel>
     {/* RESPONSIVE PANEL: EDITAR PLANO (Side on Desktop, Bottom on Mobile) */}
     <ResponsivePanel
       open={editPlanOpen}

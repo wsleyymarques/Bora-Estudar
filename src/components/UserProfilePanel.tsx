@@ -142,6 +142,7 @@ export function UserProfilePanel({ isOpen, onClose }: UserProfilePanelProps) {
       size="md"
       title={view === 'main' ? 'Perfil' : view === 'account' ? 'Configurações de Perfil' : view === 'theme' ? 'Tema & Visual' : 'Permissões'}
       unstyled
+      className={view === 'main' ? 'bg-primary border-none' : 'border-none'}
     >
       <div className="flex flex-col h-full bg-background relative overflow-hidden">
         
@@ -149,7 +150,7 @@ export function UserProfilePanel({ isOpen, onClose }: UserProfilePanelProps) {
           <>
             {/* BANNER WITH BACKDROP & AVATAR */}
             <div className="relative">
-              <div className="h-32 bg-gradient-to-r from-primary via-primary/90 to-primary/80 rounded-b-[2rem] relative flex items-start justify-between px-6 pt-6">
+              <div className="h-32 bg-primary rounded-b-[2rem] relative flex items-start justify-between px-6 pt-2">
                 <div className="flex items-center gap-3 z-10">
                   <button
                     onClick={onClose}
@@ -158,7 +159,7 @@ export function UserProfilePanel({ isOpen, onClose }: UserProfilePanelProps) {
                   >
                     <X className="w-4 h-4 stroke-[2.5]" />
                   </button>
-                  <span className="text-primary-foreground font-black text-xs uppercase tracking-[0.25em]">BoraEstudar</span>
+                  <span className="text-primary-foreground font-black text-xs uppercase tracking-[0.25em]">Bora-Estudar</span>
                 </div>
                 <Sparkles className="w-4 h-4 text-primary-foreground/60 animate-pulse" />
               </div>
@@ -239,8 +240,8 @@ export function UserProfilePanel({ isOpen, onClose }: UserProfilePanelProps) {
             {/* LOGOUT FOOTER */}
             <div className="p-6 bg-card border-t border-border mt-auto">
               <Button 
-                variant="ghost" 
-                className="w-full h-12 rounded-2xl text-red-500 hover:text-red-650 hover:bg-red-50 dark:hover:bg-red-950/20 font-black text-xs uppercase tracking-widest gap-2.5 transition-all active:scale-95 border border-transparent hover:border-red-200 dark:hover:border-red-900/35"
+                variant="outline" 
+                className="w-full h-12 rounded-2xl text-red-500 border-red-200 bg-red-50 hover:bg-red-100 hover:text-red-600 dark:bg-red-500/10 dark:border-red-500/20 dark:hover:bg-red-500/20 font-black text-xs uppercase tracking-widest gap-2.5 transition-all active:scale-95 shadow-sm"
                 onClick={() => logout()}
               >
                 <LogOut className="w-4 h-4" />
@@ -271,19 +272,29 @@ export function UserProfilePanel({ isOpen, onClose }: UserProfilePanelProps) {
               {view === 'account' && (
                 <div className="space-y-4">
                   {/* Photo Preview & Edit */}
-                  <div className="flex flex-col items-center space-y-3">
-                    <Avatar className="h-24 w-24 border-4 border-card shadow-xl rounded-full">
-                      <AvatarImage src={avatarUrlInput} />
-                      <AvatarFallback className="bg-gradient-to-br from-slate-800 to-black text-white text-2xl font-black">
-                        {userName.slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
+                  <div className="flex flex-col items-center space-y-3 pb-2">
+                    <div className="relative">
+                      <Avatar className="h-24 w-24 border-4 border-card shadow-xl rounded-full">
+                        <AvatarImage src={avatarUrlInput} />
+                        <AvatarFallback className="bg-gradient-to-br from-slate-800 to-black text-white text-2xl font-black">
+                          {userName.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <ImageUpload
+                        value={avatarUrlInput}
+                        onChange={(url) => setAvatarUrlInput(url)}
+                        bucket="study-plan-images"
+                        folder="avatars"
+                        variant="icon"
+                        className="absolute bottom-0 right-0 z-10"
+                      />
+                    </div>
                     <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                      Prévia da foto de perfil
+                      Foto de perfil
                     </p>
                   </div>
 
-                  <div className="space-y-4 p-4 rounded-[1.5rem] bg-card border border-border shadow-sm">
+                  <div className="space-y-5 p-5 rounded-[1.5rem] bg-card border border-border shadow-sm">
                     {/* Name Input */}
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Nome Completo</label>
@@ -297,37 +308,21 @@ export function UserProfilePanel({ isOpen, onClose }: UserProfilePanelProps) {
                       />
                     </div>
 
-                    {/* Avatar Image Upload */}
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Foto de Perfil</label>
-                      <ImageUpload
-                        value={avatarUrlInput}
-                        onChange={(url) => setAvatarUrlInput(url)}
-                        bucket="study-plan-images"
-                        folder="avatars"
-                        label=""
-                        helperText="Selecione um arquivo ou cole uma URL externa."
-                        variant="compact"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Account Information (Display-Only) */}
-                  <div className="space-y-3">
-                    <h4 className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground px-1">Informações de Login</h4>
-                    <div className="p-4 rounded-[1.5rem] bg-card border border-border shadow-sm text-xs space-y-3">
-                      <div className="flex justify-between items-center">
+                    {/* Account Information (Display-Only) */}
+                    <div className="pt-4 border-t border-border/60 space-y-3 text-xs">
+                      <h4 className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground mb-2">Detalhes da Conta</h4>
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                         <span className="font-bold text-muted-foreground">E-mail:</span>
-                        <span className="font-semibold text-foreground/90">{userEmail}</span>
+                        <span className="font-semibold text-foreground/90 break-all sm:break-normal">{userEmail}</span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="font-bold text-muted-foreground">Conta Criada em:</span>
+                        <span className="font-bold text-muted-foreground">Criada em:</span>
                         <span className="font-semibold text-foreground/90">
                           {user?.created_at ? new Date(user.created_at).toLocaleDateString('pt-BR') : 'N/A'}
                         </span>
                       </div>
-                      <div className="border-t border-border/80 pt-3 flex justify-between items-center">
-                        <span className="font-bold text-muted-foreground">Vínculo Google:</span>
+                      <div className="border-t border-border/60 pt-3 flex justify-between items-center">
+                        <span className="font-bold text-muted-foreground">Google:</span>
                         {isGoogleLinked ? (
                           <div className="flex items-center gap-1.5 text-green-500 font-bold bg-green-500/10 px-2.5 py-1 rounded-full text-[10px] uppercase tracking-wider">
                             <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">

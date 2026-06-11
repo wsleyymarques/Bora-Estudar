@@ -9,13 +9,14 @@ import { toDateKey } from '@/lib/date-utils';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Calendar } from '@/components/ui/calendar';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { ResponsivePanel } from '@/components/generic/ResponsivePanel';
 
 export function StreakCalendarCard({ className }: { className?: string }) {
   const { profile } = useAuth();
   const { getTotalMinutesForDate } = useStudy();
 
   const [activeTab, setActiveTab] = useState('mensal');
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const streakCurrent = profile?.streak_current ?? 0;
   const dailyGoal = profile?.daily_goal_minutes ?? 30;
@@ -61,6 +62,14 @@ export function StreakCalendarCard({ className }: { className?: string }) {
     }));
   }, [today, getTotalMinutesForDate, dailyGoal]);
 
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (activeTab === 'anual' && scrollRef.current) {
+      scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
+    }
+  }, [activeTab, isHistoryOpen]);
+
   // Render Yearly Grid
   const renderYearlyGrid = () => {
     // Group into columns of 7 days (weeks)
@@ -78,27 +87,32 @@ export function StreakCalendarCard({ className }: { className?: string }) {
     }
 
     return (
-      <div className="flex gap-1 overflow-x-auto pb-2 custom-scrollbar items-end">
-        {weeks.map((week, wIndex) => (
-          <div key={wIndex} className="flex flex-col gap-1">
-            {week.map((day, dIndex) => (
-              <div 
-                key={dIndex} 
-                className={cn(
-                  "w-3 h-3 rounded-[2px]",
-                  day === null 
-                    ? "bg-transparent" 
-                    : day.isCompleted 
-                      ? "bg-amber-500" 
-                      : day.hasStudied 
-                        ? "bg-amber-300/60" 
-                        : "bg-muted"
-                )}
-                title={day ? `${format(day.date, 'dd/MM/yyyy')}: ${day.isCompleted ? 'Meta atingida' : day.hasStudied ? 'Estudou um pouco' : 'Sem estudo'}` : undefined}
-              />
-            ))}
-          </div>
-        ))}
+      <div 
+        ref={scrollRef}
+        className="w-full overflow-x-auto pb-4 custom-scrollbar"
+      >
+        <div className="flex gap-1 items-end min-w-max">
+          {weeks.map((week, wIndex) => (
+            <div key={wIndex} className="flex flex-col gap-1">
+              {week.map((day, dIndex) => (
+                <div 
+                  key={dIndex} 
+                  className={cn(
+                    "w-3 h-3 rounded-[2px]",
+                    day === null 
+                      ? "bg-transparent" 
+                      : day.isCompleted 
+                        ? "bg-amber-500" 
+                        : day.hasStudied 
+                          ? "bg-amber-300/60" 
+                          : "bg-muted"
+                  )}
+                  title={day ? `${format(day.date, 'dd/MM/yyyy')}: ${day.isCompleted ? 'Meta atingida' : day.hasStudied ? 'Estudou um pouco' : 'Sem estudo'}` : undefined}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
     );
   };
@@ -115,23 +129,29 @@ export function StreakCalendarCard({ className }: { className?: string }) {
           </p>
         </div>
         
-        <Dialog>
-          <DialogTrigger asChild>
-            <button 
-              className="mt-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-              title="Ver histórico completo"
-            >
-              <CalendarDays className="w-3.5 h-3.5" />
-              Histórico
-            </button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px] border-border/50 bg-background/95 backdrop-blur-md">
-            <DialogHeader>
-              <DialogTitle className="text-xl font-black flex items-center gap-2 text-[#facc15]">
+        <button 
+          className="mt-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+          title="Ver histórico completo"
+          onClick={() => setIsHistoryOpen(true)}
+        >
+          <CalendarDays className="w-3.5 h-3.5" />
+          Histórico
+        </button>
+
+        <ResponsivePanel
+          open={isHistoryOpen}
+          onOpenChange={(open) => !open && setIsHistoryOpen(false)}
+          title="Histórico de Ofensiva"
+          size="xl"
+          unstyled
+          className="h-[100dvh] mt-0 sm:h-auto"
+        >
+          <div className="flex flex-col h-full bg-background relative overflow-hidden">
+            <div className="p-5 sm:p-6 pb-2">
+              <h3 className="text-xl font-black flex items-center gap-2 text-[#facc15] mb-2">
                 <Flame className="w-5 h-5" />
                 Histórico de Ofensiva
-              </DialogTitle>
-            </DialogHeader>
+              </h3>
             
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mt-4">
               <TabsList className="w-full h-10 bg-muted/50 border border-border/50 rounded-full mb-6 p-1">
@@ -182,8 +202,9 @@ export function StreakCalendarCard({ className }: { className?: string }) {
                 </div>
               </TabsContent>
             </Tabs>
-          </DialogContent>
-        </Dialog>
+            </div>
+          </div>
+        </ResponsivePanel>
       </div>
 
       <div className="relative z-10 w-full mt-1">

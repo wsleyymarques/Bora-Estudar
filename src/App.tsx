@@ -19,6 +19,7 @@ import TimerPage from "@/pages/TimerPage";
 import HistoryPage from "@/pages/HistoryPage";
 import StatsPage from "@/pages/StatsPage";
 import SettingsPage from "@/pages/SettingsPage";
+import ProfilePage from "@/pages/ProfilePage";
 import PlansPage from "@/pages/PlansPage";
 import PlanDetailsPage from "@/pages/PlanDetailsPage";
 import PlanWizardPage from "@/pages/PlanWizardPage";
@@ -55,6 +56,7 @@ function AppRoutes() {
               <Route path="/history" element={<HistoryPage />} />
               <Route path="/stats" element={<StatsPage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AppLayout>

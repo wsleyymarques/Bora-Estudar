@@ -22,7 +22,7 @@ export function sendNotification(title: string, options?: NotificationOptions) {
   
   if (Notification.permission === 'granted') {
     try {
-      const iconUrl = `${window.location.origin}/logo-blue.png`;
+      const iconUrl = `${window.location.origin}/bora-estudar-icon.png`;
       return new Notification(title, {
         icon: iconUrl,
         badge: iconUrl,

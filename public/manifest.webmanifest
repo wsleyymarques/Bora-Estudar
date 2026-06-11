@@ -1,15 +1,15 @@
 {
-  "name": "BoraEstudar",
-  "short_name": "BoraEstudar",
+  "name": "Bora-Estudar",
+  "short_name": "Bora-Estudar",
   "description": "Organize seus estudos com cronograma, foco e histórico.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#0d1710",
+  "theme_color": "#0d1710",
   "lang": "pt-BR",
   "icons": [
     {
-      "src": "/logo.png",
+      "src": "/bora-estudar-icon.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
