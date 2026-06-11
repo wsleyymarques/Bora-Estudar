@@ -102,7 +102,7 @@ export default function SettingsPage() {
       <div className="glass-card p-5 space-y-4">
         <h3 className="font-display font-semibold text-sm">Sobre</h3>
         <p className="text-sm text-muted-foreground">
-          BoraEstudar é um sistema de planejamento e acompanhamento de estudos.
+          Bora-Estudar é um sistema de planejamento e acompanhamento de estudos.
           Organize matérias, acompanhe progresso e alcance objetivos.
         </p>
         <p className="text-xs text-muted-foreground">Versao 1.0.0</p>

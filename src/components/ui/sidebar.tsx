@@ -135,7 +135,7 @@ const Sidebar = React.forwardRef<
     variant?: "sidebar" | "floating" | "inset";
     collapsible?: "offcanvas" | "icon" | "none";
   }
->(({ side = "left", variant = "sidebar", collapsible = "offcanvas", className, children, ...props }, ref) => {
+>(({ side = "left", variant = "sidebar", collapsible = "offcanvas", className, children, style, ...props }, ref) => {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
 
   if (collapsible === "none") {
@@ -167,6 +167,46 @@ const Sidebar = React.forwardRef<
           <div className="flex h-full w-full flex-col">{children}</div>
         </SheetContent>
       </Sheet>
+    );
+  }
+
+  if (collapsible === "icon") {
+    return (
+      <div
+        ref={ref}
+        className={cn("group peer hidden text-sidebar-foreground md:flex", className)}
+        data-state={state}
+        data-collapsible={state === "collapsed" ? collapsible : ""}
+        data-variant={variant}
+        data-side={side}
+        {...props}
+      >
+        <div
+          className={cn(
+            "flex h-svh flex-col transition-[width] duration-200 ease-linear",
+            state === "collapsed" ? "w-[--sidebar-width-icon]" : "w-[--sidebar-width]",
+          )}
+          style={
+            {
+              "--sidebar-width": SIDEBAR_WIDTH,
+              "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
+              ...style,
+            } as React.CSSProperties
+          }
+        >
+          <div
+            data-sidebar="sidebar"
+            className={cn(
+              "flex h-full w-full flex-col bg-sidebar text-sidebar-foreground",
+              variant === "floating" || variant === "inset"
+                ? "rounded-lg border border-sidebar-border shadow"
+                : "",
+            )}
+          >
+            {children}
+          </div>
+        </div>
+      </div>
     );
   }
 

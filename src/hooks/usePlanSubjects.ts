@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
-const STUDY_SUBJECTS_UPDATED_EVENT = 'study-flow:subjects-updated';
+const STUDY_SUBJECTS_UPDATED_EVENT = 'bora-estudar:subjects-updated';
 
 export interface SubjectRow {
   id: string;

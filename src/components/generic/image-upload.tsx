@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 const DEFAULT_ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const DEFAULT_MAX_SIZE_MB = 5;
 
-type ImageUploadVariant = 'card' | 'compact';
+type ImageUploadVariant = 'card' | 'compact' | 'icon';
 
 interface ImageUploadProps {
   value?: string;
@@ -124,54 +124,65 @@ export function ImageUpload({
   };
 
   return (
-    <div className={cn('grid gap-2', className)}>
-      <Label>{label}</Label>
+    <div className={cn('grid gap-2', className, variant === 'icon' && 'grid-cols-1 w-auto h-auto m-0 p-0 block')}>
+      {variant !== 'icon' && <Label>{label}</Label>}
 
-      <div
-        className={cn(
-          'overflow-hidden rounded-xl border border-border/80 bg-background/70',
-          variant === 'compact' ? 'p-3' : 'p-4',
-        )}
-      >
-        {value ? (
-          <div className="mb-3 overflow-hidden rounded-lg border border-border bg-muted">
-            <img src={value} alt="Pré-visualização da imagem" className="h-36 w-full object-cover" />
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={handleUploadClick}
-            disabled={disabled || uploading}
-            className="mb-3 flex h-36 w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-muted/40 text-muted-foreground transition hover:bg-muted/70 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {uploading ? <Loader2 className="h-7 w-7 animate-spin" /> : <ImagePlus className="h-7 w-7" />}
-            <span className="text-sm font-medium">Clique para fazer upload</span>
-            <span className="text-xs">JPG, PNG, WEBP ou GIF até {maxSizeMb} MB</span>
-          </button>
-        )}
+      {variant === 'icon' ? (
+        <button
+          type="button"
+          onClick={handleUploadClick}
+          disabled={disabled || uploading}
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md transition-transform hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>}
+        </button>
+      ) : (
+        <div
+          className={cn(
+            'overflow-hidden rounded-xl border border-border/80 bg-background/70',
+            variant === 'compact' ? 'p-3' : 'p-4',
+          )}
+        >
+          {value ? (
+            <div className="mb-3 overflow-hidden rounded-lg border border-border bg-muted">
+              <img src={value} alt="Pré-visualização da imagem" className="h-36 w-full object-cover" />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleUploadClick}
+              disabled={disabled || uploading}
+              className="mb-3 flex h-36 w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-muted/40 text-muted-foreground transition hover:bg-muted/70 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {uploading ? <Loader2 className="h-7 w-7 animate-spin" /> : <ImagePlus className="h-7 w-7" />}
+              <span className="text-sm font-medium">Clique para fazer upload</span>
+              <span className="text-xs">JPG, PNG, WEBP ou GIF até {maxSizeMb} MB</span>
+            </button>
+          )}
 
-        <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-          <Input
-            value={value || ''}
-            onChange={(event) => onChange(event.target.value)}
-            placeholder={placeholder}
-            disabled={disabled || uploading}
-          />
-          <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={handleUploadClick} disabled={disabled || uploading}>
-              {uploading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-1.5 h-4 w-4" />}
-              Upload
-            </Button>
-            {value ? (
-              <Button type="button" variant="outline" onClick={clearImage} disabled={disabled || uploading}>
-                <Trash2 className="h-4 w-4" />
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+            <Input
+              value={value || ''}
+              onChange={(event) => onChange(event.target.value)}
+              placeholder={placeholder}
+              disabled={disabled || uploading}
+            />
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={handleUploadClick} disabled={disabled || uploading}>
+                {uploading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-1.5 h-4 w-4" />}
+                Upload
               </Button>
-            ) : null}
+              {value ? (
+                <Button type="button" variant="outline" onClick={clearImage} disabled={disabled || uploading}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              ) : null}
+            </div>
           </div>
-        </div>
 
-        {helperText ? <p className="mt-2 text-xs text-muted-foreground">{helperText}</p> : null}
-      </div>
+          {helperText ? <p className="mt-2 text-xs text-muted-foreground">{helperText}</p> : null}
+        </div>
+      )}
 
       <input ref={inputRef} type="file" accept={accept} className="hidden" onChange={handleFileChange} />
     </div>

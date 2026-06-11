@@ -1,0 +1,143 @@
+schemaVersion: 1
+id: cronograma-avulso
+title: "Criar Cronograma Avulso"
+description: "Agenda rápida para prova, concurso ou evento específico"
+estimatedMinutes: 3
+
+metadata:
+  category: quick-action
+  icon: "📅"
+  color: "#10b981"
+  requiredForBadge: false
+
+settings:
+  allowSkip: true
+  allowBack: true
+  persistProgress: true
+  autoAdvance: false
+  showProgressBar: true
+  showStepNumbers: false
+
+initialData:
+  eventDate: null
+  eventName: ""
+  subjects: []
+  dailyHours: 2
+
+steps:
+  - id: event-info
+    type: form
+    title: "Sobre o evento/prova"
+    content: "Quando é? Como se chama?"
+    fields:
+      - name: eventName
+        type: text
+        label: "Nome do evento/prova"
+        placeholder: "Ex: Concurso TRF 2024, Prova OAB, ENEM"
+        validation:
+          required: true
+          minLength: 3
+          maxLength: 100
+      - name: eventDate
+        type: date
+        label: "Data da prova/evento"
+        validation:
+          required: true
+          min: "{{today}}"
+    mapsTo: [eventName, eventDate]
+    optional: false
+
+  - id: subject-priority
+    type: multi-select
+    title: "Quais matérias caem na prova?"
+    content: "Ordene por prioridade (arraste) — a gente foca nas mais importantes."
+    options:
+      - id: portugues
+        label: "Português"
+      - id: matematica
+        label: "Matemática"
+      - id: direito-constitucional
+        label: "Direito Constitucional"
+      - id: direito-administrativo
+        label: "Direito Administrativo"
+      - id: informatica
+        label: "Informática"
+      - id: raciocinio-logico
+        label: "Raciocínio Lógico"
+      - id: ingles
+        label: "Inglês"
+    validation:
+      minSelections: 1
+    mapsTo: subjects
+    optional: false
+    ui:
+      draggable: true
+
+  - id: intensity
+    type: single-select
+    title: "Quanto tempo você tem por dia?"
+    content: "Seja realista — consistência > intensidade."
+    options:
+      - id: light
+        label: "Leve (1-2h/dia)"
+        value: 1.5
+      - id: moderate
+        label: "Moderado (3-4h/dia)"
+        value: 3.5
+      - id: intense
+        label: "Intenso (5-6h/dia)"
+        value: 5.5
+      - id: custom
+        label: "Personalizado"
+        value: null
+        showsField: dailyHoursCustom
+    mapsTo: dailyHours
+    optional: false
+
+  - id: dailyHoursCustom
+    type: form
+    title: "Horas por dia"
+    content: "Quantas horas reais você consegue?"
+    fields:
+      - name: dailyHours
+        type: number
+        label: "Horas/dia"
+        min: 0.5
+        max: 12
+        step: 0.5
+    dependsOn:
+      - step: intensity
+        condition: "value === 'custom'"
+    mapsTo: dailyHours
+    optional: false
+
+  - id: generate-schedule
+    type: confirmation
+    title: "Pronto para gerar! 📋"
+    content: |
+      **Seu cronograma:**
+      - Evento: {{eventName}} ({{eventDate}})
+      - Matérias: {{subjects.length}} selecionadas
+      - Tempo/dia: {{dailyHours}}h
+      - Dias até a prova: {{daysUntilEvent}}
+    cta:
+      label: "Gerar Cronograma 🚀"
+      action: complete
+      variant: primary
+    optional: false
+
+  - id: success
+    type: success
+    title: "Cronograma pronto! 🎯"
+    content: |
+      Seu cronograma semanal está no dashboard. Boa sorte na {{eventName}}!
+    cta:
+      label: "Ver Cronograma"
+      action: complete
+      variant: primary
+    onComplete:
+      - action: emit
+        event: schedule:created
+        payload: { recipeId: 'cronograma-avulso', finalData: {} }
+      - action: navigate
+        path: /dashboard?tab=schedule

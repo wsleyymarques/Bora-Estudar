@@ -1,0 +1,50 @@
+/* packages/tutorial-react/src/styles.css */
+
+:root {
+  --tutorial-primary: #6366f1;
+  --tutorial-primary-hover: #4f46e5;
+  --tutorial-secondary: #e5e7eb;
+  --tutorial-secondary-hover: #d1d5db;
+  --tutorial-text: #111827;
+  --tutorial-text-muted: #4b5563;
+  --tutorial-border: #e5e7eb;
+  --tutorial-background: #ffffff;
+  --tutorial-overlay: rgba(0, 0, 0, 0.5);
+  --tutorial-radius: 0.75rem;
+  --tutorial-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  --tutorial-focus-ring: 0 0 0 3px rgba(99, 102, 241, 0.4);
+}
+
+.tutorial-container {
+  font-family: inherit;
+}
+
+.tutorial-modal {
+  font-family: inherit;
+}
+
+/* Focus visible for accessibility */
+.tutorial-modal *:focus-visible {
+  outline: none;
+  box-shadow: var(--tutorial-focus-ring);
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .tutorial-modal *,
+  .tutorial-modal *::before,
+  .tutorial-modal *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  :root {
+    --tutorial-primary: #000;
+    --tutorial-secondary: #000;
+    --tutorial-border: #000;
+  }
+}

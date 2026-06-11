@@ -44,6 +44,7 @@ export function CompactTimerPlayer({
     finishActive,
     skipCurrentBreak,
     isTransitioning,
+    setIsMaximized,
   } = useTracker();
   const selectedMode = runtime?.kind || mode;
 
@@ -220,7 +221,7 @@ export function CompactTimerPlayer({
               className="h-8 w-8"
               onClick={() => {
                 if (isDrawerOpen) setIsDrawerOpen(false);
-                navigate('/timer');
+                setIsMaximized(true);
               }}
               title={runtime ? 'Expandir' : 'Abrir timer'}
             >

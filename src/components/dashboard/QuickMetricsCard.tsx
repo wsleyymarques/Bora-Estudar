@@ -1,120 +1,151 @@
 import React, { useMemo } from 'react';
+import { Clock3 } from 'lucide-react';
+
+import { useAuth } from '@/contexts/AuthContext';
 import { useStudy } from '@/contexts/StudyContext';
 import { toDateKey } from '@/lib/date-utils';
 import { cn } from '@/lib/utils';
 
-const DonutChart = ({ percent, value, unit }: { percent: number, value: string | number, unit: string }) => {
-  const size = 84;
-  const strokeWidth = 12;
-  const radius = (size - strokeWidth) / 2;
-  const circumference = radius * 2 * Math.PI;
-  const offset = circumference - (percent / 100) * circumference;
-
-  return (
-    <div className="relative flex items-center justify-center shrink-0" style={{ width: size, height: size }}>
-      {/* Inner shaded circle */}
-      <div 
-        className="absolute rounded-full z-0 bg-primary-foreground/10" 
-        style={{ 
-          width: size - strokeWidth * 2 + 1,
-          height: size - strokeWidth * 2 + 1, 
-        }} 
-      />
-      <svg width={size} height={size} className="transform -rotate-90 z-10">
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          className="stroke-primary-foreground/20"
-          strokeWidth={strokeWidth}
-          fill="none"
-        />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          className="stroke-primary-foreground/90 transition-all duration-1000 ease-out"
-          strokeWidth={strokeWidth}
-          fill="none"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-1 z-20">
-        <span className="text-[19px] font-black leading-none text-primary-foreground/90 tracking-tight">{value}</span>
-        <span className="text-[9px] font-bold text-primary-foreground/70 leading-[1.1] mt-0.5 max-w-[50px] tracking-wide">
-          {unit.split(' ').map((word, i) => (
-            <React.Fragment key={i}>
-              {word}
-              {i < unit.split(' ').length - 1 && <br />}
-            </React.Fragment>
-          ))}
-        </span>
-      </div>
-    </div>
-  );
-};
-
-export function QuickMetricsCard({ className }: { className?: string }) {
+export function QuickMetricsCard({ className, compact = false }: { className?: string; compact?: boolean }) {
+  const { profile } = useAuth();
   const { data, getTotalMinutesForDate } = useStudy();
 
   const today = toDateKey(new Date());
   const todayMinutes = getTotalMinutesForDate(today);
-  
-  // Daily Goal
-  const todaySchedule = data.schedule.filter(s => s.date === today);
-  const dailyGoalMinutes = todaySchedule.reduce((acc, curr) => acc + (curr.plannedMinutes || 0), 0) || 120;
-  const dailyPercent = Math.min(Math.round((todayMinutes / dailyGoalMinutes) * 100), 100) || 0;
+  const dailyGoalMinutes = profile?.daily_goal_minutes ?? 60;
+  const streakDays = profile?.streak_current ?? 0;
+  const dailyPercent = Math.min(Math.round((todayMinutes / Math.max(dailyGoalMinutes, 1)) * 100), 100) || 0;
 
-  // Weekly Goal
-  const weekDates = useMemo(() => Array.from({ length: 7 }, (_, index) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (6 - index));
-    return toDateKey(d);
-  }), []);
-  
-  const weekMinutes = weekDates.reduce((acc, date) => acc + getTotalMinutesForDate(date), 0);
-  const weeklyGoalHours = data.subjects.reduce((acc, subj) => acc + (subj.weeklyGoalHours || 0), 0) || 28;
+  const weekDates = useMemo(
+    () =>
+      Array.from({ length: 7 }, (_, index) => {
+        const d = new Date();
+        d.setDate(d.getDate() - (6 - index));
+        return toDateKey(d);
+      }),
+    [],
+  );
+
+  const weekData = useMemo(
+    () =>
+      weekDates.map((date, index) => {
+        const minutes = getTotalMinutesForDate(date);
+        return {
+          date,
+          minutes,
+          label: new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'narrow' }).replace('.', '').toUpperCase(),
+          isToday: index === 6,
+          isStudied: minutes > 0,
+        };
+      }),
+    [getTotalMinutesForDate, weekDates],
+  );
+
+  const weekMinutes = weekData.reduce((acc, item) => acc + item.minutes, 0);
+  const weeklyGoalHours = data.subjects.reduce((acc, subj) => acc + (subj.weeklyGoalHours || 0), 0) || 4;
   const weeklyGoalMinutes = weeklyGoalHours * 60;
-  const weeklyPercent = Math.min(Math.round((weekMinutes / weeklyGoalMinutes) * 100), 100) || 0;
+  const weeklyPercent = Math.min(Math.round((weekMinutes / Math.max(weeklyGoalMinutes, 1)) * 100), 100) || 0;
 
   return (
-    <div className={cn("bg-primary text-primary-foreground rounded-[2rem] p-5 sm:p-6 flex flex-col justify-between shadow-sm relative overflow-hidden", className)}>
-      <div className="flex items-center justify-between w-full z-10">
-        
-        {/* Left: Daily Goal */}
-        <div className="flex flex-col items-start">
-          <h4 className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-primary-foreground/70 mb-1">
-            Meta Diária
-          </h4>
-          <div className="flex items-baseline gap-0.5 text-primary-foreground">
-            <span className="text-5xl sm:text-6xl font-black tracking-tighter leading-none">{dailyGoalMinutes}</span>
-            <span className="text-xl sm:text-2xl font-bold leading-none">m</span>
+    <section
+      className={cn(
+        compact
+          ? 'relative flex h-full flex-col overflow-hidden rounded-[1.25rem] border border-[#ddd6c8] bg-[#fbfaf5] p-3 text-[#1f241f] shadow-[0_14px_30px_rgba(18,24,16,0.05)] dark:border-white/10 dark:bg-[#102017] dark:text-white'
+          : 'relative flex h-full flex-col overflow-hidden rounded-[1.5rem] border border-[#ddd6c8] bg-[#fbfaf5] p-4 text-[#1f241f] shadow-[0_18px_50px_rgba(18,24,16,0.06)] dark:border-white/10 dark:bg-[#102017] dark:text-white',
+        className,
+      )}
+    >
+      <div className={cn('flex items-start justify-between gap-3', compact && 'gap-2')}>
+        <div className="min-w-0 space-y-1.5">
+          <p className={cn('font-black uppercase tracking-[0.28em] text-black/45 dark:text-white/40', compact ? 'text-[9px]' : 'text-[10px]')}>
+            Meta diária
+          </p>
+
+          <div className="flex items-end gap-1">
+            <span className={cn('font-black leading-none tracking-tight text-[#121612] dark:text-white', compact ? 'text-3xl' : 'text-4xl sm:text-5xl')}>
+              {dailyGoalMinutes}
+            </span>
+            <span className={cn('pb-1 font-semibold leading-none text-[#121612]/65 dark:text-white/70', compact ? 'text-sm' : 'text-xl')}>
+              min
+            </span>
           </div>
-          <p className="text-xs sm:text-sm font-semibold text-primary-foreground/80 mt-1">
-            {Math.floor(todayMinutes)}m estudados hoje
+
+          <p className={cn('font-semibold text-[#4d544d] dark:text-white/72', compact ? 'text-[10px]' : 'text-xs')}>
+            {Math.round(todayMinutes)} estudados hoje
           </p>
         </div>
 
-        {/* Right: Weekly Goal Donut */}
-        <div className="flex flex-col items-center justify-center shrink-0">
-          <DonutChart 
-            percent={weeklyPercent} 
-            value={`${weeklyGoalHours}h`} 
-            unit="meta semanal" 
-          />
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <div
+            className={cn(
+              'inline-flex items-center gap-2 rounded-full bg-emerald-100 font-bold text-emerald-800 dark:bg-emerald-400/15 dark:text-emerald-200',
+              compact ? 'px-2 py-0.5 text-[10px]' : 'px-3 py-1 text-xs',
+            )}
+          >
+            <Clock3 className={compact ? 'h-3 w-3' : 'h-3.5 w-3.5'} />
+            {streakDays} dias
+          </div>
+
+          <p className={cn('font-medium text-[#474e47] dark:text-white/72', compact ? 'hidden' : 'text-[11px]')}>
+            meta semanal: {weeklyGoalHours}h
+          </p>
+        </div>
+      </div>
+
+      <div className={cn('space-y-1.5', compact ? 'mt-2' : 'mt-3')}>
+        <div className="flex items-center justify-between gap-4 text-xs font-bold text-[#404840] dark:text-white/70">
+          <span>
+            {Math.round(todayMinutes)} / {dailyGoalMinutes} min
+          </span>
+          <span>{dailyPercent}%</span>
         </div>
 
+        <div className="h-1 rounded-full bg-black/10 dark:bg-white/10">
+          <div
+            className="h-full rounded-full bg-[#2f9e74] transition-all dark:bg-emerald-400"
+            style={{ width: `${dailyPercent}%` }}
+          />
+        </div>
       </div>
-      
-      {/* Bottom: Linear Progress Bar for Daily Goal */}
-      <div className="mt-5 w-full h-2 bg-primary-foreground/20 rounded-full overflow-hidden z-10">
-        <div 
-          className="h-full bg-primary-foreground/90 rounded-full transition-all duration-1000 ease-out" 
-          style={{ width: `${dailyPercent}%` }}
-        />
-      </div>
-    </div>
+
+      {!compact ? (
+        <>
+          <div className="mt-3 flex items-end justify-between gap-1">
+            {weekData.map((item) => (
+              <div key={item.date} className="flex flex-1 flex-col items-center gap-1.5">
+                <div
+                  className={cn(
+                    'flex h-3.5 w-3.5 items-center justify-center rounded-full transition-all',
+                    item.isToday
+                      ? 'bg-emerald-500 ring-4 ring-emerald-500/20'
+                      : item.isStudied
+                        ? 'bg-emerald-500'
+                        : 'bg-black/15 dark:bg-white/20',
+                  )}
+                  title={`${item.label}: ${item.minutes}m`}
+                />
+                <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#676d67] dark:text-white/55">
+                  {item.label}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 flex items-center justify-between text-xs font-semibold text-[#444a44] dark:text-white/70">
+            <span>
+              {weekMinutes} / {weeklyGoalMinutes} min
+            </span>
+            <span>{weeklyPercent}%</span>
+          </div>
+
+          <div className="mt-2 h-1.5 rounded-full bg-black/8 dark:bg-white/10">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-emerald-300 via-emerald-500 to-lime-400"
+              style={{ width: `${weeklyPercent}%` }}
+            />
+          </div>
+        </>
+      ) : null}
+    </section>
   );
 }
