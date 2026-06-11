@@ -69,8 +69,9 @@ interface TrackerContextValue {
   togglePauseResume: () => void;
   finishActive: (status?: 'completed' | 'abandoned') => Promise<boolean>;
   skipCurrentBreak: () => Promise<boolean>;
-  clearRuntime: () => void;
   getBindingState: (binding: Partial<TrackerBinding>) => TrackerBindingState;
+  isMaximized: boolean;
+  setIsMaximized: (value: boolean) => void;
 }
 
 const TrackerContext = createContext<TrackerContextValue | undefined>(undefined);
@@ -193,6 +194,7 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
   const [pomodoroSettings, setPomodoroSettings] = useState(loadPomodoroSettings);
   const [nowMs, setNowMs] = useState(Date.now());
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isMaximized, setIsMaximized] = useState(false);
   const transitionRef = useRef(false);
 
   useEffect(() => {
@@ -300,7 +302,7 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
       const msg = completed.phase === 'focus' 
         ? `Foco em ${subjectName} concluído. Hora da pausa.` 
         : `Pausa concluída. Hora de focar em ${subjectName}.`;
-      addNotification('BoraEstudar', msg, 'success');
+      addNotification('Bora-Estudar', msg, 'success');
     })().finally(() => {
       transitionRef.current = false;
       setIsTransitioning(false);
@@ -364,12 +366,15 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
         if (same) {
           if (runtime.kind === 'stopwatch' && runtime.status === 'paused') {
             setRuntime(resumeStopwatch(runtime, now));
+            setIsMaximized(true);
             return { ok: true, status: 'resumed' };
           }
           if (runtime.kind === 'pomodoro' && runtime.phaseStatus === 'paused') {
             setRuntime(resumePomodoro(runtime, now));
+            setIsMaximized(true);
             return { ok: true, status: 'resumed' };
           }
+          setIsMaximized(true);
           return { ok: true, status: 'already-active' };
         }
 
@@ -391,10 +396,12 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
           created = resumePomodoro(created, now);
         }
         setRuntime(created);
+        setIsMaximized(true);
         return { ok: true, status: 'started' };
       }
 
       setRuntime(createStopwatchRuntime(binding, now));
+      setIsMaximized(true);
       return { ok: true, status: 'started' };
     },
     [runtime, mode, pomodoroSettings, finishCurrentRuntime],
@@ -531,7 +538,7 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
       const statusText = isRuntimeRunning(runtime) ? '(Timer)' : '(Pausado)';
       document.title = `${statusText} ${displayTimeLabel} | ${label}`;
     } else {
-      document.title = 'BoraEstudar';
+      document.title = 'Bora-Estudar';
     }
   }, [runtime, displayTimeLabel, getSubject]);
 
@@ -560,6 +567,8 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
       skipCurrentBreak,
       clearRuntime,
       getBindingState,
+      isMaximized,
+      setIsMaximized,
     }),
     [
       runtime,
@@ -581,6 +590,7 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
       skipCurrentBreak,
       clearRuntime,
       getBindingState,
+      isMaximized,
     ],
   );
 

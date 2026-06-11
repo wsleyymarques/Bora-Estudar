@@ -1,3 +1,3 @@
-# Welcome to your Lovable project
+# Bora-Estudar
 
-TODO: Document your project here
+Aplicativo para planejar estudos, controlar sessões e acompanhar o progresso.

@@ -1,203 +1,251 @@
 import React from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  Home, 
-  Layers, 
+  ArrowRight,
   BarChart3,
+  ChevronLeft,
+  ChevronRight,
+  FolderKanban,
   History,
-  MoreHorizontal,
+  LayoutDashboard,
+  User,
   Bell,
-  User
 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { useStudyPlans } from '@/hooks/useStudyPlans';
-import { useNotifications } from '@/contexts/NotificationContext';
-import { useAppTheme } from '@/contexts/AppThemeContext';
-import { useTheme } from 'next-themes';
-import {
-  Sidebar, 
-  SidebarContent, 
-  useSidebar,
-} from '@/components/ui/sidebar';
+
+import { useSidebar } from '@/components/ui/sidebar';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { NavLink } from '@/components/NavLink';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface AppSidebarProps {
-  onOpenProfile?: () => void;
   onOpenNotifications?: () => void;
 }
 
-export function AppSidebar({ onOpenProfile, onOpenNotifications }: AppSidebarProps) {
-  const state = useSidebar().state;
-  const isMobile = useSidebar().isMobile;
-  const collapsed = state === 'collapsed';
-  const { plans } = useStudyPlans();
+const menuItems = [
+  { title: 'Início', url: '/', icon: LayoutDashboard },
+  { title: 'Planos', url: '/plans', icon: FolderKanban },
+  { title: 'Estatísticas', url: '/stats', icon: BarChart3 },
+  { title: 'Histórico', url: '/history', icon: History },
+] as const;
+
+function SidebarBody({
+  collapsed,
+  isMobile,
+  onNavigate,
+  onToggle,
+  onOpenNotifications,
+}: {
+  collapsed: boolean;
+  isMobile: boolean;
+  onNavigate: () => void;
+  onToggle: () => void;
+  onOpenNotifications?: () => void;
+}) {
   const location = useLocation();
-  const { unreadCount } = useNotifications();
-  const { templateKey } = useAppTheme();
-  const { resolvedTheme } = useTheme();
+  const navigate = useNavigate();
+  const { user, profile } = useAuth();
+  
+  const userName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Perfil';
+  const avatarUrl = profile?.avatar_url || user?.user_metadata?.avatar_url;
+  
+  const logoSrc = isMobile ? '/bora-estudar-mark-new.png' : collapsed ? '/bora-estudar-icon.png' : '/bora-estudar-logo.png';
 
-  const activePlansCount = plans.filter(p => p.status === 'active').length;
+  return (
+    <div className="flex h-full w-full flex-col px-4 pb-4 pt-3">
+      <div className={cn('relative px-0.5 pt-0', collapsed && 'px-0 pt-1.5')}>
+        <img
+          src={logoSrc}
+          alt="Bora-Estudar"
+          className={cn(
+            'block object-contain transition-all duration-200',
+            isMobile
+              ? 'mx-auto h-auto w-[9rem] max-w-[9rem] opacity-100'
+              : collapsed
+                ? 'mx-auto h-auto w-[4.25rem] max-w-[4.25rem] opacity-100'
+                : 'w-full max-w-[220px]',
+          )}
+        />
 
-  let logoSrc = '/assets/media__1779551687484.png'; // Blue
-  if (templateKey === 'cutie') {
-    logoSrc = '/assets/media__1779562329907.png'; // Pink
-  } else if (templateKey === 'minimalista') {
-    logoSrc = resolvedTheme === 'dark' 
-      ? '/assets/media__1779562483004.png' // White
-      : '/assets/media__1779562328484.png'; // Black
-  }
+        {isMobile ? null : collapsed ? (
+          <button
+            type="button"
+            onClick={onToggle}
+            className="mx-auto mt-3 flex h-[3.25rem] w-14 items-center justify-center rounded-2xl border border-transparent text-white/70 transition-all hover:border-white/8 hover:bg-white/5 hover:text-white"
+            aria-label="Expandir sidebar"
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/8 bg-white/5 transition-colors">
+              <ChevronRight className="h-4.5 w-4.5" />
+            </span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onToggle}
+            className="absolute right-0 top-4 flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/75 transition-colors hover:bg-white/10 hover:text-white"
+            aria-label="Minimizar sidebar"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+        )}
+      </div>
 
-  const menuItems = [
-    { title: 'APRENDER', url: '/', iconImage: '/assets/media__1779561373778.png', fallbackIcon: Home },
-    { title: 'PLANOS', url: '/plans', iconImage: '/assets/media__1779561369461.png', fallbackIcon: Layers, badge: activePlansCount > 0 ? `${activePlansCount}` : null },
-    { title: 'ESTATÍSTICAS', url: '/stats', iconImage: '/assets/media__1779561368073.png', fallbackIcon: BarChart3 },
-    { title: 'SESSÕES', url: '/history', iconImage: '/icon-history.png', fallbackIcon: History },
-  ];
+      <div className="mt-2 flex min-h-0 flex-1 flex-col justify-start">
+        <p
+          className={cn(
+            'px-1 pb-3 pt-4 text-[0.65rem] font-black uppercase tracking-[0.35em] text-white/35 transition-opacity',
+            collapsed && 'pointer-events-none opacity-0',
+          )}
+        >
+          Visao geral
+        </p>
 
-  if (!isMobile) {
-    // Duolingo has a fixed wide sidebar on desktop
-    const desktopWidth = '16rem';
+        <nav className={cn('space-y-2 transition-all', collapsed && 'space-y-1')}>
+          {menuItems.map((item) => {
+            const isActive = location.pathname === item.url || (item.url !== '/' && location.pathname.startsWith(item.url));
+            const Icon = item.icon;
 
-    return (
-      <Sidebar
-        collapsible="none"
-        className="sticky top-0 h-svh shrink-0 border-r-2 border-border/20 bg-background text-foreground transition-[width] duration-300 ease-in-out hidden md:flex"
-        style={{ '--sidebar-width': desktopWidth } as React.CSSProperties}
-      >
-        <SidebarContent className="h-svh overflow-hidden bg-transparent p-4 flex flex-col">
-          
-          {/* LOGO */}
-          <div className="pt-8 pb-0 mb-4 flex justify-center items-center overflow-visible">
-            <img 
-              key={logoSrc}
-              src={logoSrc} 
-              alt="BoraEstudar" 
-              className="w-[260px] max-w-none h-auto object-contain -mt-20 -mb-20 transition-all duration-300"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-                e.currentTarget.nextElementSibling?.classList.remove('hidden');
-              }}
-            />
-            <h1 
-              className="text-3xl font-black tracking-tight text-transparent bg-clip-text hidden"
-              style={{
-                backgroundImage: 'linear-gradient(to bottom, #4df, #08f)',
-                WebkitTextStroke: '1px #05c',
-                filter: 'drop-shadow(0px 3px 0px #05c)'
-              }}
-            >
-              BORAESTUDAR
-            </h1>
-          </div>
-
-          {/* Navigation Items */}
-          <div className="flex-1 space-y-2 overflow-y-auto px-2 custom-sidebar-scroll">
-            <nav className="space-y-1.5">
-              {menuItems.map((item) => {
-                const isActive = location.pathname === item.url;
-                return (
-                  <NavLink
-                    key={item.title}
-                    to={item.url}
-                    end={item.url === '/'}
-                    className={cn(
-                      'flex items-center gap-4 h-14 transition-all rounded-2xl px-4 relative group border-2',
-                      isActive 
-                        ? 'border-sky-200/20 bg-sky-500/10 text-sky-400 font-black' 
-                        : 'border-transparent text-muted-foreground font-black hover:bg-muted/30 hover:text-foreground'
-                    )}
-                    activeClassName="border-sky-200/20 bg-sky-500/10 text-sky-400 font-black"
-                  >
-                    <div className="w-10 h-10 flex items-center justify-center shrink-0">
-                      {item.iconImage ? (
-                        <img 
-                          src={item.iconImage} 
-                          alt={item.title} 
-                          className={cn("w-10 h-10 object-contain transition-transform group-hover:scale-110", isActive ? "scale-110" : "opacity-80 grayscale-[30%]")} 
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                          }}
-                        />
-                      ) : null}
-                      <item.fallbackIcon className={cn('h-7 w-7 shrink-0 transition-colors', item.iconImage ? 'hidden' : '', isActive ? 'text-sky-400' : 'text-muted-foreground/80 group-hover:text-foreground')} />
-                    </div>
-                    
-                    <span className="text-[14px] tracking-widest uppercase flex-1 truncate">{item.title}</span>
-                    
-                    {item.badge && (
-                      <span className="px-2 py-0.5 rounded-md bg-amber-500 text-white text-[10px] font-black tracking-wider shadow-sm">
-                        {item.badge}
-                      </span>
-                    )}
-                  </NavLink>
-                );
-              })}
-
-              {/* PERFIL (using Avatar image) */}
-              <button
-                onClick={onOpenProfile}
-                className="w-full flex items-center gap-4 h-14 transition-all rounded-2xl px-4 relative group border-2 border-transparent text-muted-foreground font-black hover:bg-muted/30 hover:text-foreground text-left"
+            return (
+              <NavLink
+                key={item.title}
+                to={item.url}
+                end={item.url === '/'}
+                onClick={onNavigate}
+                className={cn(
+                  'flex items-center gap-3 rounded-2xl border px-4 py-3 transition-all',
+                  collapsed && 'justify-center px-0 py-3',
+                  isActive
+                    ? 'border-emerald-400/20 bg-emerald-400/12 text-white shadow-[0_10px_30px_rgba(34,197,94,0.12)]'
+                    : 'border-transparent text-white/60 hover:border-white/8 hover:bg-white/5 hover:text-white',
+                )}
               >
-                <div className="w-10 h-10 flex items-center justify-center shrink-0">
-                  <img 
-                    src="/assets/media__1779561375848.png" 
-                    alt="Perfil" 
-                    className="w-10 h-10 object-contain transition-transform group-hover:scale-110 opacity-80 grayscale-[30%]" 
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                    }}
-                  />
-                  <User className="h-7 w-7 shrink-0 text-muted-foreground/80 group-hover:text-foreground hidden" />
-                </div>
-                <span className="text-[14px] tracking-widest uppercase flex-1 truncate">PERFIL</span>
-              </button>
-
-              {/* NOTIFICAÇÕES */}
-              <button
-                onClick={onOpenNotifications}
-                className="w-full flex items-center gap-4 h-14 transition-all rounded-2xl px-4 relative group border-2 border-transparent text-muted-foreground font-black hover:bg-muted/30 hover:text-foreground text-left"
-              >
-                <div className="w-10 h-10 flex items-center justify-center shrink-0 relative">
-                  <img 
-                    src="/icon-bell.png" 
-                    alt="Notificações" 
-                    className="w-10 h-10 object-contain transition-transform group-hover:scale-110 opacity-80 grayscale-[30%]" 
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                    }}
-                  />
-                  <Bell className="h-7 w-7 shrink-0 text-muted-foreground/80 group-hover:text-foreground hidden" />
-                  {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-black text-white animate-pulse">
-                      {unreadCount}
-                    </span>
+                <span
+                  className={cn(
+                    'flex h-9 w-9 items-center justify-center rounded-xl border transition-colors',
+                    isActive
+                      ? 'border-emerald-400/20 bg-emerald-400/15 text-emerald-300'
+                      : 'border-white/8 bg-white/5 text-white/70',
                   )}
-                </div>
-                <span className="text-[14px] tracking-widest uppercase flex-1 truncate">NOTIFICAÇÕES</span>
-              </button>
-              
-              {/* MAIS */}
-              <button
-                className="w-full flex items-center gap-4 h-14 transition-all rounded-2xl px-4 relative group border-2 border-transparent text-muted-foreground font-black hover:bg-muted/30 hover:text-foreground text-left"
-              >
-                <div className="w-10 h-10 flex items-center justify-center shrink-0">
-                  <MoreHorizontal className="h-7 w-7 shrink-0 text-muted-foreground/80 group-hover:text-foreground" />
-                </div>
-                <span className="text-[14px] tracking-widest uppercase flex-1 truncate">MAIS</span>
-              </button>
+                >
+                  <Icon className="h-4.5 w-4.5" />
+                </span>
 
-            </nav>
-          </div>
+                <span className={cn('flex-1 text-sm font-bold tracking-wide', collapsed && 'hidden')}>
+                  {item.title}
+                </span>
+              </NavLink>
+            );
+          })}
 
-        </SidebarContent>
-      </Sidebar>
+          <button
+            type="button"
+            onClick={() => {
+              if (onOpenNotifications) {
+                onOpenNotifications();
+                onNavigate();
+              }
+            }}
+            className={cn(
+              'w-full flex items-center gap-3 rounded-2xl border px-4 py-3 transition-all',
+              collapsed && 'justify-center px-0 py-3',
+              'border-transparent text-white/60 hover:border-white/8 hover:bg-white/5 hover:text-white',
+            )}
+          >
+            <span
+              className={cn(
+                'flex h-9 w-9 items-center justify-center rounded-xl border transition-colors',
+                'border-white/8 bg-white/5 text-white/70',
+              )}
+            >
+              <Bell className="h-4.5 w-4.5" />
+            </span>
+            <span className={cn('flex-1 text-left text-sm font-bold tracking-wide', collapsed && 'hidden')}>
+              Notificações
+            </span>
+          </button>
+        </nav>
+
+        <div className="mt-auto pt-6">
+          <p
+            className={cn(
+              'px-1 pb-2 text-[0.65rem] font-black uppercase tracking-[0.35em] text-white/35 transition-opacity',
+              collapsed && 'pointer-events-none opacity-0',
+            )}
+          >
+            Conta
+          </p>
+
+          <button
+            type="button"
+            onClick={() => {
+              onNavigate();
+              navigate('/profile');
+            }}
+            className={cn(
+              'flex w-full items-center gap-3 rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-left text-white/78 transition-all hover:border-white/12 hover:bg-white/8',
+              collapsed && 'justify-center px-0',
+            )}
+          >
+            {avatarUrl ? (
+              <img 
+                src={avatarUrl} 
+                alt={userName}
+                className="h-9 w-9 rounded-xl object-cover border border-white/10 flex-shrink-0"
+              />
+            ) : (
+              <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-white/8 text-white">
+                <User className="h-4.5 w-4.5" />
+              </span>
+            )}
+            <span className={cn('flex-1 overflow-hidden', collapsed && 'hidden')}>
+              <span className="block text-sm font-bold text-white truncate">{userName}</span>
+              <span className="block text-xs text-white/45">Ajustes e avatar</span>
+            </span>
+            <ArrowRight className={cn('h-4 w-4 flex-shrink-0 text-white/45', collapsed && 'hidden')} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function AppSidebar({ onOpenNotifications }: AppSidebarProps) {
+  const { isMobile, state, toggleSidebar, openMobile, setOpenMobile } = useSidebar();
+  const isCollapsed = state === 'collapsed';
+
+  if (isMobile) {
+    return (
+      <Sheet open={openMobile} onOpenChange={setOpenMobile}>
+        <SheetContent
+          side="right"
+          className="w-[19rem] max-w-none border-r-0 bg-[#0d1710] p-0 text-white [&>button]:right-3 [&>button]:top-3 [&>button]:border [&>button]:border-white/10 [&>button]:bg-white/5 [&>button]:text-white/80"
+        >
+          <SidebarBody
+            collapsed={false}
+            isMobile
+            onNavigate={() => setOpenMobile(false)}
+            onToggle={() => setOpenMobile((value) => !value)}
+            onOpenNotifications={onOpenNotifications}
+          />
+        </SheetContent>
+      </Sheet>
     );
   }
 
-  // Mobile sidebar can stay the same or simply use BottomNavigator. AppLayout already handles BottomNavigator for mobile.
-  return null;
+  return (
+    <aside
+      className={cn(
+        'hidden md:flex h-full flex-none overflow-hidden bg-transparent text-white transition-[width] duration-200 ease-linear relative z-10',
+        isCollapsed ? 'w-[5.5rem]' : 'w-[19rem]',
+      )}
+    >
+      <SidebarBody
+        collapsed={isCollapsed}
+        isMobile={false}
+        onNavigate={() => {}}
+        onToggle={toggleSidebar}
+        onOpenNotifications={onOpenNotifications}
+      />
+    </aside>
+  );
 }

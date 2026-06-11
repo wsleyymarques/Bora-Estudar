@@ -4,6 +4,10 @@ Este é o arquivo de configuração e diretrizes para os agentes de IA trabalhan
 
 ## Diretrizes de Componentes
 
-As regras específicas para a criação, edição e manutenção de componentes (React/UI) estão localizadas na pasta de componentes. 
+As regras específicas para a criação, edição e manutenção de componentes (React/UI) estão localizadas na pasta de componentes.
 
-Consulte: `src/components/agent.md` para entender como os componentes devem ser estruturados, em especial as regras de responsividade e "inteligência" em dispositivos móveis.
+Consulte: `src/components/agent.md` para entender como os componentes devem ser estruturados, em especial as regras de responsividade, inteligência em dispositivos móveis e a regra de desktop:
+
+- No desktop, as telas e componentes de dashboard devem ocupar toda a largura e a altura disponíveis da viewport.
+- A tela principal não deve exigir scroll vertical para ver as informações principais.
+- Se faltar espaço, a prioridade é compactar conteúdo, espaçamentos e tipografia antes de permitir rolagem.

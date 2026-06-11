@@ -38,7 +38,7 @@ export function ResponsivePanel({
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className={cn("max-h-[90vh]", unstyled ? "p-0" : "", className)}>
+        <DrawerContent className={cn("h-[100dvh] max-h-[100dvh] mt-0 rounded-none", unstyled ? "p-0" : "", className)}>
           {unstyled ? (
             children
           ) : (

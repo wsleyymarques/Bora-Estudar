@@ -1,0 +1,184 @@
+schemaVersion: 1
+id: criar-plano
+title: "Criar seu Plano de Estudos"
+description: "Vamos montar seu plano personalizado passo a passo"
+estimatedMinutes: 7
+
+metadata:
+  category: onboarding
+  icon: "📋"
+  color: "#6366f1"
+  requiredForBadge: true
+
+settings:
+  allowSkip: true
+  allowBack: true
+  persistProgress: true
+  autoAdvance: false
+  showProgressBar: true
+  showStepNumbers: true
+
+initialData:
+  userName: ""
+  goals: []
+  subjects: []
+  weeklyHours: 10
+  preferredTimes: []
+  studyMethod: ""
+
+steps:
+  - id: welcome
+    type: info
+    title: "Bem-vindo ao Bora Estudar! 🎓"
+    content: |
+      Olá, {{userName}}! Vamos criar seu plano de estudos personalizado.
+      São só alguns passos rápidos — uns 7 minutinhos.
+    cta:
+      label: "Vamos lá!"
+      action: next
+    optional: false
+
+  - id: goal-selection
+    type: multi-select
+    title: "Qual seu objetivo principal?"
+    content: "Pode escolher mais de um — isso ajuda a gente sugerir as matérias certas."
+    options:
+      - id: concurso
+        label: "Concurso Público"
+        icon: "🏛️"
+        description: "Preparação para editais federais, estaduais, municipais"
+      - id: vestibular
+        label: "Vestibular / ENEM"
+        icon: "🎓"
+        description: "Ensino médio, ENEM, vestibulares tradicionais"
+      - id: certificacao
+        label: "Certificação Profissional"
+        icon: "📜"
+        description: "AWS, PMP, CFA, CPA, idiomas, etc."
+      - id: rotina
+        label: "Criar Rotina de Estudos"
+        icon: "📅"
+        description: "Organizar horários, revisar conteúdo, manter constância"
+      - id: outro
+        label: "Outro"
+        icon: "✨"
+        description: "Objetivo personalizado"
+    validation:
+      minSelections: 1
+      maxSelections: 3
+    mapsTo: goals
+    optional: false
+
+  - id: subject-selection
+    type: multi-select
+    title: "Quais matérias você quer estudar?"
+    content: "Baseado no seu objetivo ({{goals}}), sugerimos algumas. Adicione ou remova à vontade."
+    options:
+      - id: portugues
+        label: "Português"
+        icon: "📝"
+      - id: matematica
+        label: "Matemática"
+        icon: "🔢"
+      - id: direito
+        label: "Direito"
+        icon: "⚖️"
+      - id: informatica
+        label: "Informática"
+        icon: "💻"
+      - id: ingles
+        label: "Inglês"
+        icon: "🇺🇸"
+      - id: raciocinio
+        label: "Raciocínio Lógico"
+        icon: "🧩"
+    validation:
+      minSelections: 1
+    mapsTo: subjects
+    optional: false
+    dependsOn: [goal-selection]
+
+  - id: routine-config
+    type: form
+    title: "Como é sua rotina semanal?"
+    content: "Quanto tempo você tem? Quais horários funcionam?"
+    fields:
+      - name: weeklyHours
+        type: number
+        label: "Horas por semana"
+        min: 1
+        max: 80
+        step: 1
+        default: 10
+        help: "Some todos os dias. Ex: 2h/dia × 5 dias = 10h"
+      - name: preferredTimes
+        type: multi-select
+        label: "Melhores horários"
+        options:
+          - id: manha
+            label: "Manhã (6h-12h)"
+          - id: tarde
+            label: "Tarde (12h-18h)"
+          - id: noite
+            label: "Noite (18h-23h)"
+          - id: madrugada
+            label: "Madrugada (23h-6h)"
+        validation:
+          minSelections: 1
+    validation:
+      required: [weeklyHours, preferredTimes]
+    mapsTo: [weeklyHours, preferredTimes]
+    optional: false
+
+  - id: study-method
+    type: single-select
+    title: "Como você prefere estudar?"
+    content: "Isso define como vamos estruturar seus ciclos."
+    options:
+      - id: pomodoro
+        label: "Pomodoro (25min foco + 5min pausa)"
+        icon: "🍅"
+      - id: deep-work
+        label: "Deep Work (90min blocos longos)"
+        icon: "🧠"
+      - id: intercalado
+        label: "Intercalado (matérias diferentes por dia)"
+        icon: "🔄"
+      - id: revisao-ativa
+        label: "Revisão Ativa (flashcards, questões)"
+        icon: "🃏"
+    mapsTo: studyMethod
+    optional: true
+
+  - id: confirm-summary
+    type: confirmation
+    title: "Tudo certo? Bora gerar seu plano! 🚀"
+    content: |
+      **Resumo do seu plano:**
+      - Objetivos: {{goals}}
+      - Matérias: {{subjects}}
+      - Carga semanal: {{weeklyHours}}h
+      - Horários: {{preferredTimes}}
+      - Método: {{studyMethod || 'Padrão (Pomodoro)'}}
+    cta:
+      label: "Gerar Plano ✨"
+      action: complete
+      variant: primary
+    optional: false
+
+  - id: success
+    type: success
+    title: "Plano criado com sucesso! 🎉"
+    content: |
+      Seu plano está pronto no dashboard. A gente te avisa quando for hora de estudar.
+    cta:
+      label: "Ir para o Dashboard"
+      action: complete
+      variant: primary
+    optional: false
+    onComplete:
+      - action: emit
+        event: plan:created
+        payload: { recipeId: 'criar-plano', finalData: {} }
+      - action: navigate
+        path: /dashboard
