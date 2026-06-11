@@ -32,8 +32,6 @@ export function UserNotificationsPanel({ isOpen, onClose }: UserNotificationsPan
       unstyled
     >
       <div className="flex flex-col h-full bg-background relative overflow-hidden">
-        {/* DECORATIVE BACKGROUND AURA */}
-        <div className="absolute top-0 left-0 right-0 h-64 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent pointer-events-none" />
 
         {/* HEADER */}
         <div className="flex items-center gap-3 p-5 border-b border-border/80 bg-card z-10">

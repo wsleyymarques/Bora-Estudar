@@ -1,54 +1,42 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowUpRight, Pause, Play, Timer } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
+import { ArrowUpRight, Flame, Play, Timer } from 'lucide-react';
 
-import { useTracker } from '@/contexts/TrackerContext';
 import { useStudy } from '@/contexts/StudyContext';
+import { useStudyPlans, type StudyPlan } from '@/hooks/useStudyPlans';
 import { usePlanSubjects } from '@/hooks/usePlanSubjects';
-import { type StudyPlan } from '@/hooks/useStudyPlans';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ClockTimePickerField } from '@/components/generic/time-picker-fields';
-import { PomodoroQuickSettings } from '@/components/generic/pomodoro-quick-settings';
-import { Drawer, DrawerContent, DrawerTrigger, DrawerTitle } from '@/components/ui/drawer';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 
 interface QuickPlanTimerCardProps {
-  plans: StudyPlan[];
+  plans?: StudyPlan[];
   className?: string;
 }
 
 export function QuickPlanTimerCard({ plans, className }: QuickPlanTimerCardProps) {
   const navigate = useNavigate();
-  const isMobile = useIsMobile();
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  
-  const activePlans = useMemo(() => plans.filter((plan) => plan.status === 'active'), [plans]);
+  const { data } = useStudy();
+  const { plans: storedPlans } = useStudyPlans();
+  const allPlans = plans ?? storedPlans;
+
+  const activePlans = useMemo(() => allPlans.filter((plan) => plan.status === 'active'), [allPlans]);
+
   const [selectedPlanId, setSelectedPlanId] = useState('');
-  const selectedPlan = useMemo(
-    () => activePlans.find((plan) => plan.id === selectedPlanId) || activePlans[0],
-    [activePlans, selectedPlanId],
-  );
-
-  useEffect(() => {
-    if (activePlans.length === 0) {
-      setSelectedPlanId('');
-      return;
-    }
-
-    if (!selectedPlanId || !activePlans.some((plan) => plan.id === selectedPlanId)) {
-      setSelectedPlanId(activePlans[0].id);
-    }
-  }, [activePlans, selectedPlanId]);
-
-  const { planSubjects, loading: subjectsLoading } = usePlanSubjects(selectedPlan?.id);
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
-  const [busyMode, setBusyMode] = useState<'stopwatch' | 'pomodoro' | null>(null);
+  const [mode, setMode] = useState<'cronometro' | 'pomodoro'>('cronometro');
 
   useEffect(() => {
-    if (planSubjects.length === 0) {
+    const preferredPlanId = data.activeStudyPlanId || activePlans[0]?.id || '';
+    if (!selectedPlanId || !activePlans.some((plan) => plan.id === selectedPlanId)) {
+      setSelectedPlanId(preferredPlanId);
+    }
+  }, [activePlans, data.activeStudyPlanId, selectedPlanId]);
+
+  const { planSubjects } = usePlanSubjects(selectedPlanId || undefined);
+
+  useEffect(() => {
+    if (!planSubjects.length) {
       setSelectedSubjectId('');
       return;
     }
@@ -58,91 +46,52 @@ export function QuickPlanTimerCard({ plans, className }: QuickPlanTimerCardProps
     }
   }, [planSubjects, selectedSubjectId]);
 
-  const selectedSubject = useMemo(
-    () => planSubjects.find((subject) => subject.id === selectedSubjectId),
-    [planSubjects, selectedSubjectId],
-  );
+  const selectedPlan = activePlans.find((plan) => plan.id === selectedPlanId);
+  const selectedSubject = planSubjects.find((subject) => subject.id === selectedSubjectId);
 
-  const { getSubject } = useStudy();
+  return (
+    <section
+      className={cn(
+        'flex h-full flex-col overflow-hidden rounded-[1.5rem] border border-border/50 bg-card p-4 text-card-foreground shadow-sm',
+        className,
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-2">
+          <div className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.26em] text-primary">
+            <Timer className="h-3.5 w-3.5" />
+            Timer rapido
+          </div>
 
-  const {
-    runtime,
-    mode,
-    setMode,
-    pomodoroSettings,
-    setPomodoroSettings,
-    startWithBinding,
-    getBindingState,
-    togglePauseResume,
-    finishActive,
-    isTransitioning,
-    displayTimeLabel,
-    phaseStateLabel,
-    activeStartTime,
-    setActiveStartTime,
-    isRunning,
-  } = useTracker();
+          <div className="space-y-1">
+            <h3 className="text-base font-black tracking-tight text-foreground">
+              Comecar materia do plano
+            </h3>
+            <p className="max-w-[28rem] text-xs text-muted-foreground">
+              Escolha um plano, selecione a materia e inicie em um toque.
+            </p>
+          </div>
+        </div>
 
-  const binding = selectedSubject ? { subjectId: selectedSubject.id } : null;
-  const bindingState = binding ? getBindingState(binding) : null;
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8 rounded-full border-border/60 text-muted-foreground hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
+          onClick={() => navigate('/timer')}
+          title="Abrir timer"
+        >
+          <ArrowUpRight className="h-3.5 w-3.5" />
+        </Button>
+      </div>
 
-  const activeSubject = useMemo(
-    () => (runtime ? getSubject(runtime.subjectId) : null),
-    [runtime, getSubject]
-  );
-
-  const activePlan = useMemo(
-    () => (activeSubject ? plans.find((p) => p.id === activeSubject.planId) : null),
-    [activeSubject, plans]
-  );
-
-  const handleStart = async (selectedMode: 'stopwatch' | 'pomodoro') => {
-    if (!selectedPlan || !selectedSubject) {
-      toast.error('Selecione um plano e uma materia.');
-      return;
-    }
-
-    setBusyMode(selectedMode);
-    setMode(selectedMode);
-
-    const result = await startWithBinding({ subjectId: selectedSubject.id, planId: selectedPlan.id }, { mode: selectedMode });
-    if (!result.ok && result.status === 'conflict') {
-      const shouldSwitch = window.confirm('Ja existe uma sessao ativa em outra materia. Deseja encerrar a atual e iniciar esta?');
-      if (!shouldSwitch) {
-        setBusyMode(null);
-        return;
-      }
-
-      const forced = await startWithBinding({ subjectId: selectedSubject.id }, { mode: selectedMode, forceSwitch: true });
-      if (!forced.ok) {
-        toast.error('Nao foi possivel iniciar esta sessao agora.');
-      }
-      setBusyMode(null);
-      
-      if (isMobile) setIsDrawerOpen(false);
-      return;
-    }
-
-    if (!result.ok) {
-      toast.error('Nao foi possivel iniciar esta sessao agora.');
-    } else {
-      if (isMobile) setIsDrawerOpen(false);
-    }
-
-    setBusyMode(null);
-  };
-
-  const hasPlans = activePlans.length > 0;
-  const hasSubjects = planSubjects.length > 0;
-
-  const renderForm = () => (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3">
-        <div className="space-y-1.5">
-          <p className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">Plano</p>
-          <Select value={selectedPlan?.id} onValueChange={setSelectedPlanId}>
-            <SelectTrigger className="h-10 sm:h-11 rounded-xl sm:rounded-2xl border-border/60 bg-background/80 text-sm">
-              <SelectValue placeholder="Selecione um plano" />
+      <div className="mt-3 grid gap-3">
+        <div className="grid gap-1.5">
+          <label className="text-[10px] font-black uppercase tracking-[0.26em] text-muted-foreground">
+            Plano
+          </label>
+          <Select value={selectedPlanId} onValueChange={setSelectedPlanId} disabled={activePlans.length === 0}>
+            <SelectTrigger className="h-10 rounded-2xl border-border/60 bg-background/80 px-4 text-sm shadow-sm">
+              <SelectValue placeholder={activePlans.length ? 'Selecione um plano' : 'Nenhum plano ativo'} />
             </SelectTrigger>
             <SelectContent>
               {activePlans.map((plan) => (
@@ -154,183 +103,78 @@ export function QuickPlanTimerCard({ plans, className }: QuickPlanTimerCardProps
           </Select>
         </div>
 
-        <div className="space-y-1.5">
-          <p className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">Matéria</p>
-          <Select value={selectedSubjectId} onValueChange={setSelectedSubjectId} disabled={subjectsLoading || !selectedPlan}>
-            <SelectTrigger className="h-10 sm:h-11 rounded-xl sm:rounded-2xl border-border/60 bg-background/80 text-sm">
-              <SelectValue placeholder={subjectsLoading ? 'Carregando...' : 'Selecione uma matéria'} />
+        <div className="grid gap-1.5">
+          <label className="text-[10px] font-black uppercase tracking-[0.26em] text-muted-foreground">
+            MatÃ©ria
+          </label>
+          <Select value={selectedSubjectId} onValueChange={setSelectedSubjectId} disabled={!planSubjects.length}>
+            <SelectTrigger className="h-10 rounded-2xl border-border/60 bg-background/80 px-4 text-sm shadow-sm">
+              <SelectValue placeholder={planSubjects.length ? 'Selecione uma matÃ©ria' : 'Sem matÃ©rias neste plano'} />
             </SelectTrigger>
             <SelectContent>
               {planSubjects.map((subject) => (
                 <SelectItem key={subject.id} value={subject.id}>
-                  <div className="flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: subject.color || '#5B8C7E' }} />
-                    <span>{subject.name}</span>
-                  </div>
+                  {subject.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-      </div>
 
-      {!hasSubjects && selectedPlan && (
-        <div className="rounded-2xl border border-dashed border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
-          Este plano ainda não tem matérias vinculadas.
-        </div>
-      )}
-
-      {mode === 'pomodoro' && (
-        <PomodoroQuickSettings 
-          settings={pomodoroSettings} 
-          onChange={setPomodoroSettings}
-          compact
-          className="mt-2 mb-2"
-        />
-      )}
-
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between pt-1">
-        <div className="flex items-center gap-1.5 rounded-full bg-muted/70 p-1 w-fit mx-auto lg:mx-0">
-          <button
-            type="button"
-            onClick={() => setMode('stopwatch')}
-            className={cn(
-              'rounded-full px-4 py-2 text-xs font-semibold transition-colors',
-              mode === 'stopwatch' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground',
-            )}
-          >
-            Cronometro
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('pomodoro')}
-            className={cn(
-              'rounded-full px-4 py-2 text-xs font-semibold transition-colors',
-              mode === 'pomodoro' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground',
-            )}
-          >
-            Pomodoro
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2 w-full lg:w-auto">
-          <Button
-            className="h-11 rounded-full px-5 text-sm w-full lg:w-auto"
-            onClick={() => void handleStart(mode)}
-            disabled={isTransitioning || !selectedPlan || !selectedSubject || busyMode !== null}
-          >
-            {busyMode ? 'Iniciando...' : (
-              <>
-                <Play className="mr-2 h-4 w-4 fill-current" />
-                Iniciar agora
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-
-  return (
-    <section
-      className={cn(
-        'bg-card border border-border/50 text-card-foreground rounded-3xl p-4 sm:p-5 shadow-sm flex flex-col gap-4 sm:gap-4',
-        className,
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/70 px-2.5 py-1 text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-            <Timer className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-primary" />
-            Timer rapido
-          </div>
-          <h3 className="mt-2 sm:mt-3 text-base sm:text-lg font-display font-black tracking-tight text-foreground">
-            {runtime ? 'Sessão em andamento' : 'Comecar materia do plano'}
-          </h3>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {runtime ? 'Você tem uma sessão activa rodando no momento.' : 'Escolha um plano, selecione a materia e inicie em um toque.'}
-          </p>
-        </div>
-        <Button variant="outline" size="icon" className="h-8 w-8 rounded-full" onClick={() => navigate('/timer')} title="Abrir timer">
-          <ArrowUpRight className="h-4 w-4" />
-        </Button>
-      </div>
-
-      {!hasPlans ? (
-        <div className="flex flex-1 flex-col items-start justify-between rounded-2xl border border-dashed border-border/60 bg-muted/20 p-4">
-          <div>
-            <p className="text-sm font-semibold text-foreground">Nenhum plano ativo</p>
-            <p className="mt-1 text-xs text-muted-foreground">Crie um plano para iniciar materias mais rapido por aqui.</p>
-          </div>
-          <Button variant="secondary" className="mt-4 rounded-full" onClick={() => navigate('/plans')}>
-            Ver planos
-          </Button>
-        </div>
-      ) : runtime ? (
-        <div className="space-y-4 flex-1 flex flex-col justify-between mt-1">
-          <div className="flex items-center justify-between gap-3 bg-muted/30 px-4 py-3 rounded-2xl border border-border/40">
-            {/* Left: status dot + mode label + subject */}
-            <div className="flex items-center gap-3 min-w-0">
-              <span className={cn("h-2.5 w-2.5 rounded-full shrink-0", isRunning ? "bg-success animate-pulse" : "bg-warning")} />
-              <div className="flex flex-col leading-tight min-w-0">
-                <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-                  {isRunning ? 'Ativo' : 'Pausado'} · {runtime.kind === 'pomodoro' ? 'Pomodoro' : 'Cronômetro'}
-                </span>
-                <span className="flex items-center gap-1.5 text-xs font-bold text-foreground overflow-hidden">
-                  {activeSubject && (
-                    <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: activeSubject.color || '#5B8C7E' }} />
-                  )}
-                  <span className="truncate">{activeSubject?.name || phaseStateLabel || 'Sessão ativa'}</span>
-                </span>
-              </div>
-            </div>
-
-            {/* Right: elapsed time + optional start-time picker */}
-            <div className="flex items-center gap-3 shrink-0">
-              <span className="text-xl font-display font-black tracking-tight text-foreground tabular-nums">
-                {displayTimeLabel}
-              </span>
-              {runtime.kind === 'stopwatch' && (
-                <div className="flex flex-col items-end gap-0.5 border-l border-border/40 pl-3">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground leading-none mb-0.5">Início</span>
-                  <ClockTimePickerField
-                    value={activeStartTime}
-                    onChange={setActiveStartTime}
-                    placeholder="--:--"
-                    className="h-8 px-2 text-xs w-[72px] bg-background border-border/50"
-                  />
-                </div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="inline-flex rounded-full border border-border/60 bg-muted/20 p-1">
+            <button
+              type="button"
+              onClick={() => setMode('cronometro')}
+              className={cn(
+                'rounded-full px-3 py-1.5 text-[11px] font-bold transition-all',
+                mode === 'cronometro' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground',
               )}
+            >
+              Cronometro
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('pomodoro')}
+              className={cn(
+                'rounded-full px-3 py-1.5 text-[11px] font-bold transition-all',
+                mode === 'pomodoro' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground',
+              )}
+            >
+              Pomodoro
+            </button>
+          </div>
+
+          <Button
+            className="h-10 rounded-full bg-emerald-700 px-5 text-sm font-bold text-white shadow-[0_12px_28px_rgba(16,97,64,0.24)] hover:bg-emerald-600"
+            onClick={() => navigate('/timer')}
+            disabled={!selectedPlan}
+          >
+            <Play className="mr-2 h-4 w-4 fill-current" />
+            Iniciar agora
+          </Button>
+        </div>
+
+        <div className="flex items-center justify-between rounded-2xl border border-border/60 bg-muted/20 px-3 py-2.5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <Flame className="h-3.5 w-3.5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[9px] font-black uppercase tracking-[0.26em] text-muted-foreground">
+                Sessao atual
+              </p>
+              <p className="truncate text-xs font-semibold text-foreground">
+                {selectedPlan?.name || 'Selecione um plano'} {selectedSubject ? `â€¢ ${selectedSubject.name}` : ''}
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/40">
-            <Button variant={isRunning ? 'default' : 'outline'} className="rounded-full h-9" onClick={() => togglePauseResume()} disabled={isTransitioning}>
-              {isRunning ? <Pause className="mr-2 h-4 w-4 fill-current" /> : <Play className="mr-2 h-4 w-4 fill-current" />}
-              {isRunning ? 'Pausar' : 'Retomar'}
-            </Button>
-            <Button variant="outline" className="rounded-full h-9 text-destructive hover:bg-destructive/10 hover:text-destructive border-border/60" onClick={() => void finishActive('completed')} disabled={isTransitioning}>
-              Finalizar
-            </Button>
-          </div>
+          <span className="rounded-full border border-primary/15 bg-primary/5 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-primary">
+            {mode}
+          </span>
         </div>
-      ) : isMobile ? (
-        <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
-          <DrawerTrigger asChild>
-            <Button className="w-full mt-2 rounded-full h-12" size="lg">
-              <Play className="mr-2 h-5 w-5 fill-current" /> Configurar e Iniciar
-            </Button>
-          </DrawerTrigger>
-          <DrawerContent className="p-4 pb-8 bg-background border-t">
-            <DrawerTitle className="text-lg font-bold mb-4 font-display">Configurar Timer Rápido</DrawerTitle>
-            {renderForm()}
-          </DrawerContent>
-        </Drawer>
-      ) : (
-        <div className="mt-1">
-          {renderForm()}
-        </div>
-      )}
+      </div>
     </section>
   );
 }

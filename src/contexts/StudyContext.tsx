@@ -125,7 +125,7 @@ const db = supabase as any;
 
 const hasMissingColumnError = (error: any) => String(error?.message || '').toLowerCase().includes('column');
 
-const STUDY_SUBJECTS_UPDATED_EVENT = 'study-flow:subjects-updated';
+const STUDY_SUBJECTS_UPDATED_EVENT = 'bora-estudar:subjects-updated';
 
 function notifySubjectsUpdated() {
   if (typeof window === 'undefined') return;

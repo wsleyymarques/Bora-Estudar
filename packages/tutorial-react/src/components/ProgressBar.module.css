@@ -1,0 +1,53 @@
+/* packages/tutorial-react/src/components/ProgressBar.module.css */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.bar {
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+}
+
+.label {
+  color: #9ca3af;
+  font-weight: 500;
+  opacity: 0.6;
+  transition: all 0.2s ease;
+}
+
+.label.completed {
+  color: #6366f1;
+  opacity: 1;
+}
+
+.label.current {
+  color: #6366f1;
+  font-weight: 600;
+  opacity: 1;
+}
+
+.percentage {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6366f1;
+  text-align: right;
+}
