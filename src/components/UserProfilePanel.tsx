@@ -145,108 +145,89 @@ export function UserProfilePanel({ isOpen, onClose }: UserProfilePanelProps) {
       className={view === 'main' ? 'bg-primary border-none' : 'border-none'}
     >
       <div className="flex flex-col h-full bg-background relative overflow-hidden">
-        
         {view === 'main' ? (
           <>
-            {/* BANNER WITH BACKDROP & AVATAR */}
-            <div className="relative">
-              <div className="h-32 bg-primary rounded-b-[2rem] relative flex items-start justify-between px-6 pt-2">
-                <div className="flex items-center gap-3 z-10">
-                  <button
-                    onClick={onClose}
-                    className="p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition-all active:scale-90 focus:outline-none border border-white/10"
-                    aria-label="Fechar"
-                  >
-                    <X className="w-4 h-4 stroke-[2.5]" />
-                  </button>
-                  <span className="text-primary-foreground font-black text-xs uppercase tracking-[0.25em]">Bora-Estudar</span>
-                </div>
-                <Sparkles className="w-4 h-4 text-primary-foreground/60 animate-pulse" />
+            {/* HEADER */}
+            <div className="flex items-center gap-4 px-6 pt-8 pb-6 border-b border-border/10">
+              <div className="relative shrink-0">
+                <Avatar className="h-16 w-16 bg-amber-500 text-black border-2 border-amber-500 shadow-lg">
+                  <AvatarImage src={user?.user_metadata?.avatar_url} />
+                  <AvatarFallback className="bg-amber-500 text-black flex items-center justify-center">
+                    <User className="h-8 w-8" fill="currentColor" />
+                  </AvatarFallback>
+                </Avatar>
               </div>
-              
-              {/* Avatar Container */}
-              <div className="absolute top-16 left-1/2 -translate-x-1/2 flex flex-col items-center">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-tr from-primary to-primary/60 rounded-full blur-xl opacity-30 scale-110" />
-                  <Avatar className="h-20 w-20 border-4 border-card shadow-2xl rounded-full">
-                    <AvatarImage src={user?.user_metadata?.avatar_url} />
-                    <AvatarFallback className="bg-gradient-to-br from-slate-800 to-black text-white text-xl font-black">
-                      {userName.slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                </div>
+              <div className="flex flex-col min-w-0">
+                <h2 className="text-base font-bold text-foreground truncate">
+                  {userName}
+                </h2>
+                <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
               </div>
-            </div>
-
-            {/* PROFILE INFO */}
-            <div className="text-center px-6 mt-10 pb-6 border-b border-border/80">
-              <h2 className="text-lg font-display font-black text-foreground tracking-tight">
-                {userName}
-              </h2>
-              <p className="text-xs text-muted-foreground mt-0.5 truncate">{userEmail}</p>
+              <button
+                onClick={onClose}
+                className="absolute top-4 right-4 p-2 rounded-full hover:bg-white/5 text-muted-foreground transition-all"
+                aria-label="Fechar"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
             {/* MENU LIST */}
-            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2.5 custom-scrollbar">
-              <button 
-                onClick={() => setView('account')}
-                className="w-full flex items-center justify-between p-4 rounded-[1.5rem] bg-card border border-border/50 shadow-sm hover:shadow-md transition-all group active:scale-[0.99]"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center">
-                    <User className="w-5 h-5 text-primary" />
-                  </div>
-                  <div className="text-left">
-                    <h4 className="text-xs font-black text-foreground">Configurações de Perfil</h4>
-                    <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-tighter mt-0.5">Nome e Foto de Perfil</p>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
-              </button>
+            <div className="flex-1 overflow-y-auto py-6 custom-scrollbar">
+              
+              <div className="mb-6">
+                <h3 className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-6 mb-3">Perfil</h3>
+                <div className="px-4 space-y-2">
+                  <button 
+                    onClick={() => setView('account')}
+                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-card border border-border/50 hover:bg-secondary/40 transition-colors text-left group"
+                  >
+                    <User className="w-5 h-5 text-amber-500 shrink-0" fill="currentColor" />
+                    <div className="flex flex-col">
+                      <span className="text-[13px] font-bold text-foreground group-hover:text-amber-500 transition-colors">Meus dados</span>
+                      <span className="text-[11px] font-medium text-muted-foreground mt-0.5">Informações do seu perfil</span>
+                    </div>
+                  </button>
 
-              <button 
-                onClick={() => setView('theme')}
-                className="w-full flex items-center justify-between p-4 rounded-[1.5rem] bg-card border border-border/50 shadow-sm hover:shadow-md transition-all group active:scale-[0.99]"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center">
-                    <Palette className="w-5 h-5 text-primary" />
-                  </div>
-                  <div className="text-left">
-                    <h4 className="text-xs font-black text-foreground">Tema & Visual</h4>
-                    <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-tighter mt-0.5">Cores e Modo Claro/Escuro</p>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
-              </button>
+                  <button 
+                    onClick={() => setView('theme')}
+                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-card border border-border/50 hover:bg-secondary/40 transition-colors text-left group"
+                  >
+                    <Palette className="w-5 h-5 text-amber-500 shrink-0" fill="currentColor" />
+                    <div className="flex flex-col">
+                      <span className="text-[13px] font-bold text-foreground group-hover:text-amber-500 transition-colors">Tema & Visual</span>
+                      <span className="text-[11px] font-medium text-muted-foreground mt-0.5">Cores e Modo Claro/Escuro</span>
+                    </div>
+                  </button>
 
-              <button 
-                onClick={() => setView('permissions')}
-                className="w-full flex items-center justify-between p-4 rounded-[1.5rem] bg-card border border-border/50 shadow-sm hover:shadow-md transition-all group active:scale-[0.99]"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center">
-                    <Bell className="w-5 h-5 text-primary" />
-                  </div>
-                  <div className="text-left">
-                    <h4 className="text-xs font-black text-foreground">Permissões & Alertas</h4>
-                    <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-tighter mt-0.5">Notificações Desktop</p>
-                  </div>
+                  <button 
+                    onClick={() => setView('permissions')}
+                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-card border border-border/50 hover:bg-secondary/40 transition-colors text-left group"
+                  >
+                    <Bell className="w-5 h-5 text-amber-500 shrink-0" fill="currentColor" />
+                    <div className="flex flex-col">
+                      <span className="text-[13px] font-bold text-foreground group-hover:text-amber-500 transition-colors">Permissões</span>
+                      <span className="text-[11px] font-medium text-muted-foreground mt-0.5">Gerencie notificações</span>
+                    </div>
+                  </button>
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
-              </button>
-            </div>
+              </div>
 
-            {/* LOGOUT FOOTER */}
-            <div className="p-6 bg-card border-t border-border mt-auto">
-              <Button 
-                variant="outline" 
-                className="w-full h-12 rounded-2xl text-red-500 border-red-200 bg-red-50 hover:bg-red-100 hover:text-red-600 dark:bg-red-500/10 dark:border-red-500/20 dark:hover:bg-red-500/20 font-black text-xs uppercase tracking-widest gap-2.5 transition-all active:scale-95 shadow-sm"
-                onClick={() => logout()}
-              >
-                <LogOut className="w-4 h-4" />
-                Encerrar Sessão
-              </Button>
+              <div className="mb-6">
+                <h3 className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-6 mb-3">Conta</h3>
+                <div className="px-4 space-y-2">
+                  <button 
+                    onClick={() => logout()}
+                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-card border border-border/50 hover:bg-red-500/10 transition-colors text-left group"
+                  >
+                    <LogOut className="w-5 h-5 text-red-500 shrink-0" />
+                    <div className="flex flex-col">
+                      <span className="text-[13px] font-bold text-red-500 group-hover:text-red-400 transition-colors">Sair da conta</span>
+                      <span className="text-[11px] font-medium text-muted-foreground mt-0.5">Encerrar sessão no dispositivo</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
             </div>
           </>
         ) : (

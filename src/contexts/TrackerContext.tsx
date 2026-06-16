@@ -269,6 +269,32 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
     return () => window.clearInterval(timer);
   }, [runtime]);
 
+  // Notificação a cada 30 minutos (30, 60, 90...) para cronômetro
+  useEffect(() => {
+    if (!runtime || runtime.kind !== 'stopwatch' || !isRuntimeRunning(runtime)) return;
+
+    const checkIntervals = () => {
+      const elapsedSeconds = getStopwatchElapsedSeconds(runtime, Date.now());
+      const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+      
+      // Verificar se atingiu um marco de 30 minutos
+      if (elapsedMinutes > 0 && elapsedMinutes % 30 === 0) {
+        const subject = getSubject(runtime.subjectId);
+        const subjectName = subject?.name || 'Matéria';
+        addNotification(
+          '⏰ Marco de Estudo',
+          `Você já estudou ${subjectName} por ${elapsedMinutes} minutos! Entende?`,
+          'success'
+        );
+      }
+    };
+
+    checkIntervals();
+    const timer = window.setInterval(checkIntervals, 60000); // Verificar a cada minuto
+    
+    return () => window.clearInterval(timer);
+  }, [runtime, addNotification, getSubject]);
+
 
   const persistPomodoroPhase = useCallback(
     async (runtimeState: PomodoroRuntimeState, completed: CompletedPomodoroPhase, status: 'completed' | 'abandoned' = 'completed') => {
@@ -308,6 +334,36 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
       setIsTransitioning(false);
     });
   }, [runtime, nowMs, persistPomodoroPhase, getSubject, addNotification]);
+
+  // Notificação a cada 30 minutos para Pomodoro (tempo total de foco)
+  useEffect(() => {
+    if (!runtime || runtime.kind !== 'pomodoro' || runtime.phaseStatus !== 'running' || runtime.phase !== 'focus') return;
+
+    const checkIntervals = () => {
+      // Tempo total de foco = sessões completas * tempo de foco + sessão atual decorrida
+      const focusDuration = runtime.settings?.focusDuration || 25 * 60; // em segundos
+      const completedFocusSeconds = runtime.completedFocusSessions * focusDuration;
+      const currentFocusSeconds = focusDuration - getPomodoroRemainingSeconds(runtime, Date.now());
+      const totalFocusSeconds = completedFocusSeconds + currentFocusSeconds;
+      const totalFocusMinutes = Math.floor(totalFocusSeconds / 60);
+      
+      if (totalFocusMinutes > 0 && totalFocusMinutes % 30 === 0) {
+        const subject = getSubject(runtime.subjectId);
+        const subjectName = subject?.name || 'Matéria';
+        addNotification(
+          '⏰ Marco de Estudo',
+          `Você já focou em ${subjectName} por ${totalFocusMinutes} minutos! Entende?`,
+          'success'
+        );
+      }
+    };
+
+    checkIntervals();
+    const timer = window.setInterval(checkIntervals, 60000);
+    
+    return () => window.clearInterval(timer);
+  }, [runtime, addNotification, getSubject]);
+
 
   const finishCurrentRuntime = useCallback(
     async (current: TrackerRuntimeState, status: 'completed' | 'abandoned') => {

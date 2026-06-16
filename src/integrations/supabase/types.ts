@@ -55,9 +55,11 @@ export type Database = {
           last_processed_date: string | null
           last_streak_date: string | null
           minutes_today: number
+          onboarding_completed: boolean
           profile_private: boolean
           streak_current: number
           updated_at: string
+          weekly_goal_minutes: number
           xp_total: number
           xp_weekly: number
         }
@@ -71,9 +73,11 @@ export type Database = {
           last_processed_date?: string | null
           last_streak_date?: string | null
           minutes_today?: number
+          onboarding_completed?: boolean
           profile_private?: boolean
           streak_current?: number
           updated_at?: string
+          weekly_goal_minutes?: number
           xp_total?: number
           xp_weekly?: number
         }
@@ -87,9 +91,11 @@ export type Database = {
           last_processed_date?: string | null
           last_streak_date?: string | null
           minutes_today?: number
+          onboarding_completed?: boolean
           profile_private?: boolean
           streak_current?: number
           updated_at?: string
+          weekly_goal_minutes?: number
           xp_total?: number
           xp_weekly?: number
         }

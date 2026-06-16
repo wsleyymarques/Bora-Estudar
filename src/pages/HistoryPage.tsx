@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { useStudy } from '@/contexts/StudyContext';
 import { getSessionActualMinutes, getSessionPauseSeconds, getSessionStartLabel, getSessionEndLabel } from '@/features/tracker/session-metrics';
@@ -52,6 +53,8 @@ export default function HistoryPage() {
   // Dialog State
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState<StudySession | undefined>(undefined);
+  const [deleteConfirmSessionId, setDeleteConfirmSessionId] = useState<string | null>(null);
+  const [deleteConfirmBulk, setDeleteConfirmBulk] = useState(false);
 
   const filtered = useMemo(() => {
     let sessions = data.sessions.filter((session) => session.isFocusSession !== false);
@@ -115,20 +118,25 @@ export default function HistoryPage() {
     setDialogOpen(true);
   };
 
-  const handleDeleteSession = async (id: string) => {
-    if (window.confirm('Tem certeza de que deseja excluir esta sessão de estudo permanentemente?')) {
-      try {
-        await deleteSession(id);
-        setSelectedSessionIds(prev => {
-          const next = new Set(prev);
-          next.delete(id);
-          return next;
-        });
-        toast.success('Sessão excluída com sucesso!');
-      } catch (err) {
-        console.error(err);
-        toast.error('Erro ao excluir sessão.');
-      }
+  const handleDeleteSession = (id: string) => {
+    setDeleteConfirmSessionId(id);
+  };
+
+  const confirmDeleteSession = async () => {
+    if (!deleteConfirmSessionId) return;
+    try {
+      await deleteSession(deleteConfirmSessionId);
+      setSelectedSessionIds(prev => {
+        const next = new Set(prev);
+        next.delete(deleteConfirmSessionId);
+        return next;
+      });
+      toast.success('Sessão excluída com sucesso!');
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao excluir sessão.');
+    } finally {
+      setDeleteConfirmSessionId(null);
     }
   };
 
@@ -139,18 +147,22 @@ export default function HistoryPage() {
     setSelectedSessionIds(next);
   };
 
-  const handleBulkDelete = async () => {
-    if (window.confirm(`Tem certeza de que deseja excluir ${selectedSessionIds.size} sessões permanentemente?`)) {
-      try {
-        for (const id of selectedSessionIds) {
-          await deleteSession(id);
-        }
-        setSelectedSessionIds(new Set());
-        toast.success('Sessões excluídas com sucesso!');
-      } catch (err) {
-        console.error(err);
-        toast.error('Erro ao excluir sessões.');
+  const handleBulkDelete = () => {
+    setDeleteConfirmBulk(true);
+  };
+
+  const confirmBulkDelete = async () => {
+    try {
+      for (const id of selectedSessionIds) {
+        await deleteSession(id);
       }
+      setSelectedSessionIds(new Set());
+      toast.success('Sessões excluídas com sucesso!');
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao excluir sessões.');
+    } finally {
+      setDeleteConfirmBulk(false);
     }
   };
 
@@ -390,6 +402,35 @@ export default function HistoryPage() {
         onOpenChange={setDialogOpen} 
         session={selectedSession} 
       />
+
+      <AlertDialog open={!!deleteConfirmSessionId || deleteConfirmBulk} onOpenChange={(open) => {
+        if (!open) {
+          setDeleteConfirmSessionId(null);
+          setDeleteConfirmBulk(false);
+        }
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteConfirmBulk 
+                ? `Isso excluirá permanentemente ${selectedSessionIds.size} sessões selecionadas.`
+                : 'Isso excluirá permanentemente esta sessão de estudo e todos os seus dados.'}
+              <br />
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={deleteConfirmBulk ? confirmBulkDelete : confirmDeleteSession}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       </div>
 

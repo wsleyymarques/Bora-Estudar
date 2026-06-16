@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, Outlet } from "react-router-dom";
 import { ThemeProvider as NextThemeProvider } from "next-themes";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -20,49 +20,82 @@ import HistoryPage from "@/pages/HistoryPage";
 import StatsPage from "@/pages/StatsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import ProfilePage from "@/pages/ProfilePage";
+import ProfileDataPage from "@/pages/ProfileDataPage";
+import ProfileGoalsPage from "@/pages/ProfileGoalsPage";
+import UpdatePasswordPage from "@/pages/UpdatePasswordPage";
 import PlansPage from "@/pages/PlansPage";
 import PlanDetailsPage from "@/pages/PlanDetailsPage";
 import PlanWizardPage from "@/pages/PlanWizardPage";
 import NotFound from "@/pages/NotFound";
+import PrivacyPolicyPage from "@/pages/legal/PrivacyPolicyPage";
+import TermsOfUsePage from "@/pages/legal/TermsOfUsePage";
+import { CookieBanner } from "@/components/legal/CookieBanner";
 
 const queryClient = new QueryClient();
 
-function AppRoutes() {
+function RequireAuth() {
   const { user, loading } = useAuth();
 
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
-  if (!user) return <AuthPage />;
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
 
+  return <Outlet />;
+}
+
+function ProtectedLayout() {
   return (
     <StudyProvider>
       <NotificationProvider>
         <TrackerProvider>
           <AppLayout>
-            <Routes>
-              <Route path="/" element={<DashboardPage />} />
-              <Route path="/plans" element={<PlansPage />} />
-              <Route path="/plans/new" element={<PlanWizardPage />} />
-              <Route path="/plans/:planId" element={<PlanDetailsPage />} />
-              <Route path="/subjects" element={<SubjectsPage />} />
-              <Route path="/schedule" element={<SchedulePage />} />
-              <Route path="/schedules" element={<SchedulesPage />} />
-              <Route path="/templates" element={<TemplatesPage />} />
-              <Route path="/timer" element={<TimerPage />} />
-              <Route path="/history" element={<HistoryPage />} />
-              <Route path="/stats" element={<StatsPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/profile" element={<ProfilePage />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <Outlet />
           </AppLayout>
         </TrackerProvider>
       </NotificationProvider>
     </StudyProvider>
+  );
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      {/* Public routes - accessible without authentication */}
+      <Route path="/privacidade" element={<PrivacyPolicyPage />} />
+      <Route path="/termos" element={<TermsOfUsePage />} />
+      <Route path="/auth/*" element={<AuthPage />} />
+      
+      {/* Protected routes - require authentication */}
+      <Route element={<RequireAuth />}>
+        <Route element={<ProtectedLayout />}>
+          <Route path="/" element={<DashboardPage />} />
+          <Route path="/plans" element={<PlansPage />} />
+          <Route path="/plans/new" element={<PlanWizardPage />} />
+          <Route path="/plans/:planId" element={<PlanDetailsPage />} />
+          <Route path="/subjects" element={<SubjectsPage />} />
+          <Route path="/schedule" element={<SchedulePage />} />
+          <Route path="/schedules" element={<SchedulesPage />} />
+          <Route path="/templates" element={<TemplatesPage />} />
+          <Route path="/timer" element={<TimerPage />} />
+          <Route path="/history" element={<HistoryPage />} />
+          <Route path="/stats" element={<StatsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/profile/data" element={<ProfileDataPage />} />
+          <Route path="/profile/goals" element={<ProfileGoalsPage />} />
+          <Route path="/update-password" element={<UpdatePasswordPage />} />
+          <Route path="*" element={<NotFound />} />
+        </Route>
+      </Route>
+    </Routes>
   );
 }
 
@@ -75,6 +108,7 @@ const App = () => (
           <AppThemeProvider>
             <BrowserRouter>
               <AppRoutes />
+              <CookieBanner />
             </BrowserRouter>
           </AppThemeProvider>
         </AuthProvider>

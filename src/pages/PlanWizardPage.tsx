@@ -89,8 +89,11 @@ export default function PlanWizardPage() {
   return (
     <div className="min-h-[calc(100vh-6rem)] flex flex-col">
       {/* HEADER */}
-      <div className="shrink-0 px-1 pb-5">
-        <div className="flex items-center gap-3 mb-4">
+      <div className="sticky top-0 z-40 shrink-0 px-4 md:px-1 pb-4 pt-4 md:pt-2 -mx-4 md:mx-0 bg-background border-b border-border/50 mb-6 shadow-sm">
+        {/* Fill the gap above the sticky header (caused by main's padding) to prevent scrolling content from bleeding through */}
+        <div className="absolute left-0 right-0 bottom-full h-[200px] bg-background pointer-events-none" />
+        
+        <div className="flex items-center gap-3 mb-4 relative">
           <div className="h-10 w-10 rounded-2xl bg-primary/10 flex items-center justify-center">
             <Sparkles className="h-5 w-5 text-primary" />
           </div>
@@ -101,39 +104,42 @@ export default function PlanWizardPage() {
         </div>
 
         {/* STEP INDICATORS */}
-        <div className="flex gap-3">
-          {STEPS.map((s, i) => {
-            const active = i === step;
-            const done = i < step;
-            return (
-              <button
-                key={s.number}
-                type="button"
-                disabled={!plan && i > 0}
-                onClick={() => plan && setStep(i)}
-                className={cn(
-                  "flex-1 flex items-center gap-3 rounded-2xl border p-4 text-left transition-all duration-300",
-                  active
-                    ? "border-primary bg-primary/5 shadow-lg shadow-primary/5"
-                    : done
-                      ? "border-primary/30 bg-primary/5"
-                      : "border-border/50 bg-background/60 opacity-60",
-                  "disabled:cursor-not-allowed"
-                )}
-              >
-                <div className={cn(
-                  "h-10 w-10 rounded-xl flex items-center justify-center shrink-0 font-black text-sm transition-all",
-                  active ? "bg-primary text-white shadow-lg shadow-primary/30" : done ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
-                )}>
-                  {done ? <CheckCircle2 className="h-5 w-5" /> : s.number}
+        <div className="flex items-start justify-center pt-4 pb-6">
+          <div className="flex items-start gap-2 md:gap-4">
+            {STEPS.map((s, i) => {
+              const active = i === step;
+              const done = i < step;
+              return (
+                <div key={s.number} className="flex items-start gap-2 md:gap-4">
+                  <div className="flex flex-col items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={!plan && i > 0}
+                      onClick={() => plan && setStep(i)}
+                      className={cn(
+                        "h-12 w-12 rounded-full flex items-center justify-center font-black text-base transition-all",
+                        (!plan && i > 0) && "cursor-not-allowed opacity-60",
+                        active ? "bg-primary text-white shadow-lg shadow-primary/30 scale-105" 
+                          : done ? "bg-primary/20 text-primary hover:bg-primary/30" 
+                          : "bg-secondary text-muted-foreground border border-border/50"
+                      )}
+                    >
+                      {done ? <CheckCircle2 className="h-6 w-6" /> : s.number}
+                    </button>
+                    <p className={cn("font-bold text-[11px] md:text-xs text-center w-24 leading-tight", active ? "text-foreground" : "text-muted-foreground")}>
+                      {s.title}
+                    </p>
+                  </div>
+                  {i < STEPS.length - 1 && (
+                    <div className={cn(
+                      "h-1 w-12 md:w-24 rounded-full transition-colors mt-[22px]",
+                      done ? "bg-primary" : "bg-secondary border border-border/50"
+                    )} />
+                  )}
                 </div>
-                <div className="min-w-0">
-                  <p className={cn("font-bold text-sm truncate", active ? "text-foreground" : "text-muted-foreground")}>{s.title}</p>
-                  <p className="text-[10px] text-muted-foreground truncate">{s.subtitle}</p>
-                </div>
-              </button>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -173,10 +179,10 @@ function PlanDataStep({
   onCreate: () => Promise<void>;
 }) {
   return (
-    <div className="pb-24">
-      <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+    <div className="pb-56 md:pb-4">
+      <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         {/* LEFT: FORM */}
-      <div className="glass-card p-6 space-y-6">
+      <div className="glass-card p-5 space-y-4">
         <div>
           <h2 className="text-xl font-display font-black tracking-tight">Informações do Plano</h2>
           <p className="text-sm text-muted-foreground mt-1">
@@ -185,8 +191,8 @@ function PlanDataStep({
         </div>
 
         {/* TIPO DO PLANO */}
-        <div className="grid gap-2">
-          <Label className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Tipo do plano *</Label>
+        <div className="grid gap-1">
+          <Label className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Tipo do plano *</Label>
           <Select
             value={form.plan_type}
             onValueChange={(val) => {
@@ -213,8 +219,8 @@ function PlanDataStep({
         {/* CAMPOS CONDICIONAIS */}
         {form.plan_type === 'concurso' ? (
           <div className="space-y-4">
-            <div className="grid gap-2">
-              <Label className="font-bold">Concurso *</Label>
+            <div className="grid gap-1">
+              <Label className="font-bold text-xs">Concurso *</Label>
               <Input
                 value={form.exam_name}
                 onChange={(e) => {
@@ -230,8 +236,8 @@ function PlanDataStep({
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label className="font-bold">Banca</Label>
+              <div className="grid gap-1">
+                <Label className="font-bold text-xs">Banca</Label>
                 <Input
                   value={form.board_name}
                   onChange={(e) => updateForm('board_name', e.target.value)}
@@ -242,8 +248,8 @@ function PlanDataStep({
                   Saber a banca ajuda a personalizar a estratégia.
                 </p>
               </div>
-              <div className="grid gap-2">
-                <Label className="font-bold">Cargo</Label>
+              <div className="grid gap-1">
+                <Label className="font-bold text-xs">Cargo</Label>
                 <Input
                   value={form.role_name}
                   onChange={(e) => updateForm('role_name', e.target.value)}
@@ -273,12 +279,12 @@ function PlanDataStep({
 
 
         {/* DESCRIÇÃO */}
-        <div className="grid gap-2">
-          <Label className="font-bold">Descrição <span className="text-muted-foreground font-normal">(opcional)</span></Label>
+        <div className="grid gap-1">
+          <Label className="font-bold text-xs">Descrição <span className="text-muted-foreground font-normal">(opcional)</span></Label>
           <Textarea
             value={form.description}
             onChange={(e) => updateForm('description', e.target.value)}
-            className="rounded-xl border-2 resize-none min-h-[100px]"
+            className="rounded-xl border-2 resize-none min-h-[60px]"
             placeholder="Descreva seus objetivos, estratégias ou observações sobre este plano..."
           />
         </div>
@@ -286,8 +292,8 @@ function PlanDataStep({
 
       {/* RIGHT: IMAGE + INFO */}
       <div className="space-y-4">
-        <div className="glass-card p-6 space-y-4">
-          <Label className="font-bold">Imagem de Capa</Label>
+        <div className="glass-card p-5 space-y-3">
+          <Label className="font-bold text-xs">Imagem de Capa</Label>
           <ImageUpload
             value={form.cover_image_url}
             onChange={(url) => updateForm('cover_image_url', url)}
@@ -305,18 +311,24 @@ function PlanDataStep({
             </div>
             <div>
               <h3 className="font-bold text-sm text-foreground">O que acontece ao criar?</h3>
-              <ul className="mt-2 space-y-1.5 text-xs text-muted-foreground">
+              <ul className="mt-2 space-y-2 text-xs text-muted-foreground">
                 <li className="flex items-start gap-2">
                   <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
-                  Um <strong className="text-foreground">plano de estudos</strong> será criado com as informações acima
+                  <span>
+                    Um <strong className="text-foreground">plano de estudos</strong> será criado com as informações acima
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
-                  Um <strong className="text-foreground">cronograma exclusivo</strong> será vinculado automaticamente
+                  <span>
+                    Um <strong className="text-foreground">cronograma exclusivo</strong> será vinculado automaticamente
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
-                  Na próxima etapa, você adicionará as <strong className="text-foreground">matérias</strong> que vai estudar
+                  <span>
+                    Na próxima etapa, você adicionará as <strong className="text-foreground">matérias</strong> que vai estudar
+                  </span>
                 </li>
               </ul>
             </div>
@@ -326,12 +338,12 @@ function PlanDataStep({
         </div>
       </div>
 
-      <div className="fixed bottom-0 right-0 left-0 md:left-[var(--sidebar-width,16rem)] p-4 bg-background/90 backdrop-blur-md border-t shadow-2xl z-50 flex justify-center">
-        <div className="w-full max-w-3xl px-4 lg:px-0">
+      <div className="fixed bottom-24 md:bottom-8 left-0 md:left-[var(--sidebar-width,16rem)] right-0 z-50 flex justify-center pointer-events-none">
+        <div className="w-full max-w-xl px-4 lg:px-0 pointer-events-auto">
           <Button
             onClick={onCreate}
             disabled={saving}
-            className="w-full h-14 rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-primary/20 transition-all hover:shadow-xl hover:shadow-primary/30 active:scale-[0.98]"
+            className="w-full h-14 rounded-3xl font-black text-sm uppercase tracking-widest shadow-xl shadow-primary/25 transition-all hover:shadow-2xl hover:shadow-primary/40 active:scale-[0.98] bg-primary hover:bg-primary/90 text-primary-foreground"
             size="lg"
           >
             {saving ? (
