@@ -3,9 +3,9 @@ export function formatMinutesCompact(minutes?: number): string {
   const m = Math.max(0, Math.round(minutes));
   const h = Math.floor(m / 60);
   const rem = m % 60;
-  if (h === 0) return `${rem}min`;
+  if (h === 0) return `${rem}m`;
   if (rem === 0) return `${h}h`;
-  return `${h}h${rem.toString().padStart(2, '0')}`;
+  return `${h}h ${rem.toString().padStart(2, '0')}m`;
 }
 
 export function parseDurationInput(value: string): number | undefined {

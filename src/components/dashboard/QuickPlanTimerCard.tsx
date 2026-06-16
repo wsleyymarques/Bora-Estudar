@@ -1,26 +1,36 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowUpRight, Flame, Play, Timer } from 'lucide-react';
+import { ArrowUpRight, Flame, Play, Timer, Activity } from 'lucide-react';
 
 import { useStudy } from '@/contexts/StudyContext';
 import { useStudyPlans, type StudyPlan } from '@/hooks/useStudyPlans';
 import { usePlanSubjects } from '@/hooks/usePlanSubjects';
+import { useTracker } from '@/contexts/TrackerContext';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { PomodoroQuickSettings } from '@/components/generic/pomodoro-quick-settings';
 import { cn } from '@/lib/utils';
 
 interface QuickPlanTimerCardProps {
   plans?: StudyPlan[];
   className?: string;
+  onStart?: () => void;
 }
 
-export function QuickPlanTimerCard({ plans, className }: QuickPlanTimerCardProps) {
+export function QuickPlanTimerCard({ plans, className, onStart }: QuickPlanTimerCardProps) {
   const navigate = useNavigate();
-  const { data } = useStudy();
+  const { data, getSubject } = useStudy();
   const { plans: storedPlans } = useStudyPlans();
   const allPlans = plans ?? storedPlans;
+  const { startWithBinding, runtime, displayTimeLabel, phaseStateLabel, setIsMaximized, pomodoroSettings, setPomodoroSettings } = useTracker();
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
 
-  const activePlans = useMemo(() => allPlans.filter((plan) => plan.status === 'active'), [allPlans]);
+  // If plans are passed, assume they are the plans to display. Otherwise, use storedPlans and filter out archived ones.
+  const activePlans = useMemo(() => {
+    if (plans) return plans;
+    return storedPlans.filter((plan) => plan.status !== 'archived' && plan.status !== 'deleted');
+  }, [plans, storedPlans]);
 
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
@@ -49,132 +59,146 @@ export function QuickPlanTimerCard({ plans, className }: QuickPlanTimerCardProps
   const selectedPlan = activePlans.find((plan) => plan.id === selectedPlanId);
   const selectedSubject = planSubjects.find((subject) => subject.id === selectedSubjectId);
 
+  const handleStartTimer = async () => {
+    if (!selectedPlanId || !selectedSubjectId) return
+    
+    if (mode === 'pomodoro' && !isConfigOpen) {
+      setIsConfigOpen(true);
+      return;
+    }
+
+    setIsConfigOpen(false);
+
+    const res = await startWithBinding(
+      { planId: selectedPlanId, subjectId: selectedSubjectId },
+      { mode, forceSwitch: true }
+    )
+    if (res.ok) {
+      setIsMaximized(true)
+      onStart?.()
+    }
+  }
+
+  const runtimeSubject = runtime ? getSubject(runtime.subjectId) : null;
+
   return (
-    <section
-      className={cn(
-        'flex h-full flex-col overflow-hidden rounded-[1.5rem] border border-border/50 bg-card p-4 text-card-foreground shadow-sm',
-        className,
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.26em] text-primary">
-            <Timer className="h-3.5 w-3.5" />
-            Timer rapido
-          </div>
-
-          <div className="space-y-1">
-            <h3 className="text-base font-black tracking-tight text-foreground">
-              Comecar materia do plano
-            </h3>
-            <p className="max-w-[28rem] text-xs text-muted-foreground">
-              Escolha um plano, selecione a materia e inicie em um toque.
-            </p>
-          </div>
-        </div>
-
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-8 w-8 rounded-full border-border/60 text-muted-foreground hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
-          onClick={() => navigate('/timer')}
-          title="Abrir timer"
-        >
-          <ArrowUpRight className="h-3.5 w-3.5" />
-        </Button>
+    <div className={cn("flex h-full flex-col overflow-hidden rounded-[1.5rem] bg-white dark:bg-[#0f1b14] border-gray-200 dark:border-[#1e2e24] p-6 shadow-sm dark:shadow-none", className)}>
+      <div className="flex items-center gap-2 mb-6 text-emerald-600 dark:text-emerald-500">
+        <Timer className="w-5 h-5" />
+        <h2 className="text-lg font-black tracking-tight text-gray-900 dark:text-white">Timer Rápido</h2>
       </div>
 
-      <div className="mt-3 grid gap-3">
-        <div className="grid gap-1.5">
-          <label className="text-[10px] font-black uppercase tracking-[0.26em] text-muted-foreground">
-            Plano
-          </label>
-          <Select value={selectedPlanId} onValueChange={setSelectedPlanId} disabled={activePlans.length === 0}>
-            <SelectTrigger className="h-10 rounded-2xl border-border/60 bg-background/80 px-4 text-sm shadow-sm">
+      <div className="space-y-5">
+        {/* Toggle Cronometro / Pomodoro */}
+        <div className="flex bg-gray-50 dark:bg-[#0a120d] border border-gray-200 dark:border-[#1e2e24] p-1 rounded-full text-xs font-bold transition-colors w-fit">
+          <button 
+            onClick={() => setMode('cronometro')}
+            className={cn("px-4 py-2 rounded-full transition-colors", mode === 'cronometro' ? "bg-white dark:bg-[#1e2e24] text-gray-900 dark:text-white shadow-sm dark:shadow-none" : "text-gray-500 dark:text-white/40 hover:text-gray-700 dark:hover:text-white/70")}
+          >
+            Cronômetro
+          </button>
+          <button 
+            onClick={() => setMode('pomodoro')}
+            className={cn("px-4 py-2 rounded-full transition-colors", mode === 'pomodoro' ? "bg-white dark:bg-[#1e2e24] text-gray-900 dark:text-white shadow-sm dark:shadow-none" : "text-gray-500 dark:text-white/40 hover:text-gray-700 dark:hover:text-white/70")}
+          >
+            Pomodoro
+          </button>
+        </div>
+
+        <div>
+          <p className="text-[10px] font-bold tracking-wider text-gray-500 dark:text-white/50 uppercase mb-2">Plano</p>
+          <Select value={selectedPlanId || undefined} onValueChange={setSelectedPlanId} disabled={activePlans.length === 0}>
+            <SelectTrigger className="w-full bg-gray-50 dark:bg-[#0a120d] border-gray-200 dark:border-[#1e2e24] text-gray-900 dark:text-white h-12 rounded-xl focus:ring-emerald-500/20 transition-colors">
               <SelectValue placeholder={activePlans.length ? 'Selecione um plano' : 'Nenhum plano ativo'} />
             </SelectTrigger>
-            <SelectContent>
-              {activePlans.map((plan) => (
-                <SelectItem key={plan.id} value={plan.id}>
-                  {plan.name}
-                </SelectItem>
-              ))}
+            <SelectContent className="bg-white dark:bg-[#0a120d] border-gray-200 dark:border-[#1e2e24] text-gray-900 dark:text-white">
+              {activePlans.length > 0 ? activePlans.map(plan => (
+                <SelectItem key={plan.id} value={plan.id}>{plan.name || plan.title}</SelectItem>
+              )) : (
+                <SelectItem value="none" disabled>Nenhum plano ativo</SelectItem>
+              )}
             </SelectContent>
           </Select>
         </div>
 
-        <div className="grid gap-1.5">
-          <label className="text-[10px] font-black uppercase tracking-[0.26em] text-muted-foreground">
-            MatÃ©ria
-          </label>
-          <Select value={selectedSubjectId} onValueChange={setSelectedSubjectId} disabled={!planSubjects.length}>
-            <SelectTrigger className="h-10 rounded-2xl border-border/60 bg-background/80 px-4 text-sm shadow-sm">
-              <SelectValue placeholder={planSubjects.length ? 'Selecione uma matÃ©ria' : 'Sem matÃ©rias neste plano'} />
+        <div>
+          <p className="text-[10px] font-bold tracking-wider text-gray-500 dark:text-white/50 uppercase mb-2">Matéria</p>
+          <Select value={selectedSubjectId || undefined} onValueChange={setSelectedSubjectId} disabled={!planSubjects.length}>
+            <SelectTrigger className="w-full bg-gray-50 dark:bg-[#0a120d] border-gray-200 dark:border-[#1e2e24] text-gray-900 dark:text-white h-12 rounded-xl focus:ring-emerald-500/20 transition-colors">
+              <SelectValue placeholder={planSubjects.length ? 'Selecione uma matéria' : 'Sem matérias neste plano'} />
             </SelectTrigger>
-            <SelectContent>
-              {planSubjects.map((subject) => (
-                <SelectItem key={subject.id} value={subject.id}>
-                  {subject.name}
+            <SelectContent className="bg-white dark:bg-[#0a120d] border-gray-200 dark:border-[#1e2e24] text-gray-900 dark:text-white">
+              {planSubjects.map(sub => (
+                <SelectItem key={sub.id} value={sub.id}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: sub.color || '#10b981' }} />
+                    <span className="truncate">{sub.name}</span>
+                  </div>
                 </SelectItem>
               ))}
+              {planSubjects.length === 0 && (
+                <SelectItem value="none" disabled>Nenhuma matéria</SelectItem>
+              )}
             </SelectContent>
           </Select>
         </div>
 
-        <div className="flex items-center justify-between gap-3">
-          <div className="inline-flex rounded-full border border-border/60 bg-muted/20 p-1">
-            <button
-              type="button"
-              onClick={() => setMode('cronometro')}
-              className={cn(
-                'rounded-full px-3 py-1.5 text-[11px] font-bold transition-all',
-                mode === 'cronometro' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground',
-              )}
-            >
-              Cronometro
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('pomodoro')}
-              className={cn(
-                'rounded-full px-3 py-1.5 text-[11px] font-bold transition-all',
-                mode === 'pomodoro' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground',
-              )}
-            >
-              Pomodoro
-            </button>
-          </div>
-
-          <Button
-            className="h-10 rounded-full bg-emerald-700 px-5 text-sm font-bold text-white shadow-[0_12px_28px_rgba(16,97,64,0.24)] hover:bg-emerald-600"
-            onClick={() => navigate('/timer')}
-            disabled={!selectedPlan}
+        <div className="pt-2">
+          <Button 
+            onClick={handleStartTimer}
+            disabled={!selectedPlanId || !selectedSubjectId}
+            className="w-full h-12 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 transition-all"
           >
-            <Play className="mr-2 h-4 w-4 fill-current" />
-            Iniciar agora
+            <Play className="w-4 h-4 mr-2" />
+            Iniciar Sessão
           </Button>
         </div>
 
-        <div className="flex items-center justify-between rounded-2xl border border-border/60 bg-muted/20 px-3 py-2.5">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-              <Flame className="h-3.5 w-3.5" />
+        {/* Sessão Atual */}
+        {runtime && (
+          <div className={cn("mt-4 p-4 rounded-xl border flex items-center justify-between transition-colors bg-emerald-500/10 border-emerald-500/20")}>
+            <div className="flex items-center gap-3">
+              <Activity className="w-4 h-4 text-emerald-500 animate-pulse" />
+              <div>
+                <p className="text-[10px] font-bold tracking-wider uppercase text-emerald-600 dark:text-emerald-500">Sessão Atual</p>
+                <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">
+                  {runtimeSubject?.name || 'Matéria'} • {displayTimeLabel}
+                </p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="text-[9px] font-black uppercase tracking-[0.26em] text-muted-foreground">
-                Sessao atual
-              </p>
-              <p className="truncate text-xs font-semibold text-foreground">
-                {selectedPlan?.name || 'Selecione um plano'} {selectedSubject ? `â€¢ ${selectedSubject.name}` : ''}
-              </p>
-            </div>
+            <span className="text-[10px] font-bold tracking-wider uppercase text-emerald-600 dark:text-emerald-500">
+              {phaseStateLabel}
+            </span>
           </div>
-
-          <span className="rounded-full border border-primary/15 bg-primary/5 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-primary">
-            {mode}
-          </span>
-        </div>
+        )}
       </div>
-    </section>
+
+      <Dialog open={isConfigOpen} onOpenChange={setIsConfigOpen}>
+        <DialogContent className="sm:max-w-md bg-white dark:bg-[#0f1b14] border-gray-200 dark:border-[#1e2e24]">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900 dark:text-white flex items-center gap-2">
+              <Timer className="w-5 h-5 text-emerald-600" />
+              Configurar Pomodoro
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <PomodoroQuickSettings 
+              settings={pomodoroSettings} 
+              onChange={setPomodoroSettings} 
+              className="border-gray-200 dark:border-[#1e2e24] bg-gray-50 dark:bg-[#0a120d]"
+            />
+          </div>
+          
+          <Button 
+            onClick={handleStartTimer}
+            className="w-full h-12 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 transition-all"
+          >
+            <Play className="w-4 h-4 mr-2" />
+            Iniciar Sessão Pomodoro
+          </Button>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

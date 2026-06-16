@@ -71,10 +71,10 @@ function SidebarBody({
           <button
             type="button"
             onClick={onToggle}
-            className="mx-auto mt-3 flex h-[3.25rem] w-14 items-center justify-center rounded-2xl border border-transparent text-white/70 transition-all hover:border-white/8 hover:bg-white/5 hover:text-white"
+            className="mx-auto mt-3 flex h-[3.25rem] w-14 items-center justify-center rounded-2xl border border-transparent text-muted-foreground transition-all hover:border-border/50 hover:bg-secondary/30 hover:text-foreground"
             aria-label="Expandir sidebar"
           >
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/8 bg-white/5 transition-colors">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/30 bg-secondary/20 transition-colors">
               <ChevronRight className="h-4.5 w-4.5" />
             </span>
           </button>
@@ -82,7 +82,7 @@ function SidebarBody({
           <button
             type="button"
             onClick={onToggle}
-            className="absolute right-0 top-4 flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/75 transition-colors hover:bg-white/10 hover:text-white"
+            className="absolute right-0 top-4 flex h-9 w-9 items-center justify-center rounded-xl border border-border/50 bg-secondary/30 text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground"
             aria-label="Minimizar sidebar"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -93,11 +93,11 @@ function SidebarBody({
       <div className="mt-2 flex min-h-0 flex-1 flex-col justify-start">
         <p
           className={cn(
-            'px-1 pb-3 pt-4 text-[0.65rem] font-black uppercase tracking-[0.35em] text-white/35 transition-opacity',
+            'px-1 pb-3 pt-4 text-[0.65rem] font-black uppercase tracking-[0.35em] text-muted-foreground/60 transition-opacity',
             collapsed && 'pointer-events-none opacity-0',
           )}
         >
-          Visao geral
+          Visão geral
         </p>
 
         <nav className={cn('space-y-2 transition-all', collapsed && 'space-y-1')}>
@@ -115,16 +115,16 @@ function SidebarBody({
                   'flex items-center gap-3 rounded-2xl border px-4 py-3 transition-all',
                   collapsed && 'justify-center px-0 py-3',
                   isActive
-                    ? 'border-emerald-400/20 bg-emerald-400/12 text-white shadow-[0_10px_30px_rgba(34,197,94,0.12)]'
-                    : 'border-transparent text-white/60 hover:border-white/8 hover:bg-white/5 hover:text-white',
+                    ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm'
+                    : 'border-transparent text-muted-foreground hover:border-border/50 hover:bg-secondary/30 hover:text-foreground',
                 )}
               >
                 <span
                   className={cn(
                     'flex h-9 w-9 items-center justify-center rounded-xl border transition-colors',
                     isActive
-                      ? 'border-emerald-400/20 bg-emerald-400/15 text-emerald-300'
-                      : 'border-white/8 bg-white/5 text-white/70',
+                      ? 'border-emerald-500/20 bg-emerald-500/15 text-emerald-500 dark:text-emerald-400'
+                      : 'border-border/50 bg-secondary/20 text-muted-foreground',
                   )}
                 >
                   <Icon className="h-4.5 w-4.5" />
@@ -148,13 +148,13 @@ function SidebarBody({
             className={cn(
               'w-full flex items-center gap-3 rounded-2xl border px-4 py-3 transition-all',
               collapsed && 'justify-center px-0 py-3',
-              'border-transparent text-white/60 hover:border-white/8 hover:bg-white/5 hover:text-white',
+              'border-transparent text-muted-foreground hover:border-border/50 hover:bg-secondary/30 hover:text-foreground',
             )}
           >
             <span
               className={cn(
                 'flex h-9 w-9 items-center justify-center rounded-xl border transition-colors',
-                'border-white/8 bg-white/5 text-white/70',
+                'border-border/50 bg-secondary/20 text-muted-foreground',
               )}
             >
               <Bell className="h-4.5 w-4.5" />
@@ -168,7 +168,7 @@ function SidebarBody({
         <div className="mt-auto pt-6">
           <p
             className={cn(
-              'px-1 pb-2 text-[0.65rem] font-black uppercase tracking-[0.35em] text-white/35 transition-opacity',
+              'px-1 pb-2 text-[0.65rem] font-black uppercase tracking-[0.35em] text-muted-foreground/60 transition-opacity',
               collapsed && 'pointer-events-none opacity-0',
             )}
           >
@@ -182,7 +182,7 @@ function SidebarBody({
               navigate('/profile');
             }}
             className={cn(
-              'flex w-full items-center gap-3 rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-left text-white/78 transition-all hover:border-white/12 hover:bg-white/8',
+              'flex w-full items-center gap-3 rounded-2xl border border-border/50 bg-secondary/20 px-4 py-3 text-left text-foreground transition-all hover:border-border hover:bg-secondary/40',
               collapsed && 'justify-center px-0',
             )}
           >
@@ -190,18 +190,18 @@ function SidebarBody({
               <img 
                 src={avatarUrl} 
                 alt={userName}
-                className="h-9 w-9 rounded-xl object-cover border border-white/10 flex-shrink-0"
+                className="h-9 w-9 rounded-xl object-cover border border-border/50 flex-shrink-0"
               />
             ) : (
-              <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-white/8 text-white">
+              <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-secondary/50 text-muted-foreground">
                 <User className="h-4.5 w-4.5" />
               </span>
             )}
             <span className={cn('flex-1 overflow-hidden', collapsed && 'hidden')}>
-              <span className="block text-sm font-bold text-white truncate">{userName}</span>
-              <span className="block text-xs text-white/45">Ajustes e avatar</span>
+              <span className="block text-sm font-bold text-foreground truncate">{userName}</span>
+              <span className="block text-xs text-muted-foreground">Ajustes e avatar</span>
             </span>
-            <ArrowRight className={cn('h-4 w-4 flex-shrink-0 text-white/45', collapsed && 'hidden')} />
+            <ArrowRight className={cn('h-4 w-4 flex-shrink-0 text-muted-foreground', collapsed && 'hidden')} />
           </button>
         </div>
       </div>
@@ -218,7 +218,7 @@ export function AppSidebar({ onOpenNotifications }: AppSidebarProps) {
       <Sheet open={openMobile} onOpenChange={setOpenMobile}>
         <SheetContent
           side="right"
-          className="w-[19rem] max-w-none border-r-0 bg-[#0d1710] p-0 text-white [&>button]:right-3 [&>button]:top-3 [&>button]:border [&>button]:border-white/10 [&>button]:bg-white/5 [&>button]:text-white/80"
+          className="w-[19rem] max-w-none border-l-0 bg-background p-0 text-foreground [&>button]:right-3 [&>button]:top-3 [&>button]:border [&>button]:border-border/50 [&>button]:bg-secondary/30 [&>button]:text-foreground"
         >
           <SidebarBody
             collapsed={false}
@@ -235,7 +235,7 @@ export function AppSidebar({ onOpenNotifications }: AppSidebarProps) {
   return (
     <aside
       className={cn(
-        'hidden md:flex h-full flex-none overflow-hidden bg-transparent text-white transition-[width] duration-200 ease-linear relative z-10',
+        'hidden md:flex h-full flex-none overflow-hidden bg-transparent text-foreground transition-[width] duration-200 ease-linear relative z-10',
         isCollapsed ? 'w-[5.5rem]' : 'w-[19rem]',
       )}
     >

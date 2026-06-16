@@ -1,9 +1,7 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { BarChart3, Home, Layers, Play, UserRound } from 'lucide-react';
-import { motion } from 'framer-motion';
-
-const itemClass =
-  'group relative flex h-full w-full min-w-0 flex-col items-center justify-center gap-1 text-[10px] font-bold tracking-wide transition-all';
+import { BarChart3, Home, FolderKanban, Play, UserRound } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export function BottomNavigator({
   onOpenProfile,
@@ -23,66 +21,73 @@ export function BottomNavigator({
       <NavLink 
         to={url} 
         end={url === '/'} 
-        className={itemClass} 
+        className="shrink-0 outline-none"
         onClick={(e) => { if(onClick) { e.preventDefault(); onClick(); } }}
         aria-label={label}
       >
-        <div className="relative flex items-center justify-center px-4 py-1.5">
-          {active && (
-            <motion.div
-              layoutId="bottom-nav-active-pill"
-              className="absolute inset-0 rounded-full bg-primary/15 dark:bg-primary/20"
-              transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-            />
-          )}
-          <Icon 
-            className={`relative z-10 transition-transform duration-300 ${active ? 'text-primary scale-110' : 'text-muted-foreground group-hover:text-foreground group-hover:scale-105'}`} 
-            strokeWidth={active ? 2.5 : 2.2} 
-            size={24}
-          />
-        </div>
+        <motion.div 
+          layout
+          initial={false}
+          animate={{
+            backgroundColor: active ? 'hsl(var(--primary) / 0.1)' : 'transparent',
+            borderColor: active ? 'hsl(var(--primary) / 0.2)' : 'transparent',
+            width: active ? 'auto' : '48px',
+            paddingLeft: active ? '4px' : '4px',
+            paddingRight: active ? '16px' : '4px',
+          }}
+          transition={{ type: "spring", stiffness: 500, damping: 35 }}
+          className="flex h-12 items-center rounded-[16px] border border-transparent overflow-hidden"
+        >
+          <motion.div layout className="flex items-center gap-3">
+            <div 
+              className={cn(
+                "flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] transition-colors duration-300",
+                active 
+                  ? "bg-primary text-primary-foreground" 
+                  : "border border-border/50 text-muted-foreground bg-background/50 hover:bg-secondary/50 hover:text-foreground"
+              )}
+            >
+              <Icon strokeWidth={active ? 2.5 : 2} size={20} />
+            </div>
+            <AnimatePresence initial={false} mode="popLayout">
+              {active && (
+                <motion.span 
+                  initial={{ opacity: 0, width: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, width: 'auto', scale: 1 }}
+                  exit={{ opacity: 0, width: 0, scale: 0.8 }}
+                  transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                  className="text-[13px] font-bold text-foreground tracking-tight whitespace-nowrap"
+                >
+                  {label}
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </motion.div>
       </NavLink>
     );
   };
 
+  const isFullWidthMode = pathname === '/plans/new' || pathname === '/profile/goals' || pathname === '/profile/data';
+
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 md:hidden">
-      {/* Container com máscara para fazer o 'cutout' (furo) no centro */}
-      <div 
-        className="absolute inset-x-0 bottom-0 h-[72px] bg-background/95 backdrop-blur-xl shadow-[0_-10px_40px_rgba(0,0,0,0.08)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.3)]"
-        style={{
-          borderTopLeftRadius: '28px',
-          borderTopRightRadius: '28px',
-          maskImage: 'radial-gradient(circle at 50% -16px, transparent 44px, black 45px)',
-          WebkitMaskImage: 'radial-gradient(circle at 50% -16px, transparent 44px, black 45px)'
-        }}
-      />
-
-      {/* Grid dos itens */}
-      <div className="relative grid h-[72px] w-full grid-cols-5 items-center px-2 pb-[env(safe-area-inset-bottom)]">
+    <nav className={cn(
+      "fixed inset-x-0 z-40 md:hidden",
+      isFullWidthMode 
+        ? "bottom-0 bg-background/95 backdrop-blur-xl border-t border-border/50 shadow-[0_-4px_24px_rgba(0,0,0,0.05)] pb-[env(safe-area-inset-bottom)]"
+        : "bottom-6 flex justify-center px-4 pointer-events-none"
+    )}>
+      <div className={cn(
+        "flex items-center",
+        isFullWidthMode 
+          ? "h-[72px] justify-around px-2"
+          : "h-16 gap-1.5 rounded-2xl bg-card/95 backdrop-blur-xl border border-border/50 p-2 shadow-lg pointer-events-auto"
+      )}>
         <NavItem url="/" icon={Home} label="Início" />
-        <NavItem url="/plans" icon={Layers} label="Planos" />
-
-        {/* Botão Central Flutuante */}
-        <div className="relative z-[80] flex items-start justify-center h-full">
-          <NavLink
-            to="/timer"
-            className="group relative flex h-[60px] w-[60px] items-center justify-center rounded-full bg-primary shadow-[0_8px_24px_rgba(var(--primary),0.6)] transition-all active:scale-90 hover:scale-105"
-            style={{ marginTop: -26 }}
-            aria-label="Timer"
-          >
-             <div className="absolute inset-0 rounded-full bg-white/20 opacity-0 transition-opacity group-hover:opacity-100" />
-            <Play
-              className="translate-x-[2px] text-primary-foreground"
-              size={28}
-              strokeWidth={2.5}
-              fill="currentColor"
-            />
-          </NavLink>
-        </div>
-
+        <NavItem url="/plans" icon={FolderKanban} label="Planos" />
+        <NavItem url="/timer" icon={Play} label="Timer" />
         <NavItem url="/stats" icon={BarChart3} label="Resumo" />
-        <NavItem url="/profile" icon={UserRound} label="Perfil" onClick={onOpenProfile} isForcedActive={isProfileOpen || isActive('/profile')} />
+        <NavItem url="/profile" icon={UserRound} label="Perfil" />
       </div>
     </nav>
   );
