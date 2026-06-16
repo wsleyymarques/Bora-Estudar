@@ -1,4 +1,5 @@
 import { DateRange } from 'react-day-picker';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { StatsFilters, type StatsPeriod, type StatsScope } from '@/components/stats/StatsFilters';
 import { useStudy } from '@/contexts/StudyContext';
 import { addDays, addMonths, eachDayInclusive, getMonday, toDateKey } from '@/lib/date-utils';
@@ -166,6 +167,7 @@ export function DetailedStatsChart() {
   // Dialog state for adding/editing sessions
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState<StudySession | undefined>(undefined);
+  const [deleteConfirmSessionId, setDeleteConfirmSessionId] = useState<string | null>(null);
 
   const plans = data.studyPlans || []; 
   
@@ -339,15 +341,20 @@ export function DetailedStatsChart() {
     setDialogOpen(true);
   };
 
-  const handleDeleteSession = async (id: string) => {
-    if (window.confirm('Tem certeza de que deseja excluir esta sessão de estudo permanentemente?')) {
-      try {
-        await deleteSession(id);
-        toast.success('Sessão excluída com sucesso!');
-      } catch (err) {
-        console.error(err);
-        toast.error('Erro ao excluir sessão.');
-      }
+  const handleDeleteSession = (id: string) => {
+    setDeleteConfirmSessionId(id);
+  };
+
+  const confirmDeleteSession = async () => {
+    if (!deleteConfirmSessionId) return;
+    try {
+      await deleteSession(deleteConfirmSessionId);
+      toast.success('Sessão excluída com sucesso!');
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao excluir sessão.');
+    } finally {
+      setDeleteConfirmSessionId(null);
     }
   };
 
@@ -645,6 +652,30 @@ export function DetailedStatsChart() {
         onOpenChange={setDialogOpen} 
         session={selectedSession} 
       />
+
+      <AlertDialog open={!!deleteConfirmSessionId} onOpenChange={(open) => {
+        if (!open) setDeleteConfirmSessionId(null);
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso excluirá permanentemente esta sessão de estudo e todos os seus dados.
+              <br />
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDeleteSession}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </div>
     </div>
   ); 

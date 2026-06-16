@@ -47,32 +47,32 @@ export function DailySubjectsCard({ className }: DailySubjectsCardProps) {
   return (
     <section
       className={cn(
-        'flex h-full flex-col overflow-hidden rounded-[1.5rem] border border-border/50 bg-card p-4 text-card-foreground shadow-sm',
+        'flex h-full flex-col overflow-hidden rounded-[1.5rem] bg-white dark:bg-[#0f1b14] border-gray-200 dark:border-[#1e2e24] p-6 shadow-sm dark:shadow-none',
         className,
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/80 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-            <BookOpen className="h-3.5 w-3.5 text-primary" />
-            MatÃ©rias de hoje
+          <div className="inline-flex items-center gap-2 rounded-full bg-gray-100 dark:bg-[#0a120d] px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-white/50">
+            <BookOpen className="h-3.5 w-3.5 text-emerald-600 dark:text-[#10b981]" />
+            Matérias de hoje
           </div>
-          <h3 className="mt-2 text-base font-black tracking-tight text-foreground">
+          <h3 className="mt-2 text-base font-black tracking-tight text-gray-900 dark:text-white">
             Cronograma do Dia
           </h3>
         </div>
 
         <div className="flex flex-col items-end gap-1">
-          <span className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground">
+          <span className="flex items-center gap-1 text-[10px] font-bold text-gray-400 dark:text-white/30">
             <Calendar className="h-3.5 w-3.5" />
-            {new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })}
+            {new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' }).replace('.', '')}
           </span>
-          {selectedPlan ? <span className="max-w-[10rem] truncate text-[11px] font-semibold text-primary">{selectedPlan.name}</span> : null}
+          {selectedPlan ? <span className="max-w-[10rem] truncate text-[11px] font-semibold text-emerald-600 dark:text-emerald-500">{selectedPlan.name}</span> : null}
         </div>
       </div>
 
       {activePlans.length > 1 ? (
-        <div className="mt-3 flex flex-wrap gap-1 rounded-2xl border border-border/40 bg-muted/20 p-1.5">
+        <div className="mt-3 flex flex-wrap gap-1 rounded-xl bg-gray-100 dark:bg-[#0a120d] p-1.5">
           {activePlans.map((plan) => (
             <button
               key={plan.id}
@@ -81,8 +81,8 @@ export function DailySubjectsCard({ className }: DailySubjectsCardProps) {
               className={cn(
                 'rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] transition-all',
                 selectedPlanId === plan.id
-                  ? 'bg-background text-primary shadow-sm'
-                  : 'text-muted-foreground hover:bg-background/60',
+                  ? 'bg-white dark:bg-[#1e2e24] text-emerald-600 dark:text-emerald-500 shadow-sm dark:shadow-none'
+                  : 'text-gray-500 dark:text-white/40 hover:bg-white dark:hover:bg-[#1e2e24]',
               )}
             >
               {plan.name}
@@ -93,9 +93,9 @@ export function DailySubjectsCard({ className }: DailySubjectsCardProps) {
 
       <div className="mt-3 space-y-2">
         {todayEntries.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border/60 bg-muted/20 px-4 py-5 text-center">
-            <p className="text-sm font-semibold text-foreground">Nada planejado para hoje</p>
-            <p className="mt-1 text-xs text-muted-foreground">
+          <div className="rounded-2xl border border-dashed border-gray-200 dark:border-[#1e2e24] bg-gray-100 dark:bg-[#0a120d] px-4 py-5 text-center">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">Nada planejado para hoje</p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-white/40">
               {activePlans.length === 0
                 ? 'Crie ou ative um plano para ver o cronograma aqui.'
                 : 'Selecione um plano para visualizar as matérias do dia.'}
@@ -117,10 +117,10 @@ export function DailySubjectsCard({ className }: DailySubjectsCardProps) {
               <div
                 key={entry.id}
                 className={cn(
-                  'flex items-center justify-between gap-3 rounded-2xl border px-3 py-2.5 transition-all',
+                  'flex items-center justify-between gap-3 rounded-2xl px-3 py-2.5 transition-all',
                   isDone
-                    ? 'border-success/20 bg-success/5'
-                    : 'border-border/50 bg-background/80 hover:border-primary/20 hover:bg-primary/[0.03]',
+                    ? 'bg-emerald-500/5 dark:bg-emerald-500/10'
+                    : 'bg-gray-100 dark:bg-[#0a120d] hover:bg-emerald-500/5 dark:hover:bg-emerald-500/10',
                 )}
               >
                 <div className="flex min-w-0 flex-1 items-center gap-2.5">
@@ -129,27 +129,27 @@ export function DailySubjectsCard({ className }: DailySubjectsCardProps) {
                     onClick={() => toggleScheduleComplete(entry.id)}
                     className={cn(
                       'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all',
-                      isDone ? 'border-success bg-success text-white' : 'border-border/60 bg-background',
+                      isDone ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-gray-300 dark:border-[#1e2e24] bg-white dark:bg-[#0f1b14]',
                     )}
                     title={isDone ? 'Marcar como não concluído' : 'Marcar como concluído'}
                   >
                     {isDone ? <CheckCircle2 className="h-4 w-4" /> : null}
                   </button>
 
-                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: subject?.color || '#5B8C7E' }} />
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: subject?.color || '#10b981' }} />
 
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className={cn('truncate text-sm font-bold', isDone ? 'text-muted-foreground line-through' : 'text-foreground')}>
+                      <p className={cn('truncate text-sm font-bold', isDone ? 'text-gray-400 dark:text-white/40 line-through' : 'text-gray-900 dark:text-white')}>
                         {subject?.name || 'Matéria'}
                       </p>
                       {entry.startTime ? (
-                        <span className="rounded-full bg-muted px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-muted-foreground">
+                        <span className="rounded-full bg-gray-200 dark:bg-[#1e2e24] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-gray-500 dark:text-white/40">
                           {entry.startTime}
                         </span>
                       ) : null}
                     </div>
-                    <p className="mt-0.5 text-[10px] text-muted-foreground">
+                    <p className="mt-0.5 text-[10px] text-gray-500 dark:text-white/40">
                       Meta: {plannedMinutes}m • Estudado: {studiedMinutes}m
                     </p>
                   </div>
@@ -162,11 +162,11 @@ export function DailySubjectsCard({ className }: DailySubjectsCardProps) {
         )}
       </div>
 
-      <div className="mt-3 flex items-center justify-end border-t border-border/40 pt-2">
+      <div className="mt-3 flex items-center justify-end pt-2 border-t border-transparent shrink-0 text-right">
         <Button
           variant="link"
           size="sm"
-          className="h-auto p-0 text-xs font-bold text-primary hover:text-primary/80"
+          className="h-auto p-0 text-xs font-bold text-emerald-600 dark:text-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors"
           onClick={() => navigate('/schedule')}
         >
           Gerenciar Cronograma

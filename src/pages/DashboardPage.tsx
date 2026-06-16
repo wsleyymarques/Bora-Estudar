@@ -8,32 +8,30 @@ import { Clock, BookOpen, Calendar, Target, Flame, Play, ChevronRight, Activity 
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { formatMinutesCompact } from '@/lib/duration-utils'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Drawer, DrawerContent } from '@/components/ui/drawer'
+import { QuickPlanTimerCard } from '@/components/dashboard/QuickPlanTimerCard'
 
 export default function DashboardPage() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const { data, loading, getSubject } = useStudy()
   const { runtime, displayTimeLabel, phaseStateLabel, startWithBinding, setIsMaximized } = useTracker()
   const navigate = useNavigate()
 
   // --- MOCK/STATE FOR TIMER CARD ---
-  const [selectedPlanId, setSelectedPlanId] = useState<string>('')
-  const [selectedSubjectId, setSelectedSubjectId] = useState<string>('')
-  const [timerMode, setTimerMode] = useState<'cronometro' | 'pomodoro'>('cronometro')
   const [activeTab, setActiveTab] = useState<string>('')
   const [isMobileTimerOpen, setIsMobileTimerOpen] = useState(false)
+  const [isMobileScheduleOpen, setIsMobileScheduleOpen] = useState(false)
 
   const activePlans = data?.studyPlans || []
   const { planSubjects: activeTabSubjects } = usePlanSubjects(activeTab || undefined)
-  const { planSubjects: selectedPlanSubjects } = usePlanSubjects(selectedPlanId || undefined)
   
   React.useEffect(() => {
     if (activePlans.length > 0) {
       if (!activeTab) setActiveTab(activePlans[0].id)
-      if (!selectedPlanId) setSelectedPlanId(activePlans[0].id)
     }
-  }, [activePlans, activeTab, selectedPlanId])
+  }, [activePlans, activeTab])
 
   if (loading) {
     return (
@@ -48,24 +46,42 @@ export default function DashboardPage() {
   const subjects = data?.subjects || []
   const sessions = data?.sessions || []
 
+  // Helper para pegar a data local em YYYY-MM-DD evitando bug de fuso horário
+  const getLocalDateStr = (d: Date) => {
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0]
+  }
+
   // Calculate Streak (Constância)
   const now = new Date()
   let currentStreak = 0
-  const todayStr = now.toISOString().split('T')[0]
-  const yesterdayStr = new Date(now.getTime() - 86400000).toISOString().split('T')[0]
+  const todayStr = getLocalDateStr(now)
+  const yesterdayStr = getLocalDateStr(new Date(now.getTime() - 86400000))
+  
+  // Get today's scheduled entries
+  const todayScheduleEntries = schedules.filter(entry => entry.date === todayStr)
+  
+  // Group today's entries by plan
+  const entriesByPlan = todayScheduleEntries.reduce((acc, entry) => {
+    const planId = entry.planId || 'sem-plano'
+    if (!acc[planId]) acc[planId] = []
+    acc[planId].push(entry)
+    return acc
+  }, {} as Record<string, typeof todayScheduleEntries>)
   
   const sessionDates = new Set(
     sessions?.map(s => {
+      // Se já vier YYYY-MM-DD em date, usamos ele. Senão pegamos das timestamps.
+      if (s.date && !s.date.includes('T')) return s.date;
       const d = s.completed_at || s.created_at || s.endedAt || s.startedAt
       if (!d) return null
       const dateObj = new Date(d)
-      return isNaN(dateObj.getTime()) ? null : dateObj.toISOString().split('T')[0]
+      return isNaN(dateObj.getTime()) ? null : getLocalDateStr(dateObj)
     }).filter(Boolean) || []
   )
   
   let checkDate = new Date(now)
   while (true) {
-    const dateStr = checkDate.toISOString().split('T')[0]
+    const dateStr = getLocalDateStr(checkDate)
     if (sessionDates.has(dateStr)) {
       currentStreak++
       checkDate.setDate(checkDate.getDate() - 1)
@@ -77,12 +93,14 @@ export default function DashboardPage() {
   }
 
   // Calculate Daily Meta (Hardcoded 60 min for now)
-  const dailyGoalMinutes = 60
+  const dailyGoalMinutes = profile?.daily_goal_minutes || 120
+  const weeklyGoalMinutes = profile?.weekly_goal_minutes || 1200
   
   const todaySessions = sessions?.filter(s => {
+    if (s.date && !s.date.includes('T')) return s.date === todayStr;
     const d = s.completed_at || s.created_at || s.endedAt || s.startedAt
     if (!d) return false
-    return new Date(d).toISOString().split('T')[0] === todayStr
+    return getLocalDateStr(new Date(d)) === todayStr
   }) || []
   
   const studiedTodayMinutes = todaySessions.reduce((sum, s) => sum + (s.durationMinutes || Math.round((s.actualDurationSeconds || 0) / 60) || 0), 0)
@@ -90,131 +108,41 @@ export default function DashboardPage() {
 
   // Weekdays for dots
   const weekDays = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']
-  const todayDayIndex = now.getDay()
-  const displayWeek = [1, 2, 3, 4, 5, 6, 0].map(dayIndex => ({
-    label: weekDays[dayIndex],
-    isActive: sessionDates.has(
-      new Date(now.getTime() - (todayDayIndex >= dayIndex ? todayDayIndex - dayIndex : 7 - dayIndex + todayDayIndex) * 86400000).toISOString().split('T')[0]
-    )
-  }))
+  const currentDayOfWeek = now.getDay() === 0 ? 7 : now.getDay()
+  const monday = new Date(now)
+  monday.setDate(now.getDate() - (currentDayOfWeek - 1))
 
-  const handleStartTimer = async () => {
-    if (!selectedPlanId || !selectedSubjectId) return
-    const res = await startWithBinding(
-      { planId: selectedPlanId, subjectId: selectedSubjectId },
-      { mode: timerMode, forceSwitch: true }
-    )
-    if (res.ok) {
-      setIsMaximized(true)
-      setIsMobileTimerOpen(false)
+  const displayWeek = [1, 2, 3, 4, 5, 6, 7].map((d, index) => {
+    const dayDate = new Date(monday)
+    dayDate.setDate(monday.getDate() + index)
+    return {
+      label: weekDays[d === 7 ? 0 : d],
+      isActive: sessionDates.has(getLocalDateStr(dayDate))
     }
-  }
+  })
 
-  // Runtime info
-  const runtimeSubject = runtime ? getSubject(runtime.subjectId) : null
-
-  const quickTimerContent = (
-    <div className="space-y-5">
-      {/* Toggle Cronometro / Pomodoro */}
-      <div className="flex bg-gray-50 dark:bg-[#0a120d] border border-gray-200 dark:border-[#1e2e24] p-1 rounded-full text-xs font-bold transition-colors w-fit">
-        <button 
-          onClick={() => setTimerMode('cronometro')}
-          className={cn("px-4 py-2 rounded-full transition-colors", timerMode === 'cronometro' ? "bg-white dark:bg-[#1e2e24] text-gray-900 dark:text-white shadow-sm dark:shadow-none" : "text-gray-500 dark:text-white/40 hover:text-gray-700 dark:hover:text-white/70")}
-        >
-          Cronômetro
-        </button>
-        <button 
-          onClick={() => setTimerMode('pomodoro')}
-          className={cn("px-4 py-2 rounded-full transition-colors", timerMode === 'pomodoro' ? "bg-white dark:bg-[#1e2e24] text-gray-900 dark:text-white shadow-sm dark:shadow-none" : "text-gray-500 dark:text-white/40 hover:text-gray-700 dark:hover:text-white/70")}
-        >
-          Pomodoro
-        </button>
-      </div>
-
-      <div>
-        <p className="text-[10px] font-bold tracking-wider text-gray-500 dark:text-white/50 uppercase mb-2">Plano</p>
-        <Select value={selectedPlanId} onValueChange={setSelectedPlanId}>
-          <SelectTrigger className="w-full bg-gray-50 dark:bg-[#0a120d] border-gray-200 dark:border-[#1e2e24] text-gray-900 dark:text-white h-12 rounded-xl focus:ring-emerald-500/20 transition-colors">
-            <SelectValue placeholder="Selecione um plano" />
-          </SelectTrigger>
-          <SelectContent className="bg-white dark:bg-[#0a120d] border-gray-200 dark:border-[#1e2e24] text-gray-900 dark:text-white">
-            {activePlans.length > 0 ? activePlans.map(plan => (
-              <SelectItem key={plan.id} value={plan.id}>{plan.name || plan.title}</SelectItem>
-            )) : (
-              <SelectItem value="none" disabled>Nenhum plano ativo</SelectItem>
-            )}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div>
-        <p className="text-[10px] font-bold tracking-wider text-gray-500 dark:text-white/50 uppercase mb-2">Matéria</p>
-        <Select value={selectedSubjectId} onValueChange={setSelectedSubjectId}>
-          <SelectTrigger className="w-full bg-gray-50 dark:bg-[#0a120d] border-gray-200 dark:border-[#1e2e24] text-gray-900 dark:text-white h-12 rounded-xl focus:ring-emerald-500/20 transition-colors">
-            <SelectValue placeholder="Selecione uma matéria" />
-          </SelectTrigger>
-          <SelectContent className="bg-white dark:bg-[#0a120d] border-gray-200 dark:border-[#1e2e24] text-gray-900 dark:text-white">
-            {selectedPlanSubjects.map(sub => (
-              <SelectItem key={sub.id} value={sub.id}>
-                <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: sub.color || '#10b981' }} />
-                  <span className="truncate">{sub.name}</span>
-                </div>
-              </SelectItem>
-            ))}
-            {selectedPlanSubjects.length === 0 && (
-              <SelectItem value="none" disabled>Nenhuma matéria</SelectItem>
-            )}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="pt-2">
-        <Button 
-          onClick={handleStartTimer}
-          disabled={!selectedPlanId || !selectedSubjectId}
-          className="w-full rounded-full h-12 bg-emerald-500 hover:bg-emerald-600 dark:hover:bg-emerald-400 text-white dark:text-[#0f1b14] font-bold text-sm"
-        >
-          <Play className="w-5 h-5 mr-1.5" fill="currentColor" />
-          Iniciar agora
-        </Button>
-      </div>
-
-      {/* Sessão Atual */}
-      {runtime && (
-        <div className={cn("mt-4 p-4 rounded-xl border flex items-center justify-between transition-colors bg-emerald-500/10 border-emerald-500/20")}>
-          <div className="flex items-center gap-3">
-            <Activity className="w-4 h-4 text-emerald-500 animate-pulse" />
-            <div>
-              <p className="text-[10px] font-bold tracking-wider uppercase text-emerald-600 dark:text-emerald-500">Sessão Atual</p>
-              <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">
-                {runtimeSubject?.name || 'Matéria'} • {displayTimeLabel}
-              </p>
-            </div>
-          </div>
-          <span className="text-[10px] font-bold tracking-wider uppercase text-emerald-600 dark:text-emerald-500">
-            {phaseStateLabel}
-          </span>
-        </div>
-      )}
-    </div>
-  )
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden animate-in fade-in duration-500 bg-transparent md:bg-transparent">
       {/* Removemos o overflow do main no desktop, forçando a ser uma flex column */}
       <main className="flex-1 overflow-y-auto md:overflow-hidden p-4 md:p-6 pb-24 md:pb-6 flex flex-col min-h-0">
-        <div className="mx-auto w-full max-w-6xl flex-1 flex flex-col min-h-0">
+        <div className="mx-auto w-full max-w-[1600px] flex-1 flex flex-col min-h-0">
           
           {/* ================= MOBILE LAYOUT (< md) ================= */}
           <div className="md:hidden space-y-4">
             
-            {/* 2 Cols Cards */}
-            <div className="grid grid-cols-2 gap-4">
+            {/* 1 Col Cards */}
+            <div className="grid grid-cols-1 gap-4">
               {/* Meta Diária Mobile */}
               <Card className="bg-white dark:bg-[#0f1b14] border-gray-200 dark:border-[#1e2e24] shadow-sm dark:shadow-none overflow-hidden relative transition-colors">
                 <CardContent className="p-4 relative z-10">
-                  <p className="text-[10px] font-bold tracking-wider text-gray-500 dark:text-muted-foreground uppercase mb-1">Meta Diária</p>
+                  <div className="flex justify-between items-start mb-1">
+                    <p className="text-[10px] font-bold tracking-wider text-gray-500 dark:text-muted-foreground uppercase">Meta Diária</p>
+                    <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-500 text-[10px] font-bold border border-amber-500/20">
+                      <Flame className="w-3 h-3" />
+                      Constância: {currentStreak > 0 ? `${currentStreak} dias` : '0 dias'}
+                    </div>
+                  </div>
                   <div className="flex items-baseline gap-1 mb-2">
                     <span className="text-3xl font-black text-gray-900 dark:text-white">{dailyGoalMinutes}</span>
                     <span className="text-sm font-medium text-gray-500 dark:text-white/50">min</span>
@@ -235,40 +163,11 @@ export default function DashboardPage() {
                   </div>
                 </CardContent>
               </Card>
-
-              {/* Constância Mobile */}
-              <Card className="bg-white dark:bg-[#0f1b14] border-gray-200 dark:border-[#1e2e24] shadow-sm dark:shadow-none overflow-hidden transition-colors">
-                <CardContent className="p-4 flex flex-col justify-between h-full">
-                  <div>
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <Flame className="w-4 h-4 text-amber-500" />
-                      <p className="text-[10px] font-bold tracking-wider text-[#10b981] uppercase">Constância</p>
-                    </div>
-                    <div className="flex items-baseline gap-1 mb-4">
-                      <span className="text-3xl font-black text-gray-900 dark:text-white">{currentStreak}</span>
-                      <span className="text-sm font-medium text-gray-500 dark:text-white/50">dias</span>
-                    </div>
-                  </div>
-                  
-                  {/* Dots */}
-                  <div className="flex justify-between items-center gap-1 mt-auto pb-1">
-                    {[1,2,3,4,5,6,7].map((i) => (
-                      <div 
-                        key={i} 
-                        className={cn(
-                          "h-1.5 flex-1 rounded-full transition-colors",
-                          i <= Math.min(currentStreak, 7) ? "bg-amber-500" : "bg-gray-200 dark:bg-[#1e2e24]"
-                        )}
-                      />
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
             </div>
 
             {/* Stacked Links Mobile */}
             <div className="space-y-3 mt-6">
-              <button onClick={() => navigate('/schedules')} className="w-full flex items-center p-4 rounded-2xl bg-white dark:bg-[#0f1b14] border border-gray-200 dark:border-[#1e2e24] shadow-sm dark:shadow-none active:scale-[0.98] transition-all text-left">
+              <button onClick={() => setIsMobileScheduleOpen(true)} className="w-full flex items-center p-4 rounded-2xl bg-white dark:bg-[#0f1b14] border border-gray-200 dark:border-[#1e2e24] shadow-sm dark:shadow-none active:scale-[0.98] transition-all text-left">
                 <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center mr-4 shrink-0">
                   <BookOpen className="w-5 h-5 text-emerald-500" />
                 </div>
@@ -305,28 +204,7 @@ export default function DashboardPage() {
 
 
           {/* ================= DESKTOP LAYOUT (>= md) ================= */}
-          <div className="hidden md:flex flex-col flex-1 min-h-0">
-            {/* Top Right Floating Constância */}
-            <div className="flex justify-end mb-4 shrink-0">
-              <div className="inline-flex items-center gap-3 px-4 py-2 rounded-2xl bg-white dark:bg-[#0f1b14] border border-gray-200 dark:border-[#1e2e24] shadow-sm dark:shadow-none transition-colors">
-                <Flame className="w-5 h-5 text-amber-500" />
-                <div>
-                  <p className="text-[10px] font-bold tracking-wider text-[#10b981] uppercase leading-none">Constância</p>
-                  <p className="text-sm font-bold text-gray-900 dark:text-white leading-none mt-1">{currentStreak} dias</p>
-                </div>
-                <div className="flex gap-1.5 ml-2">
-                  {[1,2,3,4,5,6,7].map((i) => (
-                    <div 
-                      key={i} 
-                      className={cn(
-                        "w-2 h-2 rounded-full transition-colors",
-                        i <= Math.min(currentStreak, 7) ? "bg-amber-500" : "bg-gray-200 dark:bg-[#1e2e24]"
-                      )}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
+          <div className="hidden md:flex flex-col flex-1 min-h-0 pt-4">
 
             <div className="grid grid-cols-12 gap-6 flex-1 min-h-0">
               
@@ -345,12 +223,12 @@ export default function DashboardPage() {
                         </div>
                         <p className="text-xs text-gray-500 dark:text-white/50 mt-1">{studiedTodayMinutes} estudados hoje</p>
                       </div>
-                      <div className="text-right">
-                        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 text-xs font-medium border border-emerald-500/20">
-                          <Clock className="w-3.5 h-3.5" />
-                          {currentStreak > 0 ? `${currentStreak} dias` : '0 dias'}
+                      <div className="text-right flex flex-col items-end">
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-500 text-xs font-bold border border-amber-500/20">
+                          <Flame className="w-3.5 h-3.5" />
+                          Constância: {currentStreak > 0 ? `${currentStreak} dias` : '0 dias'}
                         </div>
-                        <p className="text-[10px] text-gray-400 dark:text-white/30 mt-2">meta semanal: {Math.round((dailyGoalMinutes*7)/60)}h</p>
+                        <p className="text-[10px] text-gray-400 dark:text-white/30 mt-2">meta semanal: {formatMinutesCompact(weeklyGoalMinutes)}</p>
                       </div>
                     </div>
 
@@ -398,56 +276,89 @@ export default function DashboardPage() {
                   <CardContent className="p-6 pt-4 flex-1 flex flex-col min-h-0">
                     <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6 shrink-0">Cronograma do Dia</h3>
 
-                    {/* Tabs Planos */}
+                    {/* Tabs Planos que têm aulas hoje */}
                     <div className="flex gap-4 border-b border-gray-200 dark:border-[#1e2e24] mb-6 pb-2 overflow-x-auto no-scrollbar shrink-0">
-                      {activePlans.length > 0 ? activePlans.map(plan => (
-                        <button 
-                          key={plan.id}
-                          onClick={() => setActiveTab(plan.id)}
-                          className={cn(
-                            "text-[10px] font-bold tracking-wider uppercase pb-2 px-1 relative transition-colors whitespace-nowrap",
-                            activeTab === plan.id ? "text-emerald-600 dark:text-emerald-500" : "text-gray-400 hover:text-gray-600 dark:text-white/30 dark:hover:text-white/50"
-                          )}
-                        >
-                          {plan.name || plan.title}
-                          {activeTab === plan.id && (
-                            <div className="absolute bottom-[-9px] left-0 right-0 h-0.5 bg-emerald-500 rounded-full" />
-                          )}
-                        </button>
-                      )) : (
-                        <span className="text-[10px] font-bold tracking-wider uppercase text-gray-400 dark:text-white/30">Nenhum plano ativo</span>
+                      {Object.keys(entriesByPlan).length > 0 ? Object.keys(entriesByPlan).map(planId => {
+                        const plan = activePlans.find(p => p.id === planId) || { id: planId, name: 'Sem Plano' }
+                        return (
+                          <button 
+                            key={planId}
+                            onClick={() => setActiveTab(planId)}
+                            className={cn(
+                              "text-[10px] font-bold tracking-wider uppercase pb-2 px-1 relative transition-colors whitespace-nowrap",
+                              activeTab === planId ? "text-emerald-600 dark:text-emerald-500" : "text-gray-400 hover:text-gray-600 dark:text-white/30 dark:hover:text-white/50"
+                            )}
+                          >
+                            {plan.name || plan.title}
+                            {activeTab === planId && (
+                              <div className="absolute bottom-[-9px] left-0 right-0 h-0.5 bg-emerald-500 rounded-full" />
+                            )}
+                          </button>
+                        )
+                      }) : (
+                        <span className="text-[10px] font-bold tracking-wider uppercase text-gray-400 dark:text-white/30">Nenhuma aula agendada para hoje</span>
                       )}
                     </div>
 
-                    {/* List Subjects */}
-                    <div className="space-y-3 flex-1 overflow-y-auto pr-2">
-                      {activePlans.length > 0 && activeTabSubjects.map((sub, i) => {
-                        const targetMins = sub.target_hours_per_week ? Math.round(sub.target_hours_per_week*60/7) : 60;
-                        const studiedMins = todaySessions
-                          .filter(s => s.subjectId === sub.id || s.subject_id === sub.id)
-                          .reduce((sum, s) => sum + (s.durationMinutes || Math.round((s.actualDurationSeconds || 0) / 60) || 0), 0);
-                        
-                        return (
-                          <div key={i} className="flex items-center justify-between p-4 rounded-xl bg-gray-50 dark:bg-[#0a120d] border border-gray-200 dark:border-[#1e2e24] group hover:border-emerald-500/30 transition-colors">
-                            <div className="flex items-center gap-3">
-                              <div className={cn("w-3 h-3 rounded-full")} style={{ backgroundColor: sub.color || '#10b981' }} />
-                              <div>
-                                <p className="font-bold text-gray-900 dark:text-white text-sm">{sub.name}</p>
-                                <p className="text-[10px] text-gray-500 dark:text-white/40 font-medium">Meta: {targetMins}m - Estudado: {studiedMins}m</p>
+                    {/* List Scheduled Entries */}
+                    <div className="space-y-3 flex-1 overflow-y-auto no-scrollbar">
+                      {Object.keys(entriesByPlan).length > 0 ? (
+                        (() => {
+                          const entriesToShow = activeTab && entriesByPlan[activeTab] 
+                            ? entriesByPlan[activeTab] 
+                            : Object.values(entriesByPlan).flat()
+                          
+                          return entriesToShow.length > 0 ? entriesToShow.map((entry, i) => {
+                            const subject = getSubject(entry.subjectId)
+                            const studiedMins = todaySessions
+                              .filter(s => s.subjectId === entry.subjectId || s.subject_id === entry.subjectId)
+                              .reduce((sum, s) => sum + (s.durationMinutes || Math.round((s.actualDurationSeconds || 0) / 60) || 0), 0)
+                            const plannedMins = entry.plannedMinutes || 60
+                            const isDone = entry.completed || studiedMins >= plannedMins
+                            
+                            return (
+                              <div key={entry.id || i} className={cn(
+                                "flex items-center justify-between p-3 rounded-xl transition-colors",
+                                isDone 
+                                  ? "bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20"
+                                  : "bg-gray-50 dark:bg-[#0a120d] border border-gray-200 dark:border-[#1e2e24] hover:border-emerald-500/30"
+                              )}>
+                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                  <div className={cn("w-3 h-3 rounded-full shrink-0")} style={{ backgroundColor: subject?.color || '#10b981' }} />
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <p className={cn('truncate text-sm font-bold', isDone ? 'text-gray-400 dark:text-white/40 line-through' : 'text-gray-900 dark:text-white')}>
+                                        {subject?.name || 'Matéria'}
+                                      </p>
+                                      {entry.startTime ? (
+                                        <span className="rounded-full bg-gray-200 dark:bg-[#1e2e24] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-gray-500 dark:text-white/40 shrink-0">
+                                          {entry.startTime}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                    <p className="mt-0.5 text-[10px] text-gray-500 dark:text-white/40">
+                                      Meta: {plannedMins}m • Estudado: {studiedMins}m
+                                    </p>
+                                  </div>
+                                </div>
+                                <button 
+                                  onClick={() => navigate(`/timer?planId=${entry.planId || activeTab}&subjectId=${entry.subjectId}`)}
+                                  className="w-10 h-10 rounded-full bg-gray-200 dark:bg-[#1e2e24] flex items-center justify-center text-gray-500 dark:text-white/50 group-hover:bg-emerald-500 group-hover:text-white dark:group-hover:text-[#0f1b14] transition-colors shrink-0"
+                                >
+                                  <Play className="w-4 h-4 ml-0.5" fill="currentColor" />
+                                </button>
                               </div>
+                            )
+                          }) : (
+                            <div className="text-center py-6 text-gray-400 dark:text-white/30 text-sm">
+                              {activeTab ? 'Nenhuma aula agendada para hoje neste plano.' : 'Nenhuma aula agendada para hoje.'}
                             </div>
-                            <button 
-                              onClick={() => navigate(`/timer?planId=${activeTab}&subjectId=${sub.id}`)}
-                              className="w-10 h-10 rounded-full bg-gray-200 dark:bg-[#1e2e24] flex items-center justify-center text-gray-500 dark:text-white/50 group-hover:bg-emerald-500 group-hover:text-white dark:group-hover:text-[#0f1b14] transition-colors shrink-0"
-                            >
-                              <Play className="w-4 h-4 ml-0.5" fill="currentColor" />
-                            </button>
-                          </div>
-                        )
-                      })}
-                      
-                      {activePlans.length > 0 && activeTabSubjects.length === 0 && (
-                        <div className="text-center py-6 text-gray-400 dark:text-white/30 text-sm">Nenhuma matéria para hoje neste plano.</div>
+                          )
+                        })()
+                      ) : (
+                        <div className="text-center py-6 text-gray-400 dark:text-white/30 text-sm">
+                          Nenhuma aula agendada para hoje. Acesse o Cronograma para planejar.
+                        </div>
                       )}
                     </div>
 
@@ -465,41 +376,32 @@ export default function DashboardPage() {
               <div className="col-span-5 flex flex-col gap-6 min-h-0">
                 
                 {/* Timer Rápido Card */}
-                <Card className="bg-white dark:bg-[#0f1b14] border-gray-200 dark:border-[#1e2e24] shadow-sm dark:shadow-none transition-colors shrink-0">
-                  <CardHeader className="p-6 pb-2">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Clock className="w-5 h-5 text-emerald-600 dark:text-[#10b981]" />
-                      <p className="text-[10px] font-bold tracking-wider text-emerald-600 dark:text-[#10b981] uppercase">Timer Rápido</p>
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">Começar matéria do plano</h3>
-                    <p className="text-xs text-gray-500 dark:text-white/50 font-medium mt-1">Escolha um plano, selecione a matéria e inicie em um toque.</p>
-                  </CardHeader>
-                  <CardContent className="p-6 pt-4">
-                    {quickTimerContent}
-                  </CardContent>
-                </Card>
+                <QuickPlanTimerCard plans={activePlans} className="flex-1 hidden lg:flex shrink-0 border-gray-200 dark:border-[#1e2e24] bg-white dark:bg-[#0f1b14]" />
 
                 {/* Planos Ativos Card */}
                 <Card className="bg-white dark:bg-[#0f1b14] border-gray-200 dark:border-[#1e2e24] shadow-sm dark:shadow-none flex-1 flex flex-col min-h-0 transition-colors">
-                  <CardHeader className="p-6 pb-4 shrink-0">
-                    <div className="flex items-center gap-2 mb-2">
+                  <CardHeader className="p-5 pb-3 shrink-0">
+                    <div className="flex items-center gap-2 mb-1">
                       <Target className="w-5 h-5 text-emerald-600 dark:text-[#10b981]" />
                       <p className="text-[10px] font-bold tracking-wider text-emerald-600 dark:text-[#10b981] uppercase">Planos Ativos</p>
                     </div>
                     <h3 className="text-xl font-bold text-gray-900 dark:text-white">Seus Planos de Estudos</h3>
-                    <p className="text-xs text-gray-500 dark:text-white/50 font-medium mt-1">Acompanhe seus cronogramas principais em poucos cliques.</p>
                   </CardHeader>
-                  <CardContent className="p-6 pt-0 flex-1 flex flex-col min-h-0">
+                  <CardContent className="p-5 pt-0 flex-1 flex flex-col min-h-0">
                     <div className="space-y-3 flex-1 overflow-y-auto pr-2">
                       {activePlans.length === 0 ? (
                         <div className="text-center py-6 text-gray-400 dark:text-white/30 text-sm">Nenhum plano ativo.</div>
                       ) : (
                         activePlans.map(plan => (
-                          <div key={plan.id} className="flex items-center justify-between p-4 rounded-xl bg-gray-50 dark:bg-[#0a120d] border border-gray-200 dark:border-[#1e2e24] hover:border-emerald-500/30 transition-colors cursor-pointer" onClick={() => navigate(`/plans/${plan.id}`)}>
+                          <div key={plan.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-[#0a120d] border border-gray-200 dark:border-[#1e2e24] hover:border-emerald-500/30 transition-colors cursor-pointer" onClick={() => navigate(`/plans/${plan.id}`)}>
                             <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 rounded-full bg-blue-500/10 dark:bg-blue-500/20 flex items-center justify-center shrink-0">
-                                <Target className="w-5 h-5 text-blue-600 dark:text-blue-500" />
-                              </div>
+                              {plan.imageUrl ? (
+                                <img src={plan.imageUrl} alt={plan.name || plan.title} className="w-10 h-10 rounded-full object-cover shrink-0" />
+                              ) : (
+                                <div className="w-10 h-10 rounded-full bg-blue-500/10 dark:bg-blue-500/20 flex items-center justify-center shrink-0">
+                                  <Target className="w-5 h-5 text-blue-600 dark:text-blue-500" />
+                                </div>
+                              )}
                               <div className="min-w-0">
                                 <p className="font-bold text-gray-900 dark:text-white text-base truncate">{plan.name || plan.title}</p>
                                 <p className="text-xs text-gray-500 dark:text-white/50 font-medium truncate">{plan.examName ? 'Concurso' : 'Plano'} - {plan.name || plan.title}</p>
@@ -532,15 +434,93 @@ export default function DashboardPage() {
 
       {/* Mobile Drawer for Quick Timer */}
       <Drawer open={isMobileTimerOpen} onOpenChange={setIsMobileTimerOpen}>
-        <DrawerContent className="bg-white dark:bg-[#0f1b14] p-6 pb-12 border-gray-200 dark:border-[#1e2e24]">
-          <div className="mb-6">
-            <div className="flex items-center gap-2 mb-2">
-              <Clock className="w-5 h-5 text-emerald-600 dark:text-[#10b981]" />
-              <p className="text-[10px] font-bold tracking-wider text-emerald-600 dark:text-[#10b981] uppercase">Timer Rápido</p>
+        <DrawerContent className="bg-white dark:bg-[#0f1b14] p-0 border-gray-200 dark:border-[#1e2e24]">
+          <QuickPlanTimerCard 
+            plans={activePlans} 
+            className="border-0 shadow-none bg-transparent dark:bg-transparent rounded-none p-6 pb-12" 
+            onStart={() => setIsMobileTimerOpen(false)}
+          />
+        </DrawerContent>
+      </Drawer>
+
+      {/* Mobile Drawer for Day Schedule */}
+      <Drawer open={isMobileScheduleOpen} onOpenChange={setIsMobileScheduleOpen}>
+        <DrawerContent className="bg-white dark:bg-[#0f1b14] p-0 border-gray-200 dark:border-[#1e2e24]">
+          <div className="p-6 pb-12">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Cronograma de Hoje</h2>
+              <p className="text-sm text-gray-500 dark:text-white/50">
+                {now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+              </p>
             </div>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white">Começar matéria do plano</h3>
+            
+            {Object.keys(entriesByPlan).length > 0 ? (
+              Object.keys(entriesByPlan).map(planId => {
+                const plan = activePlans.find(p => p.id === planId) || { id: planId, name: 'Sem Plano' }
+                const entries = entriesByPlan[planId]
+                return (
+                  <div key={planId} className="mb-6">
+                    <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                      {plan.name || plan.title} ({entries.length} aulas)
+                    </h3>
+                    <div className="space-y-2">
+                      {entries.map((entry, i) => {
+                        const subject = getSubject(entry.subjectId)
+                        const studiedMins = todaySessions
+                          .filter(s => s.subjectId === entry.subjectId || s.subject_id === entry.subjectId)
+                          .reduce((sum, s) => sum + (s.durationMinutes || Math.round((s.actualDurationSeconds || 0) / 60) || 0), 0)
+                        const plannedMins = entry.plannedMinutes || 60
+                        const isDone = entry.completed || studiedMins >= plannedMins
+                        
+                        return (
+                          <button
+                            key={entry.id || i}
+                            onClick={() => {
+                              navigate(`/timer?planId=${entry.planId || planId}&subjectId=${entry.subjectId}`)
+                              setIsMobileScheduleOpen(false)
+                            }}
+                            className={cn(
+                              "w-full flex items-center justify-between p-3 rounded-xl transition-colors text-left",
+                              isDone
+                                ? "bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20"
+                                : "bg-gray-50 dark:bg-[#0a120d] border border-gray-200 dark:border-[#1e2e24] hover:border-emerald-500/30"
+                            )}
+                          >
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <div className={cn("w-3 h-3 rounded-full shrink-0")} style={{ backgroundColor: subject?.color || '#10b981' }} />
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <p className={cn('truncate text-sm font-bold', isDone ? 'text-gray-400 dark:text-white/40 line-through' : 'text-gray-900 dark:text-white')}>
+                                    {subject?.name || 'Matéria'}
+                                  </p>
+                                  {entry.startTime ? (
+                                    <span className="rounded-full bg-gray-200 dark:bg-[#1e2e24] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-gray-500 dark:text-white/40 shrink-0">
+                                      {entry.startTime}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <p className="mt-0.5 text-[10px] text-gray-500 dark:text-white/40">
+                                  Meta: {plannedMins}m • Estudado: {studiedMins}m
+                                </p>
+                              </div>
+                            </div>
+                            <Play className="w-5 h-5 text-emerald-600 dark:text-emerald-500 shrink-0 ml-2" />
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })
+            ) : (
+              <div className="text-center py-12 text-gray-400 dark:text-white/30">
+                <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p className="text-sm">Nenhuma aula agendada para hoje</p>
+                <p className="text-xs mt-1">Acesse o Cronograma para planejar seus estudos</p>
+              </div>
+            )}
           </div>
-          {quickTimerContent}
         </DrawerContent>
       </Drawer>
     </div>

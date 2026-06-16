@@ -9,6 +9,8 @@ import { UserProfilePanel } from '@/components/UserProfilePanel';
 import { UserNotificationsPanel } from '@/components/UserNotificationsPanel';
 import { CompactTimerPlayer } from '@/components/generic/compact-timer-player';
 import { FullscreenTimerPlayer } from '@/components/generic/fullscreen-timer-player';
+import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
+import { useGoalEvolution } from '@/hooks/useGoalEvolution';
 
 function getMobileTitle(pathname: string) {
   if (pathname === '/') return 'Dashboard';
@@ -34,14 +36,14 @@ function MobileHeader({
   const { toggleSidebar } = useSidebar();
 
   return (
-    <header className="fixed inset-x-0 top-0 z-40 grid h-16 grid-cols-[auto,1fr,auto] items-center border-b border-white/10 bg-[#0d1710] px-3 shadow-[0_12px_28px_rgba(0,0,0,0.12)] backdrop-blur md:hidden">
+    <header className="fixed inset-x-0 top-0 z-40 grid h-16 grid-cols-[auto,1fr,auto] items-center border-b border-border/50 rounded-b-[24px] bg-background px-3 shadow-sm backdrop-blur md:hidden">
       <img
         src="/bora-estudar-mark-new.png"
         alt="Bora-Estudar"
         className="h-14 w-auto max-w-[176px] justify-self-start object-contain"
       />
 
-      <div className="pointer-events-none justify-self-center text-sm font-black tracking-wide text-white">
+      <div className="pointer-events-none justify-self-center text-sm font-black tracking-wide text-foreground">
         {title}
       </div>
 
@@ -49,7 +51,7 @@ function MobileHeader({
         <button
           type="button"
           onClick={onOpenNotifications}
-          className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/85 transition-colors hover:bg-white/10 hover:text-white"
+          className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border/50 bg-secondary/30 text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground"
           aria-label="Abrir notificações"
         >
           <Bell className="h-5 w-5" />
@@ -58,7 +60,7 @@ function MobileHeader({
         <button
           type="button"
           onClick={toggleSidebar}
-          className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/85 transition-colors hover:bg-white/10 hover:text-white"
+          className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border/50 bg-secondary/30 text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground"
           aria-label="Abrir sidebar"
         >
           <Menu className="h-5 w-5" />
@@ -75,12 +77,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const isDashboard = pathname === '/';
   const mobileTitle = getMobileTitle(pathname);
 
+  useGoalEvolution();
+
   return (
     <SidebarProvider style={{ '--sidebar-width-icon': '5.5rem' } as React.CSSProperties}>
       <div className="workspace-shell h-screen w-screen overflow-hidden">
-        <MobileHeader title={mobileTitle} onOpenNotifications={() => setIsNotificationsOpen(true)} />
+        {!pathname.startsWith('/profile') && (
+          <MobileHeader title={mobileTitle} onOpenNotifications={() => setIsNotificationsOpen(true)} />
+        )}
 
-        <div className="relative flex h-full w-full overflow-hidden bg-background md:bg-[#0d1710] md:p-3 transition-colors duration-500">
+        <div className="relative flex h-full w-full overflow-hidden bg-background md:bg-background md:p-3 transition-colors duration-500">
           {/* Efeitos de luz / glow no fundo */}
           <div className="absolute left-0 top-[15%] h-[350px] w-[350px] rounded-full bg-emerald-500/15 blur-[120px] pointer-events-none hidden md:block opacity-60 dark:opacity-100" />
           <div className="absolute left-[-5%] bottom-[10%] h-[250px] w-[250px] rounded-full bg-emerald-600/15 blur-[100px] pointer-events-none hidden md:block opacity-60 dark:opacity-100" />
@@ -91,8 +97,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <main
               className={
                 isDashboard
-                  ? 'workspace-canvas flex-1 overflow-y-auto px-4 pb-24 pt-20 sm:px-6 sm:pb-4 sm:pt-20 md:bg-background md:rounded-[2rem] md:shadow-2xl md:ring-1 md:ring-white/5 md:overflow-hidden md:pb-4 md:pt-4 lg:px-8 lg:pt-6'
-                  : 'workspace-canvas flex-1 overflow-auto px-4 pb-24 pt-20 sm:px-6 sm:pb-6 sm:pt-20 md:bg-background md:rounded-[2rem] md:shadow-2xl md:ring-1 md:ring-white/5 md:pt-4 lg:px-8 lg:pt-8'
+                  ? 'workspace-canvas flex-1 overflow-y-auto px-4 pb-24 pt-20 sm:px-6 sm:pb-4 sm:pt-20 md:bg-background md:rounded-[2rem] md:shadow-2xl md:ring-1 md:ring-border/50 md:overflow-hidden md:pb-4 md:pt-4 lg:px-8 lg:pt-6'
+                  : 'workspace-canvas flex-1 overflow-auto px-4 pb-24 pt-20 sm:px-6 sm:pb-6 sm:pt-20 md:bg-background md:rounded-[2rem] md:shadow-2xl md:ring-1 md:ring-border/50 md:pt-4 lg:px-8 lg:pt-8'
               }
               style={{ overflowAnchor: 'none' }}
             >
@@ -108,6 +114,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <UserNotificationsPanel isOpen={isNotificationsOpen} onClose={() => setIsNotificationsOpen(false)} />
       <CompactTimerPlayer variant="floating" />
       <FullscreenTimerPlayer />
+      <OnboardingWizard />
     </SidebarProvider>
   );
 }
