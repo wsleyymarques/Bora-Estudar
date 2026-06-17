@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, LogOut, Palette, Save, User, Target, Clock, Calendar, FileText, Shield, Settings, Bell, LayoutDashboard, Lock, Edit2, Mail, UserCheck, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, LogOut, Palette, Save, User, Target, Clock, Calendar, FileText, Shield, Settings, Bell, LayoutDashboard, Lock, Edit2, Mail, UserCheck, Eye, EyeOff, AlertCircle, ChevronLeft } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useStudy } from '@/contexts/StudyContext';
 import { useAppTheme } from '@/contexts/AppThemeContext';
@@ -56,7 +56,31 @@ export default function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>('perfil');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get('tab') as TabKey | null;
 
+  // Determine if we're showing a specific tab content on mobile
+  const mobileTabContent = urlTab && tabs.some(t => t.key === urlTab) ? urlTab : null;
+
+  // Sync activeTab with URL tab param
+  useEffect(() => {
+    if (mobileTabContent && activeTab !== mobileTabContent) {
+      setActiveTab(mobileTabContent);
+    }
+  }, [mobileTabContent, activeTab]);
+
+  // Update URL when activeTab changes (only on mobile)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      if (activeTab !== 'perfil') {
+        setSearchParams({ tab: activeTab });
+      } else {
+        setSearchParams({});
+      }
+    }
+  }, [activeTab, setSearchParams]);
+
+  const hasTemplates = templates.length > 0;
   const [dailyGoalHours, setDailyGoalHours] = useState(2);
   const [dailyGoalMinutes, setDailyGoalMinutes] = useState(0);
   const [weeklyGoalHours, setWeeklyGoalHours] = useState(20);
@@ -71,13 +95,12 @@ export default function ProfilePage() {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   // Delete account dialog state
-  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
-  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+    const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+    const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
-  // Privacy document inline view state
+    // Privacy document inline view state
   const [privacyDocView, setPrivacyDocView] = useState<'list' | 'privacy-policy' | 'terms-of-use'>('list');
 
-  const hasTemplates = templates.length > 0;
   const userEmail = user?.email || '';
   const sessionsCount = data.sessions.length;
   const subjectsCount = data.subjects.length;
@@ -885,129 +908,113 @@ export default function ProfilePage() {
         return null;
     }
   };
-
   return (
     <>
-      {/* MOBILE VIEW - unchanged */}
-      <div className="md:hidden flex flex-col min-h-screen bg-background relative -mx-4 -mt-20">
-        <div className="flex items-center gap-4 px-6 pt-6 pb-6 border-b border-border/10 bg-card">
-          <div className="relative shrink-0">
-            <Avatar className="h-16 w-16 bg-primary/20 text-primary border-2 border-primary shadow-lg">
-              <AvatarImage src={avatarUrlInput || user?.user_metadata?.avatar_url || undefined} className="object-cover" />
-              <AvatarFallback className="bg-primary/20 text-primary flex items-center justify-center">
-                <User className="h-8 w-8" fill="currentColor" />
-              </AvatarFallback>
-            </Avatar>
-            <ImageUpload
-              value={avatarUrlInput}
-              onChange={(url) => {
-                setAvatarUrlInput(url);
-                handleSave(userName, url);
-              }}
-              bucket="study-plan-images"
-              folder="avatars"
-              variant="icon"
-              className="absolute -bottom-1 -right-1 z-10 scale-75"
-            />
-          </div>
-          <div className="flex flex-col min-w-0">
-            <h2 className="text-base font-bold text-foreground truncate">{userName}</h2>
-            <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto py-6 pb-32">
-          <div className="mb-6">
-            <h3 className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-6 mb-3">Perfil</h3>
-            <div className="px-4 space-y-2">
-              <button 
-                onClick={() => navigate('/profile/data')}
-                className="w-full flex items-center gap-4 p-4 rounded-2xl bg-card border border-border/50 hover:bg-secondary/40 transition-colors text-left group"
+      {/* MOBILE VIEW - Menu or Tab Content */}
+      <div className="md:hidden min-h-screen bg-background flex flex-col">
+        {/* If mobileTabContent is set, show that tab's content full-screen */}
+        {mobileTabContent && (
+          <div className="flex flex-col min-h-screen">
+            {/* Header with back button */}
+            <header className="flex items-center gap-3 px-4 py-3 border-b border-border/50 bg-background/95 backdrop-blur-sm sticky top-0 z-10">
+              <button
+                onClick={() => { window.location.href = '/profile'; }}
+                className="flex items-center justify-center w-10 h-10 rounded-xl text-muted-foreground hover:bg-secondary/50 transition-colors"
+                aria-label="Voltar ao menu"
               >
-                <User className="w-5 h-5 text-primary shrink-0" />
-                <div className="flex flex-col">
-                  <span className="text-[13px] font-bold text-foreground group-hover:text-primary transition-colors">Meus dados</span>
-                  <span className="text-[11px] font-medium text-muted-foreground mt-0.5">Informações do seu perfil</span>
-                </div>
+                <ChevronLeft className="w-6 h-6" />
               </button>
+              <h1 className="text-lg font-black tracking-tight text-foreground flex-1">
+                {tabs.find(t => t.key === mobileTabContent)?.label}
+              </h1>
+              <div className="w-10" />
+            </header>
+
+            {/* Tab Content - Full screen */}
+            <main className="flex-1 overflow-y-auto p-4 pb-24">
+              {renderTabContent()}
+            </main>
+          </div>
+        )}
+
+        {/* Otherwise show the menu */}
+        {!mobileTabContent && (
+          <div className="min-h-screen bg-background flex flex-col">
+            {/* Header */}
+            <header className="pt-1 pb-2 px-4 border-b border-border/50 bg-background/95 backdrop-blur-sm sticky top-0 z-10">
+              <h1 className="text-lg font-black tracking-tight text-foreground">Configurações</h1>
+              <p className="text-xs text-muted-foreground mt-1">Gerencie sua conta e preferências</p>
+            </header>
+
+            {/* User Profile */}
+            <div className="p-3 border-b border-border/50">
+              <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-card border border-border/50">
+                <Avatar className="h-10 w-10 bg-primary/20 text-primary border-2 border-primary">
+                  <AvatarImage src={avatarUrlInput || user?.user_metadata?.avatar_url || undefined} className="object-cover" />
+                  <AvatarFallback className="bg-primary/20 text-primary flex items-center justify-center">
+                    <User className="h-5 w-5" fill="currentColor" />
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-bold text-foreground truncate">{userName}</h3>
+                  <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Nav Sections - Full screen menu */}
+            <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto" role="navigation" aria-label="Configurações do perfil">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setSearchParams({ tab: tab.key })}
+                  className={cn(
+                    'w-full px-3 py-3 rounded-xl text-left transition-all',
+                    activeTab === tab.key
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className={cn(
+                      'flex h-9 w-9 items-center justify-center rounded-lg shrink-0 transition-colors',
+                      activeTab === tab.key
+                        ? 'bg-primary/20 text-primary-foreground'
+                        : 'text-muted-foreground'
+                    )}>
+                      {tab.icon}
+                    </span>
+                    <div className="flex-1 min-w-0 text-sm">
+                      <span className={cn('font-bold truncate block', activeTab === tab.key ? 'text-primary-foreground' : '')}>
+                        {tab.label}
+                      </span>
+                      <span className={cn('text-[11px] font-medium truncate block', activeTab === tab.key ? 'text-primary-foreground/80' : 'text-muted-foreground/70')}>
+                        {tab.description}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </nav>
+
+            {/* Logout */}
+            <button
+              onClick={() => logout()}
+              className="w-full p-3 border-t border-border/50 text-red-500 hover:bg-red-500/10 rounded-xl text-left transition-colors mx-2 mb-4"
+            >
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg text-red-500 shrink-0">
+              <LogOut className="w-5 h-5" />
+            </span>
+            <div className="flex-1 min-w-0 text-sm">
+              <span className="font-bold truncate block">Sair da conta</span>
+              <span className="text-[11px] font-medium truncate block text-muted-foreground/70">Encerrar sessão atual</span>
             </div>
           </div>
-
-          <div className="mb-6">
-            <h3 className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-6 mb-3">Aparência</h3>
-            <div className="px-4 space-y-2">
-              <button 
-                onClick={() => navigate('/profile/theme')}
-                className="w-full flex items-center gap-4 p-4 rounded-2xl bg-card border border-border/50 hover:bg-secondary/40 transition-colors text-left group"
-              >
-                <Palette className="w-5 h-5 text-primary shrink-0" />
-                <div className="flex flex-col">
-                  <span className="text-[13px] font-bold text-foreground group-hover:text-primary transition-colors">Tema e modo</span>
-                  <span className="text-[11px] font-medium text-muted-foreground mt-0.5">Personalize a aparência</span>
-                </div>
-              </button>
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <h3 className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-6 mb-3">Metas de Estudo</h3>
-            <div className="px-4 space-y-2">
-              <button 
-                onClick={() => navigate('/profile/goals')}
-                className="w-full flex items-center gap-4 p-4 rounded-2xl bg-card border border-border/50 hover:bg-secondary/40 transition-colors text-left group"
-              >
-                <Target className="w-5 h-5 text-primary shrink-0" />
-                <div className="flex flex-col">
-                  <span className="text-[13px] font-bold text-foreground group-hover:text-primary transition-colors">Metas de Estudo</span>
-                  <span className="text-[11px] font-medium text-muted-foreground mt-0.5">Defina suas metas diárias e semanais</span>
-                </div>
-              </button>
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <h3 className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-6 mb-3">Conta</h3>
-            <div className="px-4 space-y-2">
-              <button 
-                onClick={() => navigate('/profile/account')}
-                className="w-full flex items-center gap-4 p-4 rounded-2xl bg-card border border-border/50 hover:bg-secondary/40 transition-colors text-left group"
-              >
-                <Settings className="w-5 h-5 text-primary shrink-0" />
-                <div className="flex flex-col">
-                  <span className="text-[13px] font-bold text-foreground group-hover:text-primary transition-colors">Configurações da conta</span>
-                  <span className="text-[11px] font-medium text-muted-foreground mt-0.5">Estatísticas e segurança</span>
-                </div>
-              </button>
-              <button 
-                onClick={() => logout()}
-                className="w-full flex items-center gap-4 p-4 rounded-2xl bg-card border border-border/50 hover:bg-red-500/10 transition-colors text-left group"
-              >
-                <LogOut className="w-5 h-5 text-red-500 shrink-0" />
-                <div className="flex flex-col">
-                  <span className="text-[13px] font-bold text-red-500 group-hover:text-red-400 transition-colors">Sair da conta</span>
-                  <span className="text-[11px] font-medium text-muted-foreground mt-0.5">Encerrar sessão no dispositivo</span>
-                </div>
-              </button>
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <h3 className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-6 mb-3">Privacidade</h3>
-            <div className="px-4 space-y-2">
-              <button 
-                onClick={() => { setActiveTab('privacidade'); navigate('/profile'); }}
-                className="w-full flex items-center gap-4 p-4 rounded-2xl bg-card border border-border/50 hover:bg-secondary/40 transition-colors text-left group"
-              >
-                <Shield className="w-5 h-5 text-primary shrink-0" />
-                <div className="flex flex-col">
-                  <span className="text-[13px] font-bold text-foreground group-hover:text-primary transition-colors">Privacidade e Termos</span>
-                  <span className="text-[11px] font-medium text-muted-foreground mt-0.5">Políticas e tratamento de dados</span>
-                </div>
-              </button>
-            </div>
-          </div>
-        </div>
+        </button>
       </div>
+    )}
+    </div>
 
       {/* DESKTOP VIEW - NEW LAYOUT */}
       <div className="hidden md:flex h-screen w-full overflow-hidden">
